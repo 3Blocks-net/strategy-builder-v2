@@ -25,16 +25,29 @@ StrategyBuilderVaultFactory  (Ownable, NOT upgradeable)
     │  stores feeRegistry + priceOracle → forwarded to every new vault
     └─ deploys ERC1967Proxy instances via CREATE2
            │  proxy.implementation = StrategyBuilderVault
-           └─ per-user isolated storage
+           └─ per-user isolated storage (incl. _feeChainEid)
 
 FeeRegistry  (Ownable, NOT upgradeable)
+    │  constructor(bool isProtocolTokenHub_)  ← true on BSC only
     │  stores per-action fee rates
     │  holds vaultDeposits + claimable balances
-    └─ called by vaults at end of execution
+    │  holds ownerProtocolDeposits (BSC hub only)
+    │  trusts crossChainFeeManager for deductCrossChain* calls
+    └─ called by vaults at end of local execution; by CCFM for cross-chain
+
+CrossChainFeeManager  (OApp, Ownable, ReentrancyGuard — one per chain)
+    │  LayerZero V2 OApp (inherits OApp from lz-evm-oapp-v2)
+    │  immutable BSC_EID — all fee requests route here first (Phase 1)
+    │  holds executor collateral (accepted tokens, locked per in-flight request)
+    │  MSG_FEE_REQUEST  (exec → BSC)    — Phase 1 protocol token
+    │  MSG_FEE_FORWARD  (BSC → feeChain)— Phase 2 vault deposit (remote)
+    │  MSG_FEE_RESPONSE (any → exec)    — release or slash collateral
+    └─ peers registered via setPeer(eid, bytes32) per OApp standard
 
 External contracts (pre-existing, read-only interfaces):
     IPriceOracle   — 18-decimal USD prices per token
     IFeeReduction  — per-wallet volume-fee reduction in bps
+    LZ Endpoint    — LayerZero V2 endpoint (chain-specific)
 ```
 
 ### Execution Flow (`executeAutomation`)
@@ -47,6 +60,8 @@ External contracts (pre-existing, read-only interfaces):
 4. If `triggerFired`: call `afterExecution` (staticcall) on step 0 — applies context diff (e.g. IntervalCondition advances schedule)
 5. Save context back to storage
 6. Measure `gasUsed = gasStart - gasleft()` → `_settleFees`
+   - `_feeChainEid == 0` → `reg.deductFees(...)` (local)
+   - `_feeChainEid != 0` → compute `gasCompUSD` locally, call `ICrossChainFeeManager.requestCrossChainFee{value: msg.value}(...)`
 
 ### Fee Flow
 
@@ -116,9 +131,10 @@ function afterExecution(bytes calldata params, bytes[] calldata ctx)
 
 **State** (set once at `initialize`, immutable-by-convention — no setters):
 - `_feeRegistry` — IFeeRegistry; address(0) = fees disabled
-- `_feeToken` — ERC-20 for fee settlement; address(0) = tracking only
-- `_referral` — creator fee recipient
+- `_depositToken` — ERC-20 for fee settlement; address(0) = tracking only
+- `_creator` — creator fee recipient
 - `_priceOracle` — IPriceOracle; address(0) = fee accrual disabled
+- `_feeChainEid` — LayerZero EID of fee settlement chain; 0 = local only
 
 **Other state:**
 - `_automations` — mapping(uint32 → Automation)
@@ -158,23 +174,34 @@ struct Step {
 ```solidity
 function createVault(
     address vaultOwner,
-    address feeToken_,   // address(0) = tracking only
-    address referral_,   // address(0) = protocol receives creator share
+    address depositToken_,  // address(0) = tracking only
+    address creator_,       // address(0) = protocol receives creator share
+    uint32  feeChainEid_,   // 0 = local settlement only
     bytes32 salt
 ) external returns (address vault)
 ```
-Effective CREATE2 salt: `keccak256(abi.encode(msg.sender, salt))` — prevents front-running griefing.
+Effective CREATE2 salt: `keccak256(abi.encodePacked(msg.sender, salt))` — prevents front-running griefing.
 
 **`isRegisteredVault(address)`** — used by FeeRegistry to gate fee reduction.
 
 ### FeeRegistry
 
+**Constructor**: `constructor(bool isProtocolTokenHub_)` — `true` on BSC only. Guards `setProtocolToken`.
+
 **Setup sequence:**
 1. `addAcceptedToken(token, decimals)` — register fee-payment ERC-20s
 2. `setDistribution(protocolVault, burnContract, pBps, eBps, cBps, burnBps)` — bps must sum to 10_000
-3. `setGasConfig(priceOracle, nativeToken, executorMarkupBps, overhead)` — address(0) oracle disables gas comp
+3. `setGasConfig(priceOracle, nativeToken, executorMarkupBps, overhead, maxGasPrice)` — address(0) oracle disables gas comp
 4. `setFee(actionContract, selector, feeBps)` — per-function fee rates (max 1000 bps = 10%)
-5. `setFeeReductionConfig(feeReduction, trustedFactory)` — optional per-owner reduction
+5. `setCrossChainFeeManager(manager)` — required for cross-chain vaults; only this address may call `deductCrossChain*`
+6. `setFeeReductionConfig(feeReduction, trustedFactory)` — optional per-owner reduction
+7. `setProtocolToken(token, discountBps)` — BSC hub only; token must already be accepted
+
+**Cross-chain entry points** (called exclusively by `crossChainFeeManager`):
+- `deductCrossChainProtocolToken(vault, owner, executor, creator, volumeFeeUSD, gasCompUSD, guid)` — Phase 1, BSC hub only
+- `deductCrossChainDeposit(vault, executor, creator, depositToken, volumeFeeUSD, gasCompUSD, guid)` — Phase 2, any chain
+
+Both functions are replay-protected via `_processedGuids[guid]`.
 
 **Vault deposits**: `depositFor(vault, token, amount)` pre-funds a vault's fee balance.
 **Invariant**: `physicalBalance(token) == Σ vaultDeposits[*][token] + Σ claimable[*][token]`
@@ -280,3 +307,8 @@ await ethers.provider.send("evm_mine", []);
 - Gas compensation never reduced (only volume fees eligible for reduction)
 - `MAX_STEPS = 256` prevents infinite loop DoS
 - `ReentrancyGuardTransient` on vault execution; `ReentrancyGuard` on FeeRegistry
+- **Cross-chain**: `deductCrossChain*` callable only by `crossChainFeeManager` (set by owner)
+- **Cross-chain**: both `deductCrossChainProtocolToken` and `deductCrossChainDeposit` are replay-protected via `_processedGuids[guid]`
+- **Cross-chain**: executor collateral slashed on settlement failure — ensures honest execution incentive
+- `isProtocolTokenHub` is immutable — only BSC deployment can ever have a protocol token set
+- `gasCompUSD` is pre-computed on the execution chain with a local oracle, avoiding cross-chain oracle trust

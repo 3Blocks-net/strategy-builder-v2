@@ -20,11 +20,13 @@ An on-chain automation protocol for the BNB Smart Chain. Users deploy personal v
   - [Fee System](#fee-system)
   - [Fee Reduction](#fee-reduction)
   - [Protocol Token](#protocol-token)
+  - [Cross-Chain Fee Settlement](#cross-chain-fee-settlement)
   - [Interval Scheduling](#interval-scheduling)
 - [Contracts](#contracts)
   - [StrategyBuilderVault](#strategybuildervault)
   - [StrategyBuilderVaultFactory](#strategybuildervaultfactory)
   - [FeeRegistry](#feeregistry)
+  - [CrossChainFeeManager](#crosschainfeemanager)
 - [Interfaces](#interfaces)
 - [Example Contracts](#example-contracts)
   - [TokenBalanceCondition](#tokenbalancecondition)
@@ -120,38 +122,49 @@ This allows data to flow between steps within a single execution, and between se
 ### Contract System
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                    Protocol (Factory Owner)                      │
-│                                                                  │
-│  ┌──────────────────────────────────────────────────────────┐   │
-│  │              StrategyBuilderVaultFactory                  │   │
-│  │  - _vaultImplementation  (shared implementation)         │   │
-│  │  - feeRegistry            ──────────────────────────┐    │   │
-│  │  - priceOracle            ──────────────────────┐   │    │   │
-│  │  - isRegisteredVault()    (IVaultRegistry)      │   │    │   │
-│  └──────────────────────────────────────────────────────────┘   │
-│                         │ CREATE2                │   │           │
-│          ┌──────────────┘                        │   │           │
-└──────────┼───────────────────────────────────────┼───┼───────────┘
-           │                                       │   │
-           ▼                                       │   │
-  ┌─────────────────────┐  ┌───────────────────────▼───▼──────────┐
-  │  ERC1967Proxy        │  │             FeeRegistry               │
-  │  (per user)          │  │  - vaultDeposits[vault][token]        │
-  │                      │  │  - ownerProtocolDeposits[owner][token]│
-  │  ┌────────────────┐  │  │  - claimable[party][token]            │
-  │  │StrategyBuilder │  │  │  - fee rates per (contract,selector)  │
-  │  │    Vault        │  │  │  - gas comp (IPriceOracle)            │
-  │  │  - automations │  │  │  - fee reduction (IFeeReduction)      │
-  │  │  - context[]   │  │  │  - protocol token + discount          │
-  │  │  - owner       │  │  └───────────────────────────────────────┘
-  │  └────────────────┘  │
-  └─────────────────────┘   External (pre-existing):
-                             ┌──────────────────┐  ┌───────────────┐
-                             │  IPriceOracle     │  │ IFeeReduction │
-                             │  (USD prices)     │  │ (per-wallet   │
-                             └──────────────────┘  │  reduction)   │
-                                                    └───────────────┘
+┌─────────────────────────────────────────────────────────────────────────┐
+│                         Protocol (Factory Owner)                         │
+│                                                                          │
+│  ┌────────────────────────────────────────────────────────────────────┐  │
+│  │                  StrategyBuilderVaultFactory                        │  │
+│  │  - _vaultImplementation  (shared implementation)                   │  │
+│  │  - feeRegistry            ──────────────────────────────────┐      │  │
+│  │  - priceOracle            ──────────────────────────────┐   │      │  │
+│  │  - isRegisteredVault()    (IVaultRegistry)              │   │      │  │
+│  └────────────────────────────────────────────────────────────────────┘  │
+│                         │ CREATE2                            │   │        │
+│          ┌──────────────┘                                    │   │        │
+└──────────┼───────────────────────────────────────────────────┼───┼────────┘
+           │                                                   │   │
+           ▼                                                   │   │
+  ┌──────────────────────────┐  ┌────────────────────────────── ▼───▼──────┐
+  │  ERC1967Proxy (per user) │  │                  FeeRegistry              │
+  │                          │  │  - vaultDeposits[vault][token]            │
+  │  ┌─────────────────────┐ │  │  - ownerProtocolDeposits[owner][token]    │
+  │  │  StrategyBuilderVault│ │  │  - claimable[party][token]               │
+  │  │  - automations       │ │  │  - fee rates per (contract, selector)    │
+  │  │  - context[]         │ │  │  - gas comp (IPriceOracle)               │
+  │  │  - owner             │ │  │  - fee reduction (IFeeReduction)         │
+  │  │  - feeChainEid       │ │  │  - protocol token + discount (BSC only)  │
+  │  └─────────────────────┘ │  │  - crossChainFeeManager                  │
+  └──────────────────────────┘  └───────────────────────────────────────────┘
+                                                    │
+                                                    ▼
+                              ┌────────────────────────────────────────────┐
+                              │           CrossChainFeeManager              │
+                              │  (LayerZero V2 OApp — one per chain)        │
+                              │  - executorCollateral[executor][token]      │
+                              │  - pendingRequests[guid]                   │
+                              │  BSC EID ◀── Phase 1: protocol token        │
+                              │  feeChain ◀── Phase 2: vault deposit        │
+                              │  execChain ◀── response / collateral settle │
+                              └────────────────────────────────────────────┘
+
+  External (pre-existing):
+  ┌──────────────────┐  ┌───────────────────┐  ┌────────────────────────┐
+  │  IPriceOracle    │  │  IFeeReduction     │  │ LayerZero V2 Endpoint  │
+  │  (USD prices)    │  │  (per-wallet bps)  │  │ (cross-chain messaging)│
+  └──────────────────┘  └───────────────────┘  └────────────────────────┘
 ```
 
 ### Execution Flow
@@ -185,8 +198,11 @@ executeAutomation(automationId)
 ├─ owner caller? → skip fees, done
 │
 ├─ gasUsed = gasStart − gasleft()
-└─ _settleFees → FeeRegistry.deductFees
-    └─ emit FeesSettled
+└─ _settleFees
+    ├─ feeChainEid == 0? → FeeRegistry.deductFees (local)
+    │       └─ emit FeesSettled
+    └─ feeChainEid != 0? → CrossChainFeeManager.requestCrossChainFee{value}(...)
+            └─ LZ MSG_FEE_REQUEST → BSC → settlement → LZ MSG_FEE_RESPONSE
 ```
 
 ### Fee System
@@ -284,6 +300,60 @@ totalProto       = max(discountedVolume, gasCompTokens)
 
 Vault owners can reclaim unused protocol tokens at any time via `withdrawProtocolToken(token, amount)`. The token address is passed explicitly so withdrawals work correctly even if the protocol token was later changed to a different address.
 
+### Cross-Chain Fee Settlement
+
+Vaults can designate a **fee chain** (`feeChainEid`) at creation time. When set, the vault's fees are settled on that remote chain via LayerZero V2 rather than locally.
+
+**Architecture:**
+
+```
+Execution chain          BSC (Protocol Token Hub)       Fee chain
+─────────────────        ──────────────────────────     ─────────────────
+executeAutomation()
+  → _settleFees()
+  → CCFM.requestCrossChainFee()
+  → LZ MSG_FEE_REQUEST ──▶ _handleFeeRequest()
+                             Phase 1: deductCrossChainProtocolToken()
+                             success ──────────────────────────────────▶ MSG_FEE_RESPONSE
+                             fail + feeChainEid == BSC:
+                               Phase 2: deductCrossChainDeposit()
+                               ──────────────────────────────────────▶ MSG_FEE_RESPONSE
+                             fail + feeChainEid != BSC:
+                               MSG_FEE_FORWARD ─────────────────────▶ _handleFeeForward()
+                                                                          Phase 2: deductCrossChainDeposit()
+                                                                          ◀─── MSG_FEE_RESPONSE
+  ◀─────────── MSG_FEE_RESPONSE
+  collateral released (success) or slashed (failure)
+```
+
+**Two-phase fee resolution:**
+
+| Phase | Chain | What it tries |
+|---|---|---|
+| 1 | BSC (always) | Owner's `ownerProtocolDeposits` (protocol token, discounted) |
+| 2 | Configured `feeChainEid` | Vault's `vaultDeposits[vault][depositToken]` |
+
+Phase 1 is always attempted first on BSC regardless of where the vault's fee chain is. If Phase 1 succeeds, Phase 2 is skipped entirely.
+
+**Executor collateral:**
+
+Cross-chain settlement is not instant — the executor must pre-deposit an accepted ERC-20 as **collateral** in the `CrossChainFeeManager` on the execution chain. A portion is locked per in-flight request:
+
+- On `MSG_FEE_RESPONSE(success=true)` → collateral is **released** (unlocked, stays in balance)
+- On `MSG_FEE_RESPONSE(success=false)` → collateral is **slashed** (removed and sent to the protocol)
+
+Executors must keep their collateral topped up; if free collateral falls below the estimated fee, `requestCrossChainFee` reverts.
+
+**Gas compensation pre-computation:**
+
+Because gas price and native token price are chain-specific, the vault computes `gasCompUSD` locally (on the execution chain) before sending the LZ message. The remote chain receives a USD amount and does not need access to the execution chain's oracle or gas price.
+
+**Local fallback (`feeChainEid == 0`):**
+
+When a vault is created without a `feeChainEid`, fee settlement works entirely locally — no cross-chain messaging, no collateral requirement.
+
+---
+
 ### Interval Scheduling
 
 `IntervalCondition` implements `IUpdatableCondition` to enable recurring automations:
@@ -311,6 +381,7 @@ The core vault. Each user owns one (or more) vault proxies.
 | `depositToken_` | ERC-20 used to pay fees (`address(0)` = tracking only, no settlement) |
 | `creator_` | Strategy creator receiving the creator fee share (`address(0)` = protocol) |
 | `priceOracle_` | IPriceOracle for USD conversion (`address(0)` = no fee accrual) |
+| `feeChainEid_` | LayerZero EID of the chain where fees are settled (`0` = local only) |
 
 **Owner functions:**
 
@@ -330,7 +401,7 @@ The core vault. Each user owns one (or more) vault proxies.
 
 | Function | Description |
 |---|---|
-| `executeAutomation(id)` | Execute the automation (owner-only automations: only the vault owner) |
+| `executeAutomation(id)` | Execute the automation (payable — caller must supply LZ relay fee when `feeChainEid != 0`) |
 | `isTriggerMet(id)` | View — check if trigger condition is currently true |
 
 **Views:**
@@ -341,6 +412,7 @@ The core vault. Each user owns one (or more) vault proxies.
 | `depositToken()` | ERC-20 token used for fee settlement |
 | `creator()` | Strategy creator address for the creator fee share |
 | `feeRegistry()` | Address of the FeeRegistry |
+| `feeChainEid()` | LayerZero EID of the fee chain (`0` = local settlement only) |
 | `minFeeDeposit()` | Minimum fee deposit target |
 
 **Limits:**
@@ -366,6 +438,7 @@ function createVault(
     address vaultOwner,    // who owns the vault
     address depositToken_, // ERC-20 for fee settlement (must be accepted by FeeRegistry)
     address creator_,      // strategy creator (address(0) = protocol receives creator share)
+    uint32  feeChainEid_,  // LZ EID of fee settlement chain (0 = local only)
     bytes32 salt           // per-caller CREATE2 entropy
 ) external returns (address vault)
 ```
@@ -381,6 +454,10 @@ function createVault(
 ### FeeRegistry
 
 Custodian for all vault fee deposits. Tracks per-action fee rates, distributes fees, guarantees executor gas reimbursement, and supports owner-wide protocol token payments.
+
+**Constructor parameter:**
+
+`FeeRegistry` is constructed with `bool isProtocolTokenHub` — set to `true` only on the BSC deployment. Only the hub can call `setProtocolToken`.
 
 **Setup sequence (owner):**
 
@@ -412,7 +489,10 @@ feeRegistry.setFee(actionContract, selector, 100); // 1% (100 bps)
 // 5. Optional: fee reduction
 feeRegistry.setFeeReductionConfig(feeReductionContract, factoryAddress);
 
-// 6. Optional: protocol token
+// 6. Optional: cross-chain fee manager (required for cross-chain settlement)
+feeRegistry.setCrossChainFeeManager(crossChainFeeManagerAddress);
+
+// 7. Optional: protocol token (BSC hub only — token must be accepted first)
 feeRegistry.setProtocolToken(protoTokenAddress, 5000); // 50% discount on volume fee
 ```
 
@@ -450,6 +530,66 @@ feeRegistry.claim(token);
 
 1. If `protocolToken` is set and the vault's owner has sufficient `ownerProtocolDeposits` → pay in protocol token (discounted volume fee)
 2. Otherwise → deduct from `vaultDeposits[vault][depositToken]` (with any `IFeeReduction` discount applied)
+
+---
+
+### CrossChainFeeManager
+
+LayerZero V2 OApp deployed on every supported chain. Routes vault fee settlement across chains using a three-message protocol.
+
+**Constructor parameters:**
+
+| Parameter | Description |
+|---|---|
+| `endpoint_` | LayerZero V2 endpoint on this chain |
+| `delegate_` | Initial owner / OApp delegate |
+| `bscEid_` | LayerZero EID of the BSC Protocol Token Hub |
+| `feeRegistry_` | FeeRegistry on this chain |
+
+**Owner functions:**
+
+| Function | Description |
+|---|---|
+| `setFeeRegistry(addr)` | Update the FeeRegistry address |
+| `setTrustedFactory(addr)` | Update the trusted vault registry |
+| `setPeer(eid, bytes32)` | Register peer CrossChainFeeManager on another chain (OApp) |
+| `withdrawNative(to, amount)` | Recover excess native token held for LZ fees |
+
+**Executor collateral:**
+
+```solidity
+// Deposit collateral (must be an accepted FeeRegistry token)
+IERC20(token).approve(address(ccfm), amount);
+ccfm.depositCollateral(token, amount);
+
+// Withdraw free (unlocked) collateral
+ccfm.withdrawCollateral(token, amount); // 0 = full free balance
+
+// Check balances
+(uint256 total, uint256 locked) = ccfm.collateralOf(executor, token);
+```
+
+**Quoting LZ relay fees (off-chain, before calling executeAutomation):**
+
+```solidity
+// Returns the total native-token fee to pass as msg.value
+uint256 relayFee = ccfm.quoteRelayFee(feeChainEid);
+vault.executeAutomation{value: relayFee}(automationId);
+```
+
+**Message flow:**
+
+| Message | Route | Handler |
+|---|---|---|
+| `MSG_FEE_REQUEST (1)` | Execution chain → BSC | Phase 1 protocol token check |
+| `MSG_FEE_FORWARD (2)` | BSC → fee chain | Phase 2 vault deposit (when feeChain ≠ BSC) |
+| `MSG_FEE_RESPONSE (3)` | BSC or fee chain → execution chain | Release or slash collateral |
+
+**Collateral safety:**
+
+- One collateral token per executor (must be an accepted FeeRegistry token)
+- To change the token, the existing balance must be fully withdrawn first
+- Slash (on failure) transfers the locked amount to the protocol via FeeRegistry
 
 ---
 
@@ -674,24 +814,32 @@ The action reads `vault.minFeeDeposit()` to know the target. If the current depo
 ### Protocol Setup
 
 ```bash
+# Per-chain deployment (repeat for each supported chain)
+
 # 1. Deploy StrategyBuilderVault implementation
-# 2. Deploy FeeRegistry
+# 2. Deploy FeeRegistry(isProtocolTokenHub)   ← true on BSC only
 # 3. Deploy StrategyBuilderVaultFactory
-# 4. Configure factory
+# 4. Deploy CrossChainFeeManager(endpoint, delegate, bscEid, feeRegistryAddress)
+
+# 5. Configure factory
 factory.setVaultImplementation(vaultImplAddress)
 factory.setFeeRegistry(feeRegistryAddress)
 factory.setPriceOracle(priceOracleAddress)
 
-# 5. Configure FeeRegistry
+# 6. Configure FeeRegistry
 feeRegistry.addAcceptedToken(token, decimals)
 feeRegistry.setDistribution(protocolVault, burnContract, pBps, eBps, cBps, burnBps)
 feeRegistry.setGasConfig(oracle, nativeToken, markupBps, overhead, maxGasPrice)
 feeRegistry.setFee(actionContract, selector, feeBps)
+feeRegistry.setCrossChainFeeManager(crossChainFeeManagerAddress)
 
-# 6. Optional: fee reduction
+# 7. Wire LZ peers (once all chains are deployed)
+ccfm.setPeer(remoteEid, bytes32(uint256(uint160(remoteCcfmAddress))))
+
+# 8. Optional: fee reduction
 feeRegistry.setFeeReductionConfig(feeReductionContract, factoryAddress)
 
-# 7. Optional: protocol token (token must be added first)
+# 9. Optional: protocol token (BSC hub only — token must be added first)
 feeRegistry.setProtocolToken(protoTokenAddress, discountBps)
 ```
 
@@ -702,6 +850,7 @@ address vault = factory.createVault(
     msg.sender,      // vault owner
     depositToken,    // ERC-20 to pay fees with (e.g. USDT; must be accepted by FeeRegistry)
     creator,         // address(0) if no strategy creator
+    bscEid,          // LayerZero EID of BSC (0 for local-only settlement)
     bytes32(0)       // salt (use different values to create multiple vaults)
 );
 
@@ -797,9 +946,13 @@ npx hardhat test test/StrategyBuilderVaultFactory.ts  # factory tests only
 
 ```
 contracts/
-├── StrategyBuilderVault.sol          # Core vault logic
-├── StrategyBuilderVaultFactory.sol   # Vault deployment factory
-├── FeeRegistry.sol                   # Fee management
+├── StrategyBuilderVault.sol          # Core vault logic (payable executeAutomation, feeChainEid)
+├── StrategyBuilderVaultFactory.sol   # Vault deployment factory (feeChainEid_ in createVault)
+├── FeeRegistry.sol                   # Fee management (isProtocolTokenHub, crossChainFeeManager)
+├── crosschain/
+│   ├── CrossChainFeeManager.sol      # LayerZero V2 OApp — cross-chain fee routing
+│   └── interfaces/
+│       └── ICrossChainFeeManager.sol
 ├── interfaces/
 │   ├── IAction.sol
 │   ├── ICondition.sol
