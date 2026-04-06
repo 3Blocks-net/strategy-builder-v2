@@ -13,7 +13,7 @@ export declare namespace StrategyBuilderVault {
     }
 
   export interface StrategyBuilderVaultInterface extends Interface {
-    getFunction(nameOrSignature: "DONE" | "MAX_STEPS" | "automationCount" | "createAutomation" | "createOwnerAutomation" | "creator" | "decodeContextDiff" | "depositFees" | "depositToken" | "executeAutomation" | "feeRegistry" | "getAutomation" | "getContext" | "initialize" | "isTriggerMet" | "minFeeDeposit" | "owner" | "priceOracle" | "renounceOwnership" | "setAutomationActive" | "setContext" | "setContextSlot" | "setMinFeeDeposit" | "transferOwnership" | "updateAutomationSteps" | "withdrawETH"): FunctionFragment;
+    getFunction(nameOrSignature: "DONE" | "MAX_STEPS" | "automationCount" | "createAutomation" | "createOwnerAutomation" | "creator" | "decodeContextDiff" | "depositFees" | "depositToken" | "executeAutomation" | "feeChainEid" | "feeRegistry" | "getAutomation" | "getContext" | "initialize" | "isTriggerMet" | "minFeeDeposit" | "owner" | "priceOracle" | "renounceOwnership" | "setAutomationActive" | "setContext" | "setContextSlot" | "setMinFeeDeposit" | "transferOwnership" | "updateAutomationSteps" | "withdrawETH"): FunctionFragment;
 
     getEvent(nameOrSignatureOrTopic: "AutomationActiveChanged" | "AutomationCreated" | "AutomationExecuted" | "AutomationStepsUpdated" | "ContextSlotSet" | "FeeAccrued" | "FeesSettled" | "Initialized" | "MinFeeDepositUpdated" | "OwnershipTransferred"): EventFragment;
 
@@ -27,10 +27,11 @@ encodeFunctionData(functionFragment: 'decodeContextDiff', values: [BytesLike]): 
 encodeFunctionData(functionFragment: 'depositFees', values: [AddressLike, BigNumberish]): string;
 encodeFunctionData(functionFragment: 'depositToken', values?: undefined): string;
 encodeFunctionData(functionFragment: 'executeAutomation', values: [BigNumberish]): string;
+encodeFunctionData(functionFragment: 'feeChainEid', values?: undefined): string;
 encodeFunctionData(functionFragment: 'feeRegistry', values?: undefined): string;
 encodeFunctionData(functionFragment: 'getAutomation', values: [BigNumberish]): string;
 encodeFunctionData(functionFragment: 'getContext', values?: undefined): string;
-encodeFunctionData(functionFragment: 'initialize', values: [AddressLike, AddressLike, AddressLike, AddressLike, AddressLike]): string;
+encodeFunctionData(functionFragment: 'initialize', values: [AddressLike, AddressLike, AddressLike, AddressLike, AddressLike, BigNumberish]): string;
 encodeFunctionData(functionFragment: 'isTriggerMet', values: [BigNumberish]): string;
 encodeFunctionData(functionFragment: 'minFeeDeposit', values?: undefined): string;
 encodeFunctionData(functionFragment: 'owner', values?: undefined): string;
@@ -54,6 +55,7 @@ decodeFunctionResult(functionFragment: 'decodeContextDiff', data: BytesLike): Re
 decodeFunctionResult(functionFragment: 'depositFees', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'depositToken', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'executeAutomation', data: BytesLike): Result;
+decodeFunctionResult(functionFragment: 'feeChainEid', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'feeRegistry', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'getAutomation', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'getContext', data: BytesLike): Result;
@@ -302,7 +304,15 @@ decodeFunctionResult(functionFragment: 'withdrawETH', data: BytesLike): Result;
     executeAutomation: TypedContractMethod<
       [automationId: BigNumberish, ],
       [void],
-      'nonpayable'
+      'payable'
+    >
+    
+
+    
+    feeChainEid: TypedContractMethod<
+      [],
+      [bigint],
+      'view'
     >
     
 
@@ -332,7 +342,7 @@ decodeFunctionResult(functionFragment: 'withdrawETH', data: BytesLike): Result;
 
     
     initialize: TypedContractMethod<
-      [initialOwner: AddressLike, feeRegistry_: AddressLike, depositToken_: AddressLike, creator_: AddressLike, priceOracle_: AddressLike, ],
+      [initialOwner: AddressLike, feeRegistry_: AddressLike, depositToken_: AddressLike, creator_: AddressLike, priceOracle_: AddressLike, feeChainEid_: BigNumberish, ],
       [void],
       'nonpayable'
     >
@@ -485,7 +495,12 @@ getFunction(nameOrSignature: 'depositToken'): TypedContractMethod<
 getFunction(nameOrSignature: 'executeAutomation'): TypedContractMethod<
       [automationId: BigNumberish, ],
       [void],
-      'nonpayable'
+      'payable'
+    >;
+getFunction(nameOrSignature: 'feeChainEid'): TypedContractMethod<
+      [],
+      [bigint],
+      'view'
     >;
 getFunction(nameOrSignature: 'feeRegistry'): TypedContractMethod<
       [],
@@ -503,7 +518,7 @@ getFunction(nameOrSignature: 'getContext'): TypedContractMethod<
       'view'
     >;
 getFunction(nameOrSignature: 'initialize'): TypedContractMethod<
-      [initialOwner: AddressLike, feeRegistry_: AddressLike, depositToken_: AddressLike, creator_: AddressLike, priceOracle_: AddressLike, ],
+      [initialOwner: AddressLike, feeRegistry_: AddressLike, depositToken_: AddressLike, creator_: AddressLike, priceOracle_: AddressLike, feeChainEid_: BigNumberish, ],
       [void],
       'nonpayable'
     >;

@@ -6,9 +6,9 @@ import type { TypedContractEvent, TypedDeferredTopicFilter, TypedEventLog, Typed
   
 
   export interface FeeRegistryInterface extends Interface {
-    getFunction(nameOrSignature: "MAX_FEE_BPS" | "addAcceptedToken" | "burnBps" | "burnContract" | "claim" | "claimable" | "creatorBps" | "deductFees" | "depositFor" | "depositProtocolToken" | "estimateGasComp" | "executorBps" | "executorMarkupBps" | "feeReduction" | "feeTokenAmount" | "gasOverhead" | "getFee" | "isAcceptedToken" | "maxGasPrice" | "nativeToken" | "owner" | "ownerProtocolDeposits" | "priceOracle" | "protocolBps" | "protocolToken" | "protocolTokenDiscountBps" | "protocolVault" | "removeAcceptedToken" | "renounceOwnership" | "setDistribution" | "setFee" | "setFeeReductionConfig" | "setGasConfig" | "setProtocolToken" | "transferOwnership" | "trustedFactory" | "vaultDeposit" | "vaultDeposits" | "withdrawDeposit" | "withdrawProtocolToken"): FunctionFragment;
+    getFunction(nameOrSignature: "MAX_FEE_BPS" | "addAcceptedToken" | "burnBps" | "burnContract" | "claim" | "claimable" | "creatorBps" | "crossChainFeeManager" | "deductCrossChainDeposit" | "deductCrossChainProtocolToken" | "deductFees" | "depositFor" | "depositProtocolToken" | "estimateGasComp" | "executorBps" | "executorMarkupBps" | "feeReduction" | "feeTokenAmount" | "gasOverhead" | "getFee" | "isAcceptedToken" | "isProtocolTokenHub" | "maxGasPrice" | "nativeToken" | "owner" | "ownerProtocolDeposits" | "priceOracle" | "protocolBps" | "protocolToken" | "protocolTokenDiscountBps" | "protocolVault" | "removeAcceptedToken" | "renounceOwnership" | "setCrossChainFeeManager" | "setDistribution" | "setFee" | "setFeeReductionConfig" | "setGasConfig" | "setProtocolToken" | "transferOwnership" | "trustedFactory" | "vaultDeposit" | "vaultDeposits" | "withdrawDeposit" | "withdrawProtocolToken"): FunctionFragment;
 
-    getEvent(nameOrSignatureOrTopic: "DistributionSet" | "FeeClaimed" | "FeeDeducted" | "FeeDepositWithdrawn" | "FeeDeposited" | "FeeReductionConfigSet" | "FeeSet" | "GasConfigSet" | "OwnershipTransferred" | "ProtocolTokenDeposited" | "ProtocolTokenSet" | "ProtocolTokenWithdrawn" | "TokenAdded" | "TokenRemoved"): EventFragment;
+    getEvent(nameOrSignatureOrTopic: "CrossChainFeeManagerSet" | "DistributionSet" | "FeeClaimed" | "FeeDeducted" | "FeeDepositWithdrawn" | "FeeDeposited" | "FeeReductionConfigSet" | "FeeSet" | "GasConfigSet" | "OwnershipTransferred" | "ProtocolTokenDeposited" | "ProtocolTokenSet" | "ProtocolTokenWithdrawn" | "TokenAdded" | "TokenRemoved"): EventFragment;
 
     encodeFunctionData(functionFragment: 'MAX_FEE_BPS', values?: undefined): string;
 encodeFunctionData(functionFragment: 'addAcceptedToken', values: [AddressLike, BigNumberish]): string;
@@ -17,6 +17,9 @@ encodeFunctionData(functionFragment: 'burnContract', values?: undefined): string
 encodeFunctionData(functionFragment: 'claim', values: [AddressLike]): string;
 encodeFunctionData(functionFragment: 'claimable', values: [AddressLike, AddressLike]): string;
 encodeFunctionData(functionFragment: 'creatorBps', values?: undefined): string;
+encodeFunctionData(functionFragment: 'crossChainFeeManager', values?: undefined): string;
+encodeFunctionData(functionFragment: 'deductCrossChainDeposit', values: [AddressLike, AddressLike, AddressLike, AddressLike, BigNumberish, BigNumberish, BytesLike]): string;
+encodeFunctionData(functionFragment: 'deductCrossChainProtocolToken', values: [AddressLike, AddressLike, AddressLike, AddressLike, BigNumberish, BigNumberish, BytesLike]): string;
 encodeFunctionData(functionFragment: 'deductFees', values: [AddressLike, AddressLike, AddressLike, BigNumberish, BigNumberish]): string;
 encodeFunctionData(functionFragment: 'depositFor', values: [AddressLike, AddressLike, BigNumberish]): string;
 encodeFunctionData(functionFragment: 'depositProtocolToken', values: [BigNumberish]): string;
@@ -28,6 +31,7 @@ encodeFunctionData(functionFragment: 'feeTokenAmount', values: [AddressLike, Big
 encodeFunctionData(functionFragment: 'gasOverhead', values?: undefined): string;
 encodeFunctionData(functionFragment: 'getFee', values: [AddressLike, BytesLike]): string;
 encodeFunctionData(functionFragment: 'isAcceptedToken', values: [AddressLike]): string;
+encodeFunctionData(functionFragment: 'isProtocolTokenHub', values?: undefined): string;
 encodeFunctionData(functionFragment: 'maxGasPrice', values?: undefined): string;
 encodeFunctionData(functionFragment: 'nativeToken', values?: undefined): string;
 encodeFunctionData(functionFragment: 'owner', values?: undefined): string;
@@ -39,6 +43,7 @@ encodeFunctionData(functionFragment: 'protocolTokenDiscountBps', values?: undefi
 encodeFunctionData(functionFragment: 'protocolVault', values?: undefined): string;
 encodeFunctionData(functionFragment: 'removeAcceptedToken', values: [AddressLike]): string;
 encodeFunctionData(functionFragment: 'renounceOwnership', values?: undefined): string;
+encodeFunctionData(functionFragment: 'setCrossChainFeeManager', values: [AddressLike]): string;
 encodeFunctionData(functionFragment: 'setDistribution', values: [AddressLike, AddressLike, BigNumberish, BigNumberish, BigNumberish, BigNumberish]): string;
 encodeFunctionData(functionFragment: 'setFee', values: [AddressLike, BytesLike, BigNumberish]): string;
 encodeFunctionData(functionFragment: 'setFeeReductionConfig', values: [AddressLike, AddressLike]): string;
@@ -58,6 +63,9 @@ decodeFunctionResult(functionFragment: 'burnContract', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'claim', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'claimable', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'creatorBps', data: BytesLike): Result;
+decodeFunctionResult(functionFragment: 'crossChainFeeManager', data: BytesLike): Result;
+decodeFunctionResult(functionFragment: 'deductCrossChainDeposit', data: BytesLike): Result;
+decodeFunctionResult(functionFragment: 'deductCrossChainProtocolToken', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'deductFees', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'depositFor', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'depositProtocolToken', data: BytesLike): Result;
@@ -69,6 +77,7 @@ decodeFunctionResult(functionFragment: 'feeTokenAmount', data: BytesLike): Resul
 decodeFunctionResult(functionFragment: 'gasOverhead', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'getFee', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'isAcceptedToken', data: BytesLike): Result;
+decodeFunctionResult(functionFragment: 'isProtocolTokenHub', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'maxGasPrice', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'nativeToken', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'owner', data: BytesLike): Result;
@@ -80,6 +89,7 @@ decodeFunctionResult(functionFragment: 'protocolTokenDiscountBps', data: BytesLi
 decodeFunctionResult(functionFragment: 'protocolVault', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'removeAcceptedToken', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'renounceOwnership', data: BytesLike): Result;
+decodeFunctionResult(functionFragment: 'setCrossChainFeeManager', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'setDistribution', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'setFee', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'setFeeReductionConfig', data: BytesLike): Result;
@@ -94,6 +104,18 @@ decodeFunctionResult(functionFragment: 'withdrawProtocolToken', data: BytesLike)
   }
 
   
+    export namespace CrossChainFeeManagerSetEvent {
+      export type InputTuple = [manager: AddressLike];
+      export type OutputTuple = [manager: string];
+      export interface OutputObject {manager: string };
+      export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>
+      export type Filter = TypedDeferredTopicFilter<Event>
+      export type Log = TypedEventLog<Event>
+      export type LogDescription = TypedLogDescription<Event>
+    }
+
+  
+
     export namespace DistributionSetEvent {
       export type InputTuple = [protocolVault: AddressLike, burnContract: AddressLike, protocolBps: BigNumberish, executorBps: BigNumberish, creatorBps: BigNumberish, burnBps: BigNumberish];
       export type OutputTuple = [protocolVault: string, burnContract: string, protocolBps: bigint, executorBps: bigint, creatorBps: bigint, burnBps: bigint];
@@ -352,6 +374,30 @@ decodeFunctionResult(functionFragment: 'withdrawProtocolToken', data: BytesLike)
     
 
     
+    crossChainFeeManager: TypedContractMethod<
+      [],
+      [string],
+      'view'
+    >
+    
+
+    
+    deductCrossChainDeposit: TypedContractMethod<
+      [vault: AddressLike, executor: AddressLike, creator: AddressLike, depositToken_: AddressLike, volumeFeeUSD: BigNumberish, gasCompUSD: BigNumberish, requestGuid: BytesLike, ],
+      [[boolean, string, bigint, bigint] & {success: boolean, token: string, totalTokens: bigint, gasCompTokens: bigint }],
+      'nonpayable'
+    >
+    
+
+    
+    deductCrossChainProtocolToken: TypedContractMethod<
+      [vault: AddressLike, owner: AddressLike, executor: AddressLike, creator: AddressLike, volumeFeeUSD: BigNumberish, gasCompUSD: BigNumberish, requestGuid: BytesLike, ],
+      [[boolean, string, bigint, bigint] & {success: boolean, token: string, totalTokens: bigint, gasCompTokens: bigint }],
+      'nonpayable'
+    >
+    
+
+    
     deductFees: TypedContractMethod<
       [token: AddressLike, executor: AddressLike, creator: AddressLike, feeUSD: BigNumberish, gasUsed: BigNumberish, ],
       [[bigint, bigint] & {totalTokens: bigint, gasCompTokens: bigint }],
@@ -440,6 +486,14 @@ decodeFunctionResult(functionFragment: 'withdrawProtocolToken', data: BytesLike)
     
 
     
+    isProtocolTokenHub: TypedContractMethod<
+      [],
+      [boolean],
+      'view'
+    >
+    
+
+    
     maxGasPrice: TypedContractMethod<
       [],
       [bigint],
@@ -522,6 +576,14 @@ decodeFunctionResult(functionFragment: 'withdrawProtocolToken', data: BytesLike)
     
     renounceOwnership: TypedContractMethod<
       [],
+      [void],
+      'nonpayable'
+    >
+    
+
+    
+    setCrossChainFeeManager: TypedContractMethod<
+      [manager: AddressLike, ],
       [void],
       'nonpayable'
     >
@@ -653,6 +715,21 @@ getFunction(nameOrSignature: 'creatorBps'): TypedContractMethod<
       [bigint],
       'view'
     >;
+getFunction(nameOrSignature: 'crossChainFeeManager'): TypedContractMethod<
+      [],
+      [string],
+      'view'
+    >;
+getFunction(nameOrSignature: 'deductCrossChainDeposit'): TypedContractMethod<
+      [vault: AddressLike, executor: AddressLike, creator: AddressLike, depositToken_: AddressLike, volumeFeeUSD: BigNumberish, gasCompUSD: BigNumberish, requestGuid: BytesLike, ],
+      [[boolean, string, bigint, bigint] & {success: boolean, token: string, totalTokens: bigint, gasCompTokens: bigint }],
+      'nonpayable'
+    >;
+getFunction(nameOrSignature: 'deductCrossChainProtocolToken'): TypedContractMethod<
+      [vault: AddressLike, owner: AddressLike, executor: AddressLike, creator: AddressLike, volumeFeeUSD: BigNumberish, gasCompUSD: BigNumberish, requestGuid: BytesLike, ],
+      [[boolean, string, bigint, bigint] & {success: boolean, token: string, totalTokens: bigint, gasCompTokens: bigint }],
+      'nonpayable'
+    >;
 getFunction(nameOrSignature: 'deductFees'): TypedContractMethod<
       [token: AddressLike, executor: AddressLike, creator: AddressLike, feeUSD: BigNumberish, gasUsed: BigNumberish, ],
       [[bigint, bigint] & {totalTokens: bigint, gasCompTokens: bigint }],
@@ -708,6 +785,11 @@ getFunction(nameOrSignature: 'isAcceptedToken'): TypedContractMethod<
       [boolean],
       'view'
     >;
+getFunction(nameOrSignature: 'isProtocolTokenHub'): TypedContractMethod<
+      [],
+      [boolean],
+      'view'
+    >;
 getFunction(nameOrSignature: 'maxGasPrice'): TypedContractMethod<
       [],
       [bigint],
@@ -760,6 +842,11 @@ getFunction(nameOrSignature: 'removeAcceptedToken'): TypedContractMethod<
     >;
 getFunction(nameOrSignature: 'renounceOwnership'): TypedContractMethod<
       [],
+      [void],
+      'nonpayable'
+    >;
+getFunction(nameOrSignature: 'setCrossChainFeeManager'): TypedContractMethod<
+      [manager: AddressLike, ],
       [void],
       'nonpayable'
     >;
@@ -819,7 +906,8 @@ getFunction(nameOrSignature: 'withdrawProtocolToken'): TypedContractMethod<
       'nonpayable'
     >;
 
-    getEvent(key: 'DistributionSet'): TypedContractEvent<DistributionSetEvent.InputTuple, DistributionSetEvent.OutputTuple, DistributionSetEvent.OutputObject>;
+    getEvent(key: 'CrossChainFeeManagerSet'): TypedContractEvent<CrossChainFeeManagerSetEvent.InputTuple, CrossChainFeeManagerSetEvent.OutputTuple, CrossChainFeeManagerSetEvent.OutputObject>;
+getEvent(key: 'DistributionSet'): TypedContractEvent<DistributionSetEvent.InputTuple, DistributionSetEvent.OutputTuple, DistributionSetEvent.OutputObject>;
 getEvent(key: 'FeeClaimed'): TypedContractEvent<FeeClaimedEvent.InputTuple, FeeClaimedEvent.OutputTuple, FeeClaimedEvent.OutputObject>;
 getEvent(key: 'FeeDeducted'): TypedContractEvent<FeeDeductedEvent.InputTuple, FeeDeductedEvent.OutputTuple, FeeDeductedEvent.OutputObject>;
 getEvent(key: 'FeeDepositWithdrawn'): TypedContractEvent<FeeDepositWithdrawnEvent.InputTuple, FeeDepositWithdrawnEvent.OutputTuple, FeeDepositWithdrawnEvent.OutputObject>;
@@ -836,6 +924,10 @@ getEvent(key: 'TokenRemoved'): TypedContractEvent<TokenRemovedEvent.InputTuple, 
 
     filters: {
       
+      'CrossChainFeeManagerSet(address)': TypedContractEvent<CrossChainFeeManagerSetEvent.InputTuple, CrossChainFeeManagerSetEvent.OutputTuple, CrossChainFeeManagerSetEvent.OutputObject>;
+      CrossChainFeeManagerSet: TypedContractEvent<CrossChainFeeManagerSetEvent.InputTuple, CrossChainFeeManagerSetEvent.OutputTuple, CrossChainFeeManagerSetEvent.OutputObject>;
+    
+
       'DistributionSet(address,address,uint16,uint16,uint16,uint16)': TypedContractEvent<DistributionSetEvent.InputTuple, DistributionSetEvent.OutputTuple, DistributionSetEvent.OutputObject>;
       DistributionSet: TypedContractEvent<DistributionSetEvent.InputTuple, DistributionSetEvent.OutputTuple, DistributionSetEvent.OutputObject>;
     

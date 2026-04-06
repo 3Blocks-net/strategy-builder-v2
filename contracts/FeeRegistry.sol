@@ -54,12 +54,19 @@ interface IVaultOwner {
  *     + Σ claimable[party][token]      (post-fee, ready to claim)
  */
 contract FeeRegistry is Ownable, ReentrancyGuard, IFeeRegistry {
+    // ─── Constants ────────────────────────────────────────────────────────────
+
+    /// @notice True when this deployment is the BSC Protocol Token Hub.
+    ///         Only the hub may have protocolToken set.
+    ///         Immutable — set once at construction.
+    bool public immutable isProtocolTokenHub;
     using SafeERC20 for IERC20;
 
     // ─── Constants ────────────────────────────────────────────────────────────
 
     /// @notice Maximum fee per action: 10 % (1 000 basis points).
     uint256 public constant MAX_FEE_BPS = 1_000;
+
 
     // ─── Types ────────────────────────────────────────────────────────────────
 
@@ -107,6 +114,14 @@ contract FeeRegistry is Ownable, ReentrancyGuard, IFeeRegistry {
     ///         0 = no cap (not recommended for production).
     uint256 public maxGasPrice;
 
+    // Cross-chain
+    /// @notice Trusted CrossChainFeeManager. Only this address may call deductCrossChain.
+    ///         address(0) = cross-chain fee settlement disabled.
+    address public crossChainFeeManager;
+
+    /// @notice Processed cross-chain request GUIDs — replay protection.
+    mapping(bytes32 guid => bool) private _processedGuids;
+
     // Fee reduction
     /// @notice External contract that returns a per-wallet fee reduction in bps.
     ///         address(0) = fee reduction disabled.
@@ -130,7 +145,9 @@ contract FeeRegistry is Ownable, ReentrancyGuard, IFeeRegistry {
 
     // ─── Constructor ──────────────────────────────────────────────────────────
 
-    constructor() Ownable(msg.sender) {}
+    constructor(bool isProtocolTokenHub_) Ownable(msg.sender) {
+        isProtocolTokenHub = isProtocolTokenHub_;
+    }
 
     // ─── Owner: fee rate config ───────────────────────────────────────────────
 
@@ -232,6 +249,17 @@ contract FeeRegistry is Ownable, ReentrancyGuard, IFeeRegistry {
         emit FeeReductionConfigSet(feeReduction_, trustedFactory_);
     }
 
+    // ─── Owner: cross-chain config ────────────────────────────────────────────
+
+    /**
+     * @notice Set the trusted CrossChainFeeManager for this chain.
+     *         Pass address(0) to disable cross-chain fee settlement.
+     */
+    function setCrossChainFeeManager(address manager) external onlyOwner {
+        crossChainFeeManager = manager;
+        emit CrossChainFeeManagerSet(manager);
+    }
+
     // ─── Owner: protocol token config ────────────────────────────────────────
 
     /**
@@ -244,6 +272,7 @@ contract FeeRegistry is Ownable, ReentrancyGuard, IFeeRegistry {
      *                    Gas compensation is never discounted.
      */
     function setProtocolToken(address token, uint256 discountBps) external onlyOwner {
+        if (!isProtocolTokenHub) revert NotProtocolTokenHub();
         if (discountBps > 10_000) revert InvalidDiscountBps();
         if (token != address(0) && !_tokens[token].enabled) revert TokenNotAccepted();
         protocolToken = token;
@@ -363,6 +392,104 @@ contract FeeRegistry is Ownable, ReentrancyGuard, IFeeRegistry {
 
         _distribute(token, executor, creator, totalTokens, gasCompTokens);
         emit FeeDeducted(msg.sender, executor, creator, token, feeUSD, totalTokens, gasCompTokens);
+    }
+
+    // ─── Cross-chain vault-facing ─────────────────────────────────────────────
+
+    /**
+     * @notice Phase 1 of cross-chain fee settlement: try paying from the vault
+     *         owner's protocol token deposit on BSC.
+     *
+     *         Only has effect when isProtocolTokenHub == true.
+     *         Returns (false, ...) — without reverting — when the protocol token
+     *         balance is insufficient so the caller can proceed to Phase 2.
+     *         requestGuid is marked on first call regardless of success to
+     *         prevent replay on LayerZero message retries.
+     *
+     *         Called exclusively by the trusted CrossChainFeeManager.
+     */
+    function deductCrossChainProtocolToken(
+        address vault,
+        address owner,
+        address executor,
+        address creator,
+        uint256 volumeFeeUSD,
+        uint256 gasCompUSD,
+        bytes32 requestGuid
+    ) external nonReentrant returns (
+        bool    success,
+        address token,
+        uint256 totalTokens,
+        uint256 gasCompTokens
+    ) {
+        if (msg.sender != crossChainFeeManager) revert CallerNotCrossChainFeeManager();
+        if (protocolVault == address(0)) return (false, address(0), 0, 0);
+        if (_processedGuids[requestGuid]) revert RequestAlreadyProcessed(requestGuid);
+        _processedGuids[requestGuid] = true;
+
+        if (!isProtocolTokenHub) return (false, address(0), 0, 0);
+
+        address pt = protocolToken;
+        if (pt == address(0) || owner == address(0)) return (false, address(0), 0, 0);
+
+        gasCompTokens          = _feeTokenAmount(pt, gasCompUSD);
+        uint256 rawVolProto    = _feeTokenAmount(pt, volumeFeeUSD);
+        uint256 disc           = protocolTokenDiscountBps;
+        uint256 volProto       = disc == 0 ? rawVolProto : rawVolProto * (10_000 - disc) / 10_000;
+        totalTokens            = volProto > gasCompTokens ? volProto : gasCompTokens;
+
+        if (totalTokens == 0) return (false, pt, 0, 0);
+        if (ownerProtocolDeposits[owner][pt] < totalTokens) return (false, pt, totalTokens, gasCompTokens);
+
+        ownerProtocolDeposits[owner][pt] -= totalTokens;
+        _distribute(pt, executor, creator, totalTokens, gasCompTokens);
+        emit FeeDeducted(vault, executor, creator, pt, volumeFeeUSD, totalTokens, gasCompTokens);
+        return (true, pt, totalTokens, gasCompTokens);
+    }
+
+    /**
+     * @notice Phase 2 of cross-chain fee settlement: deduct from the vault's
+     *         deposit on the fee chain.
+     *
+     *         `depositToken_` is encoded by the CrossChainFeeManager in the
+     *         LayerZero message payload (from vault.depositToken() on exec chain).
+     *         requestGuid uses a phase-2 derivative: keccak256(abi.encode(guid,"D"))
+     *         so it does not collide when BSC handles both phases.
+     *
+     *         Called exclusively by the trusted CrossChainFeeManager.
+     */
+    function deductCrossChainDeposit(
+        address vault,
+        address executor,
+        address creator,
+        address depositToken_,
+        uint256 volumeFeeUSD,
+        uint256 gasCompUSD,
+        bytes32 requestGuid
+    ) external nonReentrant returns (
+        bool    success,
+        address token,
+        uint256 totalTokens,
+        uint256 gasCompTokens
+    ) {
+        if (msg.sender != crossChainFeeManager) revert CallerNotCrossChainFeeManager();
+        if (protocolVault == address(0)) return (false, address(0), 0, 0);
+        if (_processedGuids[requestGuid]) revert RequestAlreadyProcessed(requestGuid);
+        _processedGuids[requestGuid] = true;
+
+        gasCompTokens        = _feeTokenAmount(depositToken_, gasCompUSD);
+        uint256 volumeTokens = _applyFeeReduction(_feeTokenAmount(depositToken_, volumeFeeUSD));
+        totalTokens          = volumeTokens > gasCompTokens ? volumeTokens : gasCompTokens;
+
+        if (totalTokens == 0) return (false, depositToken_, 0, 0);
+
+        uint256 available = vaultDeposits[vault][depositToken_];
+        if (available < totalTokens) return (false, depositToken_, totalTokens, gasCompTokens);
+
+        vaultDeposits[vault][depositToken_] -= totalTokens;
+        _distribute(depositToken_, executor, creator, totalTokens, gasCompTokens);
+        emit FeeDeducted(vault, executor, creator, depositToken_, volumeFeeUSD, totalTokens, gasCompTokens);
+        return (true, depositToken_, totalTokens, gasCompTokens);
     }
 
     // ─── Pull pattern ─────────────────────────────────────────────────────────

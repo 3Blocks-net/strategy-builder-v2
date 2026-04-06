@@ -10,7 +10,7 @@ import type { TypedContractEvent, TypedDeferredTopicFilter, TypedEventLog, Typed
 
     getEvent(nameOrSignatureOrTopic: "FeeRegistryUpdated" | "OwnershipTransferred" | "PriceOracleUpdated" | "VaultCreated" | "VaultImplementationUpdated"): EventFragment;
 
-    encodeFunctionData(functionFragment: 'createVault', values: [AddressLike, AddressLike, AddressLike, BytesLike]): string;
+    encodeFunctionData(functionFragment: 'createVault', values: [AddressLike, AddressLike, AddressLike, BigNumberish, BytesLike]): string;
 encodeFunctionData(functionFragment: 'feeRegistry', values?: undefined): string;
 encodeFunctionData(functionFragment: 'getVault', values: [BigNumberish]): string;
 encodeFunctionData(functionFragment: 'isRegisteredVault', values: [AddressLike]): string;
@@ -135,7 +135,7 @@ decodeFunctionResult(functionFragment: 'vaultImplementation', data: BytesLike): 
     
     
     createVault: TypedContractMethod<
-      [vaultOwner: AddressLike, depositToken_: AddressLike, creator_: AddressLike, salt: BytesLike, ],
+      [vaultOwner: AddressLike, depositToken_: AddressLike, creator_: AddressLike, feeChainEid_: BigNumberish, salt: BytesLike, ],
       [string],
       'nonpayable'
     >
@@ -241,7 +241,7 @@ decodeFunctionResult(functionFragment: 'vaultImplementation', data: BytesLike): 
     getFunction<T extends ContractMethod = ContractMethod>(key: string | FunctionFragment): T;
 
     getFunction(nameOrSignature: 'createVault'): TypedContractMethod<
-      [vaultOwner: AddressLike, depositToken_: AddressLike, creator_: AddressLike, salt: BytesLike, ],
+      [vaultOwner: AddressLike, depositToken_: AddressLike, creator_: AddressLike, feeChainEid_: BigNumberish, salt: BytesLike, ],
       [string],
       'nonpayable'
     >;

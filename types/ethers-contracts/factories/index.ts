@@ -2,6 +2,7 @@
 /* tslint:disable */
 /* eslint-disable */
 export * as feeRegistrySol from './FeeRegistry.sol/index.js';
+export * as crosschain from './crosschain/index.js';
 export * as examples from './examples/index.js';
 export * as interfaces from './interfaces/index.js';
 export * as test from './test/index.js';

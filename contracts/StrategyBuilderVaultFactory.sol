@@ -93,15 +93,18 @@ contract StrategyBuilderVaultFactory is Ownable, IVaultRegistry {
      * @param vaultOwner  Address that will own and control the new vault.
      * @param depositToken_   ERC-20 token used to pay fees (must be accepted by the FeeRegistry).
      *                    Pass address(0) to disable fee settlement.
-     * @param creator_   Strategy creator that receives the creator fee share.
-     *                    Pass address(0) to route that share to the protocol vault.
-     * @param salt        Per-caller entropy for CREATE2 address derivation.
-     * @return vault      Address of the newly deployed ERC1967Proxy.
+     * @param creator_      Strategy creator that receives the creator fee share.
+     *                      Pass address(0) to route that share to the protocol vault.
+     * @param feeChainEid_  LayerZero Endpoint ID of the chain where fees are settled.
+     *                      0 = local chain only (no cross-chain settlement).
+     * @param salt          Per-caller entropy for CREATE2 address derivation.
+     * @return vault        Address of the newly deployed ERC1967Proxy.
      */
     function createVault(
         address vaultOwner,
         address depositToken_,
         address creator_,
+        uint32  feeChainEid_,
         bytes32 salt
     ) external returns (address vault) {
         if (vaultOwner == address(0)) revert ZeroAddress();
@@ -116,7 +119,7 @@ contract StrategyBuilderVaultFactory is Ownable, IVaultRegistry {
 
         bytes memory initData = abi.encodeCall(
             StrategyBuilderVault.initialize,
-            (vaultOwner, feeRegistry, depositToken_, creator_, priceOracle)
+            (vaultOwner, feeRegistry, depositToken_, creator_, priceOracle, feeChainEid_)
         );
 
         // Mix msg.sender into the salt to prevent front-running griefing.

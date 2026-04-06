@@ -14,6 +14,10 @@ declare module "@nomicfoundation/hardhat-ethers/types" {
 getContractFactory(name: 'IVaultOwner', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.IVaultOwner__factory>
 getContractFactory(name: 'StrategyBuilderVault', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.StrategyBuilderVault__factory>
 getContractFactory(name: 'StrategyBuilderVaultFactory', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.StrategyBuilderVaultFactory__factory>
+getContractFactory(name: 'CrossChainFeeManager', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.CrossChainFeeManager__factory>
+getContractFactory(name: 'IVaultDepositToken', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.IVaultDepositToken__factory>
+getContractFactory(name: 'IVaultOwner', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.IVaultOwner__factory>
+getContractFactory(name: 'ICrossChainFeeManager', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.ICrossChainFeeManager__factory>
 getContractFactory(name: 'ERC20TransferAction', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.ERC20TransferAction__factory>
 getContractFactory(name: 'FeeDepositAction', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.FeeDepositAction__factory>
 getContractFactory(name: 'IVaultMinDeposit', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.IVaultMinDeposit__factory>
@@ -36,6 +40,10 @@ getContractFactory(name: 'MockPriceOracle', signerOrOptions?: ethers.Signer | Fa
 getContractAt(name: 'IVaultOwner', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.IVaultOwner>
 getContractAt(name: 'StrategyBuilderVault', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.StrategyBuilderVault>
 getContractAt(name: 'StrategyBuilderVaultFactory', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.StrategyBuilderVaultFactory>
+getContractAt(name: 'CrossChainFeeManager', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.CrossChainFeeManager>
+getContractAt(name: 'IVaultDepositToken', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.IVaultDepositToken>
+getContractAt(name: 'IVaultOwner', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.IVaultOwner>
+getContractAt(name: 'ICrossChainFeeManager', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.ICrossChainFeeManager>
 getContractAt(name: 'ERC20TransferAction', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.ERC20TransferAction>
 getContractAt(name: 'FeeDepositAction', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.FeeDepositAction>
 getContractAt(name: 'IVaultMinDeposit', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.IVaultMinDeposit>
@@ -58,6 +66,10 @@ getContractAt(name: 'MockPriceOracle', address: string | ethers.Addressable, sig
 deployContract(name: 'IVaultOwner', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.IVaultOwner>
 deployContract(name: 'StrategyBuilderVault', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.StrategyBuilderVault>
 deployContract(name: 'StrategyBuilderVaultFactory', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.StrategyBuilderVaultFactory>
+deployContract(name: 'CrossChainFeeManager', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.CrossChainFeeManager>
+deployContract(name: 'IVaultDepositToken', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.IVaultDepositToken>
+deployContract(name: 'IVaultOwner', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.IVaultOwner>
+deployContract(name: 'ICrossChainFeeManager', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.ICrossChainFeeManager>
 deployContract(name: 'ERC20TransferAction', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.ERC20TransferAction>
 deployContract(name: 'FeeDepositAction', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.FeeDepositAction>
 deployContract(name: 'IVaultMinDeposit', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.IVaultMinDeposit>
@@ -80,6 +92,10 @@ deployContract(name: 'MockPriceOracle', signerOrOptions?: ethers.Signer | Deploy
 deployContract(name: 'IVaultOwner', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.IVaultOwner>
 deployContract(name: 'StrategyBuilderVault', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.StrategyBuilderVault>
 deployContract(name: 'StrategyBuilderVaultFactory', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.StrategyBuilderVaultFactory>
+deployContract(name: 'CrossChainFeeManager', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.CrossChainFeeManager>
+deployContract(name: 'IVaultDepositToken', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.IVaultDepositToken>
+deployContract(name: 'IVaultOwner', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.IVaultOwner>
+deployContract(name: 'ICrossChainFeeManager', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.ICrossChainFeeManager>
 deployContract(name: 'ERC20TransferAction', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.ERC20TransferAction>
 deployContract(name: 'FeeDepositAction', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.FeeDepositAction>
 deployContract(name: 'IVaultMinDeposit', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.IVaultMinDeposit>

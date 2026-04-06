@@ -3,6 +3,8 @@
 /* eslint-disable */
 import type * as feeRegistrySol from './FeeRegistry.sol/index.js';
 export type { feeRegistrySol };
+import type * as crosschain from './crosschain/index.js';
+export type { crosschain };
 import type * as examples from './examples/index.js';
 export type { examples };
 import type * as interfaces from './interfaces/index.js';
@@ -18,6 +20,12 @@ export type { IVaultOwner } from './FeeRegistry.sol/IVaultOwner.js';
 export { IVaultOwner__factory } from './factories/FeeRegistry.sol/IVaultOwner__factory.js';
 export { StrategyBuilderVault__factory } from './factories/StrategyBuilderVault__factory.js';
 export { StrategyBuilderVaultFactory__factory } from './factories/StrategyBuilderVaultFactory__factory.js';
+export type { CrossChainFeeManager } from './crosschain/CrossChainFeeManager.sol/CrossChainFeeManager.js';
+export { CrossChainFeeManager__factory } from './factories/crosschain/CrossChainFeeManager.sol/CrossChainFeeManager__factory.js';
+export type { IVaultDepositToken } from './crosschain/CrossChainFeeManager.sol/IVaultDepositToken.js';
+export { IVaultDepositToken__factory } from './factories/crosschain/CrossChainFeeManager.sol/IVaultDepositToken__factory.js';
+export type { ICrossChainFeeManager } from './crosschain/interfaces/ICrossChainFeeManager.js';
+export { ICrossChainFeeManager__factory } from './factories/crosschain/interfaces/ICrossChainFeeManager__factory.js';
 export type { ERC20TransferAction } from './examples/actions/ERC20TransferAction.js';
 export { ERC20TransferAction__factory } from './factories/examples/actions/ERC20TransferAction__factory.js';
 export type { FeeDepositAction } from './examples/actions/FeeDepositAction.sol/FeeDepositAction.js';

@@ -25,6 +25,11 @@ export default defineConfig({
     },
   },
 
+  paths: {
+    // Allow importing LayerZero contracts that are not exported via package.json "exports"
+    sources: "./contracts",
+  },
+
   networks: {
     // Local hardhat network
     hardhat: {

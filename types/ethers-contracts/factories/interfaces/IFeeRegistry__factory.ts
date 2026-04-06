@@ -8,6 +8,11 @@
   const _abi = [
   {
     "inputs": [],
+    "name": "CallerNotCrossChainFeeManager",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "DistributionNotSet",
     "type": "error"
   },
@@ -44,6 +49,11 @@
   },
   {
     "inputs": [],
+    "name": "NotProtocolTokenHub",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "NothingToClaim",
     "type": "error"
   },
@@ -55,6 +65,17 @@
   {
     "inputs": [],
     "name": "ProtocolTokenNotSet",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "guid",
+        "type": "bytes32"
+      }
+    ],
+    "name": "RequestAlreadyProcessed",
     "type": "error"
   },
   {
@@ -82,6 +103,19 @@
     "inputs": [],
     "name": "ZeroAddress",
     "type": "error"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "manager",
+        "type": "address"
+      }
+    ],
+    "name": "CrossChainFeeManagerSet",
+    "type": "event"
   },
   {
     "anonymous": false,
@@ -488,6 +522,147 @@
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "crossChainFeeManager",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "vault",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "executor",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "creator",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "depositToken_",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "volumeFeeUSD",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "gasCompUSD",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "requestGuid",
+        "type": "bytes32"
+      }
+    ],
+    "name": "deductCrossChainDeposit",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "success",
+        "type": "bool"
+      },
+      {
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "totalTokens",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "gasCompTokens",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "vault",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "owner",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "executor",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "creator",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "volumeFeeUSD",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "gasCompUSD",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "requestGuid",
+        "type": "bytes32"
+      }
+    ],
+    "name": "deductCrossChainProtocolToken",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "success",
+        "type": "bool"
+      },
+      {
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "totalTokens",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "gasCompTokens",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "internalType": "address",
@@ -598,6 +773,19 @@
   },
   {
     "inputs": [],
+    "name": "executorMarkupBps",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "feeReduction",
     "outputs": [
       {
@@ -623,6 +811,19 @@
       }
     ],
     "name": "feeTokenAmount",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "gasOverhead",
     "outputs": [
       {
         "internalType": "uint256",
@@ -671,6 +872,32 @@
         "internalType": "bool",
         "name": "",
         "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "isProtocolTokenHub",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "maxGasPrice",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
       }
     ],
     "stateMutability": "view",
@@ -753,6 +980,19 @@
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "protocolVault",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "internalType": "address",
@@ -761,6 +1001,19 @@
       }
     ],
     "name": "removeAcceptedToken",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "manager",
+        "type": "address"
+      }
+    ],
+    "name": "setCrossChainFeeManager",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"

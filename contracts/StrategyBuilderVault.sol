@@ -11,6 +11,7 @@ import "./interfaces/IUpdatableCondition.sol";
 import "./interfaces/IAction.sol";
 import "./interfaces/IFeeRegistry.sol";
 import "./interfaces/external/IPriceOracle.sol";
+import "./crosschain/interfaces/ICrossChainFeeManager.sol";
 
 /**
  * @title StrategyBuilderVault
@@ -122,6 +123,10 @@ contract StrategyBuilderVault is
     ///      FeeRegistry is set.
     IPriceOracle private _priceOracle;
 
+    /// @dev LayerZero Endpoint ID of the chain where fees are settled.
+    ///      0 = local chain only (default behaviour, no cross-chain).
+    uint32 private _feeChainEid;
+
     // ─── Events ───────────────────────────────────────────────────────────────
 
     event AutomationCreated(uint32 indexed automationId, uint256 stepCount);
@@ -217,13 +222,16 @@ contract StrategyBuilderVault is
      *                      Pass address(0) to route that share to the protocol vault.
      * @param priceOracle_  IPriceOracle used to convert (volumeToken, volumeAmount) → USD.
      *                      Pass address(0) to disable fee accrual (FeeAccrued not emitted).
+     * @param feeChainEid_  LayerZero Endpoint ID of the chain where fees are settled.
+     *                      0 = local chain only (no cross-chain settlement).
      */
     function initialize(
         address initialOwner,
         address feeRegistry_,
         address depositToken_,
         address creator_,
-        address priceOracle_
+        address priceOracle_,
+        uint32  feeChainEid_
     ) external initializer {
         __Ownable_init(initialOwner);
         // ReentrancyGuardTransient is stateless — no init needed
@@ -231,6 +239,7 @@ contract StrategyBuilderVault is
         _depositToken = depositToken_;
         _creator = creator_;
         _priceOracle = IPriceOracle(priceOracle_);
+        _feeChainEid = feeChainEid_;
     }
 
     /**
@@ -394,7 +403,7 @@ contract StrategyBuilderVault is
      *         When the vault owner executes ANY automation, fees are never charged.
      * @param automationId ID of the automation to run.
      */
-    function executeAutomation(uint32 automationId) external nonReentrant {
+    function executeAutomation(uint32 automationId) external payable nonReentrant {
         if (automationId >= _automationCount) revert AutomationDoesNotExist();
 
         Automation storage automation = _automations[automationId];
@@ -536,6 +545,11 @@ contract StrategyBuilderVault is
     /** @notice ERC-20 token used as deposit currency and to settle fees. address(0) = settlement disabled. */
     function depositToken() external view returns (address) {
         return _depositToken;
+    }
+
+    /** @notice LayerZero EID of the chain where fees are settled. 0 = local only. */
+    function feeChainEid() external view returns (uint32) {
+        return _feeChainEid;
     }
 
     /** @notice Minimum fee deposit (in token units) required in FeeRegistry. */
@@ -798,6 +812,32 @@ contract StrategyBuilderVault is
         address token = _depositToken;
         if (token == address(0)) return;
 
+        uint32 chainEid = _feeChainEid;
+
+        // ── Cross-chain settlement ─────────────────────────────────────────────
+        // When chainEid is set the fee is settled on a remote chain via LZ.
+        // gasCompUSD is pre-computed here using the local oracle so the remote
+        // chain doesn't need to know the execution chain's gas price or native
+        // token denomination.
+        if (chainEid != 0) {
+            address ccfm = reg.crossChainFeeManager();
+            if (ccfm != address(0)) {
+                // Compute gasCompUSD locally so the remote chain receives a USD amount.
+                uint256 gasCompUSD = _computeGasCompUSD(reg, gasUsed);
+                ICrossChainFeeManager(ccfm).requestCrossChainFee{value: msg.value}(
+                    address(this),
+                    executor,
+                    _creator,
+                    totalFeeUSD,
+                    gasCompUSD,
+                    chainEid
+                );
+                // FeesSettled is emitted by CrossChainFeeManager on settlement confirmation.
+                return;
+            }
+        }
+
+        // ── Local settlement (default) ─────────────────────────────────────────
         (uint256 totalTokens, uint256 gasCompTokens) = reg.deductFees(
             token,
             executor,
@@ -817,6 +857,31 @@ contract StrategyBuilderVault is
             totalTokens,
             gasCompTokens
         );
+    }
+
+    /**
+     * @dev Compute gas compensation in USD using the local FeeRegistry oracle config.
+     *      Mirrors FeeRegistry._computeGasComp but returns USD instead of tokens,
+     *      so the value can be forwarded cross-chain for remote token conversion.
+     */
+    function _computeGasCompUSD(IFeeRegistry reg, uint256 gasUsed) internal view returns (uint256) {
+        address oracle = reg.priceOracle();
+        if (oracle == address(0)) return 0;
+        address nativeTok = reg.nativeToken();
+        uint256 nativePrice;
+        try IPriceOracle(oracle).getTokenPrice(nativeTok) returns (uint256 p) {
+            nativePrice = p;
+        } catch {
+            return 0;
+        }
+        if (nativePrice == 0) return 0;
+        uint256 gasOverhead = reg.gasOverhead();
+        uint256 markupBps   = reg.executorMarkupBps();
+        uint256 maxGp       = reg.maxGasPrice();
+        uint256 effectiveGp = tx.gasprice;
+        if (maxGp > 0 && effectiveGp > maxGp) effectiveGp = maxGp;
+        uint256 gasCostUSD  = ((gasUsed + gasOverhead) * effectiveGp * nativePrice) / 1e18;
+        return gasCostUSD + (gasCostUSD * markupBps) / 10_000;
     }
 
     // ─── ETH handling ─────────────────────────────────────────────────────────

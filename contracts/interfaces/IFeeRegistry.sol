@@ -70,6 +70,8 @@ interface IFeeRegistry {
         uint256 gasCompTokens
     );
     event FeeClaimed(address indexed claimant, address indexed token, uint256 amount);
+    /// @dev Emitted when the trusted CrossChainFeeManager is updated.
+    event CrossChainFeeManagerSet(address indexed manager);
     /// @dev Emitted when the protocol token or its discount is updated.
     event ProtocolTokenSet(address indexed token, uint256 discountBps);
     /// @dev Emitted when a vault owner deposits protocol tokens.
@@ -90,6 +92,9 @@ interface IFeeRegistry {
     error WithdrawExceedsDeposit(uint256 requested, uint256 available);
     error ProtocolTokenNotSet();
     error InvalidDiscountBps();
+    error NotProtocolTokenHub();
+    error CallerNotCrossChainFeeManager();
+    error RequestAlreadyProcessed(bytes32 guid);
 
     // ── Owner: fee rate config ─────────────────────────────────────────────────
 
@@ -145,6 +150,15 @@ interface IFeeRegistry {
      */
     function setFeeReductionConfig(address feeReduction_, address trustedFactory_) external;
 
+    // ── Owner: cross-chain config ─────────────────────────────────────────────
+
+    /**
+     * @notice Set the trusted CrossChainFeeManager for this chain.
+     *         Only this address may call deductCrossChain.
+     *         Pass address(0) to disable cross-chain fee settlement.
+     */
+    function setCrossChainFeeManager(address manager) external;
+
     // ── Owner: protocol token config ──────────────────────────────────────────
 
     /**
@@ -187,6 +201,40 @@ interface IFeeRegistry {
      */
     function withdrawDeposit(address token, uint256 amount) external;
 
+    // ── Cross-chain vault-facing ──────────────────────────────────────────────
+
+    /**
+     * @notice Phase 1: try paying from the vault owner's protocol token deposit on BSC.
+     *         Only has effect when isProtocolTokenHub == true.
+     *         Returns (false, ...) without reverting when funds are insufficient.
+     *         Called exclusively by the trusted CrossChainFeeManager.
+     */
+    function deductCrossChainProtocolToken(
+        address vault,
+        address owner,
+        address executor,
+        address creator,
+        uint256 volumeFeeUSD,
+        uint256 gasCompUSD,
+        bytes32 requestGuid
+    ) external returns (bool success, address token, uint256 totalTokens, uint256 gasCompTokens);
+
+    /**
+     * @notice Phase 2: deduct from the vault's deposit on the fee chain.
+     *         depositToken_ is forwarded from the vault's depositToken on the execution chain.
+     *         requestGuid should be a phase-2 derivative to avoid collision with Phase 1.
+     *         Called exclusively by the trusted CrossChainFeeManager.
+     */
+    function deductCrossChainDeposit(
+        address vault,
+        address executor,
+        address creator,
+        address depositToken_,
+        uint256 volumeFeeUSD,
+        uint256 gasCompUSD,
+        bytes32 requestGuid
+    ) external returns (bool success, address token, uint256 totalTokens, uint256 gasCompTokens);
+
     // ── Vault-facing ──────────────────────────────────────────────────────────
 
     /**
@@ -219,6 +267,8 @@ interface IFeeRegistry {
 
     function getFee(address target, bytes4 selector) external view returns (uint256);
     function isAcceptedToken(address token) external view returns (bool);
+    /// @notice Protocol vault that receives the protocol share of fees.
+    function protocolVault() external view returns (address);
     function vaultDeposit(address vault, address token) external view returns (uint256);
     function claimable(address party, address token) external view returns (uint256);
     function feeTokenAmount(address token, uint256 feeUSD) external view returns (uint256);
@@ -230,12 +280,24 @@ interface IFeeRegistry {
     function feeReduction() external view returns (address);
     /// @notice Trusted IVaultRegistry — only its vaults benefit from fee reduction.
     function trustedFactory() external view returns (address);
+    /// @notice Trusted CrossChainFeeManager — the only address allowed to call deductCrossChain.
+    function crossChainFeeManager() external view returns (address);
+    /// @notice True when this chain is the BSC Protocol Token Hub.
+    ///         Only the hub can have protocolToken set.
+    function isProtocolTokenHub() external view returns (bool);
     /// @notice Protocol token for owner-wide fee coverage with discount.
     function protocolToken() external view returns (address);
     /// @notice Volume-fee discount in bps when paying with the protocol token.
     function protocolTokenDiscountBps() external view returns (uint256);
     /// @notice Protocol-token balance deposited by a vault owner (not per vault).
     function ownerProtocolDeposits(address owner, address token) external view returns (uint256);
+
+    /// @notice Fixed gas units added to measured gasUsed to cover settlement overhead.
+    function gasOverhead() external view returns (uint256);
+    /// @notice Executor markup in bps over raw gas cost.
+    function executorMarkupBps() external view returns (uint256);
+    /// @notice Maximum gas price cap in wei (0 = no cap).
+    function maxGasPrice() external view returns (uint256);
 
     /**
      * @notice Estimate gas compensation in token units.
