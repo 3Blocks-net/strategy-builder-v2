@@ -72,6 +72,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const nonce = await fetchNonce();
 
+      const now = new Date();
       const message = new SiweMessage({
         domain: window.location.host,
         address: walletAddress,
@@ -80,7 +81,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         version: '1',
         chainId: chainId ?? 56,
         nonce,
-        issuedAt: new Date().toISOString(),
+        issuedAt: now.toISOString(),
+        expirationTime: new Date(now.getTime() + 5 * 60 * 1000).toISOString(),
       });
 
       const messageString = message.prepareMessage();
