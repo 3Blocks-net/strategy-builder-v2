@@ -99,4 +99,21 @@ export class AuthService {
 
     return { accessToken, refreshToken };
   }
+
+  async refresh(refreshToken: string): Promise<{ accessToken: string }> {
+    const tokenHash = createHash('sha256')
+      .update(refreshToken)
+      .digest('hex');
+
+    const stored = await this.prisma.refreshToken.findUnique({
+      where: { tokenHash },
+    });
+
+    if (!stored || stored.expiresAt < new Date()) {
+      throw new UnauthorizedException('REFRESH_TOKEN_INVALID');
+    }
+
+    const accessToken = this.jwtService.sign({ sub: stored.walletAddress });
+    return { accessToken };
+  }
 }
