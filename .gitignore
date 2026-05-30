@@ -1,11 +1,14 @@
 node_modules
 dist
+.env
+
+# Hardhat
 artifacts
 cache
 coverage
 coverage.json
 typechain-types
-.env
-
-# Hardhat keystore
 .hardhat-keystore
+
+# pnpm
+pnpm-debug.log

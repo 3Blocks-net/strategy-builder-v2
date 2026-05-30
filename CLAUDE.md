@@ -8,8 +8,25 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 On-chain automation protocol deployed on BSC. Users create **vaults** (ERC1967 proxies) and configure **automations** — directed graphs of Conditions and Actions. A public executor calls `executeAutomation`, the trigger condition gates execution, and actions run in sequence modifying the vault's shared context. Fees are charged at the vault boundary (deposit/withdraw BPS), and executors receive gas compensation from a pre-funded deposit in FeeRegistry.
 
+## Monorepo Structure
+
+pnpm workspaces with packages in `packages/`:
+
+| Package | Path | Description |
+|---------|------|-------------|
+| `contracts` | `packages/contracts` | Hardhat smart contracts (Solidity) |
+
 ## Commands
 
+**Root (workspace scripts):**
+```bash
+pnpm install                 # Install all workspace dependencies
+pnpm contracts:compile       # Compile contracts
+pnpm contracts:test          # Run contract tests
+pnpm contracts:clean         # Clean contract artifacts
+```
+
+**From `packages/contracts/`:**
 ```bash
 npx hardhat compile          # Compile all contracts
 npx hardhat test             # Run all tests
