@@ -1,14 +1,28 @@
-import { useConnect } from 'wagmi';
+import { useEffect } from 'react';
+import { useConnect, useAccount } from 'wagmi';
+import { Navigate } from 'react-router';
 import { Button } from '@/components/ui/button';
+import { useAuth } from '@/providers/auth-context';
 
 export function ConnectPage() {
-  const { connect, connectors, error, isPending } = useConnect();
+  const { connect, connectors, error: connectError, isPending } = useConnect();
+  const { isConnected } = useAccount();
+  const { isAuthenticated, login, error: authError, isLoading } = useAuth();
 
   const injectedConnector = connectors.find((c) => c.type === 'injected');
   const hasMetaMask =
     typeof window !== 'undefined' && typeof window.ethereum !== 'undefined';
 
-  const errorMessage = getErrorMessage(error);
+  useEffect(() => {
+    if (isConnected && !isAuthenticated && !isLoading) {
+      login();
+    }
+  }, [isConnected, isAuthenticated, isLoading, login]);
+
+  if (isAuthenticated) return <Navigate to="/dashboard" replace />;
+
+  const errorMessage =
+    authError ?? getConnectErrorMessage(connectError);
 
   return (
     <div className="flex min-h-screen items-center justify-center">
@@ -38,12 +52,12 @@ export function ConnectPage() {
             <Button
               size="lg"
               className="w-full"
-              disabled={isPending}
+              disabled={isPending || isLoading}
               onClick={() =>
                 injectedConnector && connect({ connector: injectedConnector })
               }
             >
-              {isPending ? 'Connecting...' : 'Connect Wallet'}
+              {isPending || isLoading ? 'Connecting...' : 'Connect Wallet'}
             </Button>
 
             {errorMessage && (
@@ -56,7 +70,7 @@ export function ConnectPage() {
   );
 }
 
-function getErrorMessage(error: Error | null): string | null {
+function getConnectErrorMessage(error: Error | null): string | null {
   if (!error) return null;
   if (error.message.includes('User rejected the request'))
     return 'Connection rejected. Please try again.';
