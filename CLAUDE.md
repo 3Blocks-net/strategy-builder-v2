@@ -16,6 +16,7 @@ pnpm workspaces with packages in `packages/`:
 |---------|------|-------------|
 | `contracts` | `packages/contracts` | Hardhat smart contracts (Solidity) |
 | `backend` | `packages/backend` | NestJS API server (TypeScript) |
+| `frontend` | `packages/frontend` | Vite + React SPA (TypeScript) |
 
 ## Commands
 
@@ -29,6 +30,9 @@ pnpm backend:dev             # Start backend in watch mode
 pnpm backend:build           # Build backend
 pnpm backend:test            # Run backend unit tests
 pnpm backend:test:e2e        # Run backend e2e tests
+pnpm frontend:dev            # Start frontend dev server
+pnpm frontend:build          # Build frontend for production
+pnpm frontend:test           # Run frontend tests
 ```
 
 **From `packages/contracts/`:**

@@ -12,7 +12,10 @@
     "backend:dev": "pnpm --filter backend dev",
     "backend:build": "pnpm --filter backend build",
     "backend:test": "pnpm --filter backend test",
-    "backend:test:e2e": "pnpm --filter backend test:e2e"
+    "backend:test:e2e": "pnpm --filter backend test:e2e",
+    "frontend:dev": "pnpm --filter frontend dev",
+    "frontend:build": "pnpm --filter frontend build",
+    "frontend:test": "pnpm --filter frontend test"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
