@@ -15,6 +15,7 @@ pnpm workspaces with packages in `packages/`:
 | Package | Path | Description |
 |---------|------|-------------|
 | `contracts` | `packages/contracts` | Hardhat smart contracts (Solidity) |
+| `backend` | `packages/backend` | NestJS API server (TypeScript) |
 
 ## Commands
 
@@ -24,6 +25,10 @@ pnpm install                 # Install all workspace dependencies
 pnpm contracts:compile       # Compile contracts
 pnpm contracts:test          # Run contract tests
 pnpm contracts:clean         # Clean contract artifacts
+pnpm backend:dev             # Start backend in watch mode
+pnpm backend:build           # Build backend
+pnpm backend:test            # Run backend unit tests
+pnpm backend:test:e2e        # Run backend e2e tests
 ```
 
 **From `packages/contracts/`:**

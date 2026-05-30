@@ -8,6 +8,19 @@
     "contracts:test": "pnpm --filter contracts test",
     "contracts:clean": "pnpm --filter contracts clean",
     "contracts:deploy:testnet": "pnpm --filter contracts deploy:bsc-testnet",
-    "contracts:deploy:mainnet": "pnpm --filter contracts deploy:bsc-mainnet"
+    "contracts:deploy:mainnet": "pnpm --filter contracts deploy:bsc-mainnet",
+    "backend:dev": "pnpm --filter backend dev",
+    "backend:build": "pnpm --filter backend build",
+    "backend:test": "pnpm --filter backend test",
+    "backend:test:e2e": "pnpm --filter backend test:e2e"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@nestjs/core",
+      "@prisma/client",
+      "@prisma/engines",
+      "esbuild",
+      "prisma"
+    ]
   }
 }

@@ -1,0 +1,31 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String   @id @default(uuid())
+  walletAddress String   @unique
+  createdAt     DateTime @default(now())
+  lastLoginAt   DateTime @default(now())
+}
+
+model Nonce {
+  id        String   @id @default(uuid())
+  nonce     String   @unique
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+  used      Boolean  @default(false)
+}
+
+model RefreshToken {
+  id            String   @id @default(uuid())
+  tokenHash     String   @unique
+  walletAddress String
+  expiresAt     DateTime
+  createdAt     DateTime @default(now())
+}
