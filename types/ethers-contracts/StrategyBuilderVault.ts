@@ -13,28 +13,27 @@ export declare namespace StrategyBuilderVault {
     }
 
   export interface StrategyBuilderVaultInterface extends Interface {
-    getFunction(nameOrSignature: "DONE" | "MAX_STEPS" | "automationCount" | "createAutomation" | "createOwnerAutomation" | "creator" | "decodeContextDiff" | "depositFees" | "depositToken" | "executeAutomation" | "feeRegistry" | "getAutomation" | "getContext" | "initialize" | "isTriggerMet" | "minFeeDeposit" | "owner" | "priceOracle" | "renounceOwnership" | "setAutomationActive" | "setContext" | "setContextSlot" | "setMinFeeDeposit" | "transferOwnership" | "updateAutomationSteps" | "withdrawETH"): FunctionFragment;
+    getFunction(nameOrSignature: "DONE" | "MAX_STEPS" | "automationCount" | "createAutomation" | "createOwnerAutomation" | "decodeContextDiff" | "deposit" | "depositFees" | "depositToken" | "executeAutomation" | "feeRegistry" | "getAutomation" | "getContext" | "initialize" | "isTriggerMet" | "minFeeDeposit" | "owner" | "renounceOwnership" | "setAutomationActive" | "setContext" | "setContextSlot" | "setMinFeeDeposit" | "transferOwnership" | "updateAutomationSteps" | "withdraw" | "withdrawETH"): FunctionFragment;
 
-    getEvent(nameOrSignatureOrTopic: "AutomationActiveChanged" | "AutomationCreated" | "AutomationExecuted" | "AutomationStepsUpdated" | "ContextSlotSet" | "FeeAccrued" | "FeesSettled" | "Initialized" | "MinFeeDepositUpdated" | "OwnershipTransferred"): EventFragment;
+    getEvent(nameOrSignatureOrTopic: "AutomationActiveChanged" | "AutomationCreated" | "AutomationExecuted" | "AutomationStepsUpdated" | "ContextSlotSet" | "Deposited" | "GasCompSettled" | "Initialized" | "MinFeeDepositUpdated" | "OwnershipTransferred" | "Withdrawn"): EventFragment;
 
     encodeFunctionData(functionFragment: 'DONE', values?: undefined): string;
 encodeFunctionData(functionFragment: 'MAX_STEPS', values?: undefined): string;
 encodeFunctionData(functionFragment: 'automationCount', values?: undefined): string;
 encodeFunctionData(functionFragment: 'createAutomation', values: [StrategyBuilderVault.StepStruct[]]): string;
 encodeFunctionData(functionFragment: 'createOwnerAutomation', values: [StrategyBuilderVault.StepStruct[]]): string;
-encodeFunctionData(functionFragment: 'creator', values?: undefined): string;
 encodeFunctionData(functionFragment: 'decodeContextDiff', values: [BytesLike]): string;
+encodeFunctionData(functionFragment: 'deposit', values: [AddressLike, BigNumberish]): string;
 encodeFunctionData(functionFragment: 'depositFees', values: [AddressLike, BigNumberish]): string;
 encodeFunctionData(functionFragment: 'depositToken', values?: undefined): string;
 encodeFunctionData(functionFragment: 'executeAutomation', values: [BigNumberish]): string;
 encodeFunctionData(functionFragment: 'feeRegistry', values?: undefined): string;
 encodeFunctionData(functionFragment: 'getAutomation', values: [BigNumberish]): string;
 encodeFunctionData(functionFragment: 'getContext', values?: undefined): string;
-encodeFunctionData(functionFragment: 'initialize', values: [AddressLike, AddressLike, AddressLike, AddressLike, AddressLike]): string;
+encodeFunctionData(functionFragment: 'initialize', values: [AddressLike, AddressLike, AddressLike]): string;
 encodeFunctionData(functionFragment: 'isTriggerMet', values: [BigNumberish]): string;
 encodeFunctionData(functionFragment: 'minFeeDeposit', values?: undefined): string;
 encodeFunctionData(functionFragment: 'owner', values?: undefined): string;
-encodeFunctionData(functionFragment: 'priceOracle', values?: undefined): string;
 encodeFunctionData(functionFragment: 'renounceOwnership', values?: undefined): string;
 encodeFunctionData(functionFragment: 'setAutomationActive', values: [BigNumberish, boolean]): string;
 encodeFunctionData(functionFragment: 'setContext', values: [BytesLike[]]): string;
@@ -42,6 +41,7 @@ encodeFunctionData(functionFragment: 'setContextSlot', values: [BigNumberish, By
 encodeFunctionData(functionFragment: 'setMinFeeDeposit', values: [BigNumberish]): string;
 encodeFunctionData(functionFragment: 'transferOwnership', values: [AddressLike]): string;
 encodeFunctionData(functionFragment: 'updateAutomationSteps', values: [BigNumberish, StrategyBuilderVault.StepStruct[]]): string;
+encodeFunctionData(functionFragment: 'withdraw', values: [AddressLike, BigNumberish, AddressLike]): string;
 encodeFunctionData(functionFragment: 'withdrawETH', values: [AddressLike, BigNumberish]): string;
 
     decodeFunctionResult(functionFragment: 'DONE', data: BytesLike): Result;
@@ -49,8 +49,8 @@ decodeFunctionResult(functionFragment: 'MAX_STEPS', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'automationCount', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'createAutomation', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'createOwnerAutomation', data: BytesLike): Result;
-decodeFunctionResult(functionFragment: 'creator', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'decodeContextDiff', data: BytesLike): Result;
+decodeFunctionResult(functionFragment: 'deposit', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'depositFees', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'depositToken', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'executeAutomation', data: BytesLike): Result;
@@ -61,7 +61,6 @@ decodeFunctionResult(functionFragment: 'initialize', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'isTriggerMet', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'minFeeDeposit', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'owner', data: BytesLike): Result;
-decodeFunctionResult(functionFragment: 'priceOracle', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'renounceOwnership', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'setAutomationActive', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'setContext', data: BytesLike): Result;
@@ -69,6 +68,7 @@ decodeFunctionResult(functionFragment: 'setContextSlot', data: BytesLike): Resul
 decodeFunctionResult(functionFragment: 'setMinFeeDeposit', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'transferOwnership', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'updateAutomationSteps', data: BytesLike): Result;
+decodeFunctionResult(functionFragment: 'withdraw', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'withdrawETH', data: BytesLike): Result;
   }
 
@@ -133,10 +133,10 @@ decodeFunctionResult(functionFragment: 'withdrawETH', data: BytesLike): Result;
 
   
 
-    export namespace FeeAccruedEvent {
-      export type InputTuple = [automationId: BigNumberish, stepIndex: BigNumberish, target: AddressLike, selector: BytesLike, volumeUSD: BigNumberish, feeUSD: BigNumberish];
-      export type OutputTuple = [automationId: bigint, stepIndex: bigint, target: string, selector: string, volumeUSD: bigint, feeUSD: bigint];
-      export interface OutputObject {automationId: bigint, stepIndex: bigint, target: string, selector: string, volumeUSD: bigint, feeUSD: bigint };
+    export namespace DepositedEvent {
+      export type InputTuple = [token: AddressLike, amount: BigNumberish];
+      export type OutputTuple = [token: string, amount: bigint];
+      export interface OutputObject {token: string, amount: bigint };
       export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>
       export type Filter = TypedDeferredTopicFilter<Event>
       export type Log = TypedEventLog<Event>
@@ -145,10 +145,10 @@ decodeFunctionResult(functionFragment: 'withdrawETH', data: BytesLike): Result;
 
   
 
-    export namespace FeesSettledEvent {
-      export type InputTuple = [automationId: BigNumberish, executor: AddressLike, depositToken: AddressLike, creator: AddressLike, totalFeeUSD: BigNumberish, depositTokenAmount: BigNumberish, gasCompTokens: BigNumberish];
-      export type OutputTuple = [automationId: bigint, executor: string, depositToken: string, creator: string, totalFeeUSD: bigint, depositTokenAmount: bigint, gasCompTokens: bigint];
-      export interface OutputObject {automationId: bigint, executor: string, depositToken: string, creator: string, totalFeeUSD: bigint, depositTokenAmount: bigint, gasCompTokens: bigint };
+    export namespace GasCompSettledEvent {
+      export type InputTuple = [automationId: BigNumberish, executor: AddressLike, token: AddressLike, gasCompTokens: BigNumberish];
+      export type OutputTuple = [automationId: bigint, executor: string, token: string, gasCompTokens: bigint];
+      export interface OutputObject {automationId: bigint, executor: string, token: string, gasCompTokens: bigint };
       export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>
       export type Filter = TypedDeferredTopicFilter<Event>
       export type Log = TypedEventLog<Event>
@@ -185,6 +185,18 @@ decodeFunctionResult(functionFragment: 'withdrawETH', data: BytesLike): Result;
       export type InputTuple = [previousOwner: AddressLike, newOwner: AddressLike];
       export type OutputTuple = [previousOwner: string, newOwner: string];
       export interface OutputObject {previousOwner: string, newOwner: string };
+      export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>
+      export type Filter = TypedDeferredTopicFilter<Event>
+      export type Log = TypedEventLog<Event>
+      export type LogDescription = TypedLogDescription<Event>
+    }
+
+  
+
+    export namespace WithdrawnEvent {
+      export type InputTuple = [token: AddressLike, amount: BigNumberish, fee: BigNumberish, recipient: AddressLike];
+      export type OutputTuple = [token: string, amount: bigint, fee: bigint, recipient: string];
+      export interface OutputObject {token: string, amount: bigint, fee: bigint, recipient: string };
       export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>
       export type Filter = TypedDeferredTopicFilter<Event>
       export type Log = TypedEventLog<Event>
@@ -267,18 +279,18 @@ decodeFunctionResult(functionFragment: 'withdrawETH', data: BytesLike): Result;
     
 
     
-    creator: TypedContractMethod<
-      [],
-      [string],
+    decodeContextDiff: TypedContractMethod<
+      [data: BytesLike, ],
+      [[bigint[], string[]] & {slots: bigint[], values: string[] }],
       'view'
     >
     
 
     
-    decodeContextDiff: TypedContractMethod<
-      [data: BytesLike, ],
-      [[bigint[], string[]] & {slots: bigint[], values: string[] }],
-      'view'
+    deposit: TypedContractMethod<
+      [token: AddressLike, amount: BigNumberish, ],
+      [void],
+      'nonpayable'
     >
     
 
@@ -332,7 +344,7 @@ decodeFunctionResult(functionFragment: 'withdrawETH', data: BytesLike): Result;
 
     
     initialize: TypedContractMethod<
-      [initialOwner: AddressLike, feeRegistry_: AddressLike, depositToken_: AddressLike, creator_: AddressLike, priceOracle_: AddressLike, ],
+      [initialOwner: AddressLike, feeRegistry_: AddressLike, depositToken_: AddressLike, ],
       [void],
       'nonpayable'
     >
@@ -356,14 +368,6 @@ decodeFunctionResult(functionFragment: 'withdrawETH', data: BytesLike): Result;
 
     
     owner: TypedContractMethod<
-      [],
-      [string],
-      'view'
-    >
-    
-
-    
-    priceOracle: TypedContractMethod<
       [],
       [string],
       'view'
@@ -427,6 +431,14 @@ decodeFunctionResult(functionFragment: 'withdrawETH', data: BytesLike): Result;
     
 
     
+    withdraw: TypedContractMethod<
+      [token: AddressLike, amount: BigNumberish, recipient: AddressLike, ],
+      [void],
+      'nonpayable'
+    >
+    
+
+    
     withdrawETH: TypedContractMethod<
       [to: AddressLike, amount: BigNumberish, ],
       [void],
@@ -462,15 +474,15 @@ getFunction(nameOrSignature: 'createOwnerAutomation'): TypedContractMethod<
       [bigint],
       'nonpayable'
     >;
-getFunction(nameOrSignature: 'creator'): TypedContractMethod<
-      [],
-      [string],
-      'view'
-    >;
 getFunction(nameOrSignature: 'decodeContextDiff'): TypedContractMethod<
       [data: BytesLike, ],
       [[bigint[], string[]] & {slots: bigint[], values: string[] }],
       'view'
+    >;
+getFunction(nameOrSignature: 'deposit'): TypedContractMethod<
+      [token: AddressLike, amount: BigNumberish, ],
+      [void],
+      'nonpayable'
     >;
 getFunction(nameOrSignature: 'depositFees'): TypedContractMethod<
       [token: AddressLike, amount: BigNumberish, ],
@@ -503,7 +515,7 @@ getFunction(nameOrSignature: 'getContext'): TypedContractMethod<
       'view'
     >;
 getFunction(nameOrSignature: 'initialize'): TypedContractMethod<
-      [initialOwner: AddressLike, feeRegistry_: AddressLike, depositToken_: AddressLike, creator_: AddressLike, priceOracle_: AddressLike, ],
+      [initialOwner: AddressLike, feeRegistry_: AddressLike, depositToken_: AddressLike, ],
       [void],
       'nonpayable'
     >;
@@ -518,11 +530,6 @@ getFunction(nameOrSignature: 'minFeeDeposit'): TypedContractMethod<
       'view'
     >;
 getFunction(nameOrSignature: 'owner'): TypedContractMethod<
-      [],
-      [string],
-      'view'
-    >;
-getFunction(nameOrSignature: 'priceOracle'): TypedContractMethod<
       [],
       [string],
       'view'
@@ -562,6 +569,11 @@ getFunction(nameOrSignature: 'updateAutomationSteps'): TypedContractMethod<
       [void],
       'nonpayable'
     >;
+getFunction(nameOrSignature: 'withdraw'): TypedContractMethod<
+      [token: AddressLike, amount: BigNumberish, recipient: AddressLike, ],
+      [void],
+      'nonpayable'
+    >;
 getFunction(nameOrSignature: 'withdrawETH'): TypedContractMethod<
       [to: AddressLike, amount: BigNumberish, ],
       [void],
@@ -573,11 +585,12 @@ getEvent(key: 'AutomationCreated'): TypedContractEvent<AutomationCreatedEvent.In
 getEvent(key: 'AutomationExecuted'): TypedContractEvent<AutomationExecutedEvent.InputTuple, AutomationExecutedEvent.OutputTuple, AutomationExecutedEvent.OutputObject>;
 getEvent(key: 'AutomationStepsUpdated'): TypedContractEvent<AutomationStepsUpdatedEvent.InputTuple, AutomationStepsUpdatedEvent.OutputTuple, AutomationStepsUpdatedEvent.OutputObject>;
 getEvent(key: 'ContextSlotSet'): TypedContractEvent<ContextSlotSetEvent.InputTuple, ContextSlotSetEvent.OutputTuple, ContextSlotSetEvent.OutputObject>;
-getEvent(key: 'FeeAccrued'): TypedContractEvent<FeeAccruedEvent.InputTuple, FeeAccruedEvent.OutputTuple, FeeAccruedEvent.OutputObject>;
-getEvent(key: 'FeesSettled'): TypedContractEvent<FeesSettledEvent.InputTuple, FeesSettledEvent.OutputTuple, FeesSettledEvent.OutputObject>;
+getEvent(key: 'Deposited'): TypedContractEvent<DepositedEvent.InputTuple, DepositedEvent.OutputTuple, DepositedEvent.OutputObject>;
+getEvent(key: 'GasCompSettled'): TypedContractEvent<GasCompSettledEvent.InputTuple, GasCompSettledEvent.OutputTuple, GasCompSettledEvent.OutputObject>;
 getEvent(key: 'Initialized'): TypedContractEvent<InitializedEvent.InputTuple, InitializedEvent.OutputTuple, InitializedEvent.OutputObject>;
 getEvent(key: 'MinFeeDepositUpdated'): TypedContractEvent<MinFeeDepositUpdatedEvent.InputTuple, MinFeeDepositUpdatedEvent.OutputTuple, MinFeeDepositUpdatedEvent.OutputObject>;
 getEvent(key: 'OwnershipTransferred'): TypedContractEvent<OwnershipTransferredEvent.InputTuple, OwnershipTransferredEvent.OutputTuple, OwnershipTransferredEvent.OutputObject>;
+getEvent(key: 'Withdrawn'): TypedContractEvent<WithdrawnEvent.InputTuple, WithdrawnEvent.OutputTuple, WithdrawnEvent.OutputObject>;
 
     filters: {
       
@@ -601,12 +614,12 @@ getEvent(key: 'OwnershipTransferred'): TypedContractEvent<OwnershipTransferredEv
       ContextSlotSet: TypedContractEvent<ContextSlotSetEvent.InputTuple, ContextSlotSetEvent.OutputTuple, ContextSlotSetEvent.OutputObject>;
     
 
-      'FeeAccrued(uint32,uint32,address,bytes4,uint256,uint256)': TypedContractEvent<FeeAccruedEvent.InputTuple, FeeAccruedEvent.OutputTuple, FeeAccruedEvent.OutputObject>;
-      FeeAccrued: TypedContractEvent<FeeAccruedEvent.InputTuple, FeeAccruedEvent.OutputTuple, FeeAccruedEvent.OutputObject>;
+      'Deposited(address,uint256)': TypedContractEvent<DepositedEvent.InputTuple, DepositedEvent.OutputTuple, DepositedEvent.OutputObject>;
+      Deposited: TypedContractEvent<DepositedEvent.InputTuple, DepositedEvent.OutputTuple, DepositedEvent.OutputObject>;
     
 
-      'FeesSettled(uint32,address,address,address,uint256,uint256,uint256)': TypedContractEvent<FeesSettledEvent.InputTuple, FeesSettledEvent.OutputTuple, FeesSettledEvent.OutputObject>;
-      FeesSettled: TypedContractEvent<FeesSettledEvent.InputTuple, FeesSettledEvent.OutputTuple, FeesSettledEvent.OutputObject>;
+      'GasCompSettled(uint32,address,address,uint256)': TypedContractEvent<GasCompSettledEvent.InputTuple, GasCompSettledEvent.OutputTuple, GasCompSettledEvent.OutputObject>;
+      GasCompSettled: TypedContractEvent<GasCompSettledEvent.InputTuple, GasCompSettledEvent.OutputTuple, GasCompSettledEvent.OutputObject>;
     
 
       'Initialized(uint64)': TypedContractEvent<InitializedEvent.InputTuple, InitializedEvent.OutputTuple, InitializedEvent.OutputObject>;
@@ -619,6 +632,10 @@ getEvent(key: 'OwnershipTransferred'): TypedContractEvent<OwnershipTransferredEv
 
       'OwnershipTransferred(address,address)': TypedContractEvent<OwnershipTransferredEvent.InputTuple, OwnershipTransferredEvent.OutputTuple, OwnershipTransferredEvent.OutputObject>;
       OwnershipTransferred: TypedContractEvent<OwnershipTransferredEvent.InputTuple, OwnershipTransferredEvent.OutputTuple, OwnershipTransferredEvent.OutputObject>;
+    
+
+      'Withdrawn(address,uint256,uint256,address)': TypedContractEvent<WithdrawnEvent.InputTuple, WithdrawnEvent.OutputTuple, WithdrawnEvent.OutputObject>;
+      Withdrawn: TypedContractEvent<WithdrawnEvent.InputTuple, WithdrawnEvent.OutputTuple, WithdrawnEvent.OutputObject>;
     
     };
   }

@@ -11,7 +11,6 @@ import * as Contracts from "./index.js";
 declare module "@nomicfoundation/hardhat-ethers/types" {
   interface HardhatEthersHelpers extends HardhatEthersHelpersBase {
   getContractFactory(name: 'FeeRegistry', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.FeeRegistry__factory>
-getContractFactory(name: 'IVaultOwner', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.IVaultOwner__factory>
 getContractFactory(name: 'StrategyBuilderVault', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.StrategyBuilderVault__factory>
 getContractFactory(name: 'StrategyBuilderVaultFactory', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.StrategyBuilderVaultFactory__factory>
 getContractFactory(name: 'ERC20TransferAction', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.ERC20TransferAction__factory>
@@ -25,15 +24,12 @@ getContractFactory(name: 'ICondition', signerOrOptions?: ethers.Signer | Factory
 getContractFactory(name: 'IFeeRegistry', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.IFeeRegistry__factory>
 getContractFactory(name: 'IUpdatableCondition', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.IUpdatableCondition__factory>
 getContractFactory(name: 'IVaultRegistry', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.IVaultRegistry__factory>
-getContractFactory(name: 'IFeeReduction', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.IFeeReduction__factory>
 getContractFactory(name: 'IPriceOracle', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.IPriceOracle__factory>
 getContractFactory(name: 'ERC1967ProxyHelper', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.ERC1967ProxyHelper__factory>
 getContractFactory(name: 'MockERC20', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.MockERC20__factory>
-getContractFactory(name: 'MockFeeReduction', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.MockFeeReduction__factory>
 getContractFactory(name: 'MockPriceOracle', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.MockPriceOracle__factory>
 
   getContractAt(name: 'FeeRegistry', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.FeeRegistry>
-getContractAt(name: 'IVaultOwner', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.IVaultOwner>
 getContractAt(name: 'StrategyBuilderVault', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.StrategyBuilderVault>
 getContractAt(name: 'StrategyBuilderVaultFactory', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.StrategyBuilderVaultFactory>
 getContractAt(name: 'ERC20TransferAction', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.ERC20TransferAction>
@@ -47,15 +43,12 @@ getContractAt(name: 'ICondition', address: string | ethers.Addressable, signer?:
 getContractAt(name: 'IFeeRegistry', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.IFeeRegistry>
 getContractAt(name: 'IUpdatableCondition', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.IUpdatableCondition>
 getContractAt(name: 'IVaultRegistry', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.IVaultRegistry>
-getContractAt(name: 'IFeeReduction', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.IFeeReduction>
 getContractAt(name: 'IPriceOracle', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.IPriceOracle>
 getContractAt(name: 'ERC1967ProxyHelper', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.ERC1967ProxyHelper>
 getContractAt(name: 'MockERC20', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.MockERC20>
-getContractAt(name: 'MockFeeReduction', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.MockFeeReduction>
 getContractAt(name: 'MockPriceOracle', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.MockPriceOracle>
 
   deployContract(name: 'FeeRegistry', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.FeeRegistry>
-deployContract(name: 'IVaultOwner', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.IVaultOwner>
 deployContract(name: 'StrategyBuilderVault', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.StrategyBuilderVault>
 deployContract(name: 'StrategyBuilderVaultFactory', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.StrategyBuilderVaultFactory>
 deployContract(name: 'ERC20TransferAction', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.ERC20TransferAction>
@@ -69,15 +62,12 @@ deployContract(name: 'ICondition', signerOrOptions?: ethers.Signer | DeployContr
 deployContract(name: 'IFeeRegistry', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.IFeeRegistry>
 deployContract(name: 'IUpdatableCondition', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.IUpdatableCondition>
 deployContract(name: 'IVaultRegistry', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.IVaultRegistry>
-deployContract(name: 'IFeeReduction', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.IFeeReduction>
 deployContract(name: 'IPriceOracle', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.IPriceOracle>
 deployContract(name: 'ERC1967ProxyHelper', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.ERC1967ProxyHelper>
 deployContract(name: 'MockERC20', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.MockERC20>
-deployContract(name: 'MockFeeReduction', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.MockFeeReduction>
 deployContract(name: 'MockPriceOracle', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.MockPriceOracle>
 
   deployContract(name: 'FeeRegistry', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.FeeRegistry>
-deployContract(name: 'IVaultOwner', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.IVaultOwner>
 deployContract(name: 'StrategyBuilderVault', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.StrategyBuilderVault>
 deployContract(name: 'StrategyBuilderVaultFactory', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.StrategyBuilderVaultFactory>
 deployContract(name: 'ERC20TransferAction', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.ERC20TransferAction>
@@ -91,11 +81,9 @@ deployContract(name: 'ICondition', args: any[], signerOrOptions?: ethers.Signer 
 deployContract(name: 'IFeeRegistry', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.IFeeRegistry>
 deployContract(name: 'IUpdatableCondition', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.IUpdatableCondition>
 deployContract(name: 'IVaultRegistry', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.IVaultRegistry>
-deployContract(name: 'IFeeReduction', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.IFeeReduction>
 deployContract(name: 'IPriceOracle', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.IPriceOracle>
 deployContract(name: 'ERC1967ProxyHelper', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.ERC1967ProxyHelper>
 deployContract(name: 'MockERC20', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.MockERC20>
-deployContract(name: 'MockFeeReduction', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.MockFeeReduction>
 deployContract(name: 'MockPriceOracle', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.MockPriceOracle>
 
     // default types

@@ -53,7 +53,7 @@ import type { TypedContractEvent, TypedDeferredTopicFilter, TypedEventLog, Typed
     
     execute: TypedContractMethod<
       [params: BytesLike, ctx: BytesLike[], ],
-      [[bigint[], string[], string, bigint] & {updatedSlots: bigint[], updatedValues: string[], volumeToken: string, volumeAmount: bigint }],
+      [[bigint[], string[]] & {updatedSlots: bigint[], updatedValues: string[] }],
       'nonpayable'
     >
     
@@ -63,7 +63,7 @@ import type { TypedContractEvent, TypedDeferredTopicFilter, TypedEventLog, Typed
 
     getFunction(nameOrSignature: 'execute'): TypedContractMethod<
       [params: BytesLike, ctx: BytesLike[], ],
-      [[bigint[], string[], string, bigint] & {updatedSlots: bigint[], updatedValues: string[], volumeToken: string, volumeAmount: bigint }],
+      [[bigint[], string[]] & {updatedSlots: bigint[], updatedValues: string[] }],
       'nonpayable'
     >;
 

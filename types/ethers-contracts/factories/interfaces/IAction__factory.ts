@@ -30,16 +30,6 @@
         "internalType": "bytes[]",
         "name": "updatedValues",
         "type": "bytes[]"
-      },
-      {
-        "internalType": "address",
-        "name": "volumeToken",
-        "type": "address"
-      },
-      {
-        "internalType": "uint256",
-        "name": "volumeAmount",
-        "type": "uint256"
       }
     ],
     "stateMutability": "nonpayable",

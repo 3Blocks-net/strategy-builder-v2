@@ -36,7 +36,7 @@ describe("StrategyBuilderVaultFactory", function () {
     it("vault implementation cannot be initialised directly", async function () {
       const { vaultImpl, alice } = await deployFactoryFixture();
       await expect(
-        vaultImpl.initialize(alice.address, ethers.ZeroAddress, ethers.ZeroAddress, ethers.ZeroAddress, ethers.ZeroAddress),
+        vaultImpl.initialize(alice.address, ethers.ZeroAddress, ethers.ZeroAddress),
       ).to.be.revertedWithCustomError(vaultImpl, "InvalidInitialization");
     });
 
@@ -51,7 +51,7 @@ describe("StrategyBuilderVaultFactory", function () {
   describe("createVault", function () {
     it("deploys a vault proxy and emits VaultCreated", async function () {
       const { factory, alice } = await deployFactoryFixture();
-      const tx = await factory.createVault(alice.address, ethers.ZeroAddress, ethers.ZeroAddress, ethers.ZeroHash);
+      const tx = await factory.createVault(alice.address, ethers.ZeroAddress, ethers.ZeroHash);
       const vaultAddress = await factory.getVault(0);
 
       await expect(tx)
@@ -63,7 +63,7 @@ describe("StrategyBuilderVaultFactory", function () {
 
     it("vault proxy is owned by vaultOwner, not factory deployer", async function () {
       const { factory, alice, deployer } = await deployFactoryFixture();
-      await factory.createVault(alice.address, ethers.ZeroAddress, ethers.ZeroAddress, ethers.ZeroHash);
+      await factory.createVault(alice.address, ethers.ZeroAddress, ethers.ZeroHash);
       const vault = await ethers.getContractAt("StrategyBuilderVault", await factory.getVault(0));
       expect(await vault.owner()).to.equal(alice.address);
       expect(await vault.owner()).to.not.equal(deployer.address);
@@ -71,15 +71,14 @@ describe("StrategyBuilderVaultFactory", function () {
 
     it("each vault proxy has independent storage", async function () {
       const { factory, alice, bob } = await deployFactoryFixture();
-      await factory.createVault(alice.address, ethers.ZeroAddress, ethers.ZeroAddress, ethers.ZeroHash);
-      await factory.createVault(bob.address, ethers.ZeroAddress, ethers.ZeroAddress, ethers.ZeroHash);
+      await factory.createVault(alice.address, ethers.ZeroAddress, ethers.ZeroHash);
+      await factory.createVault(bob.address, ethers.ZeroAddress, ethers.ZeroHash);
 
       const vaultA = await ethers.getContractAt("StrategyBuilderVault", await factory.getVault(0));
       const vaultB = await ethers.getContractAt("StrategyBuilderVault", await factory.getVault(1));
 
       expect(await vaultA.getAddress()).to.not.equal(await vaultB.getAddress());
 
-      // Writing to A does not bleed into B
       await vaultA.connect(alice).setContext([
         AbiCoder.defaultAbiCoder().encode(["uint256"], [42n]),
       ]);
@@ -89,14 +88,14 @@ describe("StrategyBuilderVaultFactory", function () {
 
     it("anyone can create a vault", async function () {
       const { factory, other } = await deployFactoryFixture();
-      await expect(factory.connect(other).createVault(other.address, ethers.ZeroAddress, ethers.ZeroAddress, ethers.ZeroHash))
+      await expect(factory.connect(other).createVault(other.address, ethers.ZeroAddress, ethers.ZeroHash))
         .to.emit(factory, "VaultCreated");
     });
 
     it("reverts when vaultOwner is zero address", async function () {
       const { factory } = await deployFactoryFixture();
       await expect(
-        factory.createVault(ethers.ZeroAddress, ethers.ZeroAddress, ethers.ZeroAddress, ethers.ZeroHash),
+        factory.createVault(ethers.ZeroAddress, ethers.ZeroAddress, ethers.ZeroHash),
       ).to.be.revertedWithCustomError(factory, "ZeroAddress");
     });
   });
@@ -128,7 +127,7 @@ describe("StrategyBuilderVaultFactory", function () {
         .to.emit(factory, "VaultImplementationUpdated")
         .withArgs(await newVaultImpl.getAddress());
 
-      await factory.createVault(alice.address, ethers.ZeroAddress, ethers.ZeroAddress, ethers.ZeroHash);
+      await factory.createVault(alice.address, ethers.ZeroAddress, ethers.ZeroHash);
       const newVault = await ethers.getContractAt(
         "StrategyBuilderVault",
         await factory.getVault(0),
@@ -143,21 +142,21 @@ describe("StrategyBuilderVaultFactory", function () {
     it("reverts when implementation has not been set", async function () {
       const factory = await ethers.deployContract("StrategyBuilderVaultFactory");
       await expect(
-        factory.createVault(ethers.Wallet.createRandom().address, ethers.ZeroAddress, ethers.ZeroAddress, ethers.ZeroHash),
+        factory.createVault(ethers.Wallet.createRandom().address, ethers.ZeroAddress, ethers.ZeroHash),
       ).to.be.revertedWithCustomError(factory, "ImplementationNotSet");
     });
 
     it("same caller + same salt + different vaultOwner produces different addresses", async function () {
       const { factory, alice, bob } = await deployFactoryFixture();
-      await factory.createVault(alice.address, ethers.ZeroAddress, ethers.ZeroAddress, ethers.ZeroHash);
-      await factory.createVault(bob.address, ethers.ZeroAddress, ethers.ZeroAddress, ethers.ZeroHash);
+      await factory.createVault(alice.address, ethers.ZeroAddress, ethers.ZeroHash);
+      await factory.createVault(bob.address, ethers.ZeroAddress, ethers.ZeroHash);
       expect(await factory.getVault(0)).to.not.equal(await factory.getVault(1));
     });
 
     it("same salt from different callers produces different vault addresses", async function () {
       const { factory, alice, bob } = await deployFactoryFixture();
-      await factory.connect(alice).createVault(alice.address, ethers.ZeroAddress, ethers.ZeroAddress, ethers.ZeroHash);
-      await factory.connect(bob).createVault(bob.address, ethers.ZeroAddress, ethers.ZeroAddress, ethers.ZeroHash);
+      await factory.connect(alice).createVault(alice.address, ethers.ZeroAddress, ethers.ZeroHash);
+      await factory.connect(bob).createVault(bob.address, ethers.ZeroAddress, ethers.ZeroHash);
       expect(await factory.getVault(0)).to.not.equal(await factory.getVault(1));
     });
   });
@@ -188,36 +187,13 @@ describe("StrategyBuilderVaultFactory", function () {
     });
 
     it("newly created vault inherits the fee registry", async function () {
-      const { factory, deployer, alice, other } = await deployFactoryFixture();
-      // Deploy a mock FeeRegistry (reuse any deployed contract address)
+      const { factory, deployer, alice } = await deployFactoryFixture();
       const feeRegistry = await ethers.deployContract("FeeRegistry");
       await factory.connect(deployer).setFeeRegistry(await feeRegistry.getAddress());
 
-      await factory.createVault(alice.address, ethers.ZeroAddress, alice.address, ethers.ZeroHash);
+      await factory.createVault(alice.address, ethers.ZeroAddress, ethers.ZeroHash);
       const vault = await ethers.getContractAt("StrategyBuilderVault", await factory.getVault(0));
       expect(await vault.feeRegistry()).to.equal(await feeRegistry.getAddress());
-      expect(await vault.creator()).to.equal(alice.address);
-    });
-  });
-
-  // ── PriceOracle management ─────────────────────────────────────────────────
-
-  describe("setPriceOracle", function () {
-    it("newly created vault inherits the price oracle", async function () {
-      const { factory, deployer, alice } = await deployFactoryFixture();
-
-      const oracle = await ethers.deployContract("MockPriceOracle");
-      const oracleAddr = await oracle.getAddress();
-
-      await expect(factory.connect(deployer).setPriceOracle(oracleAddr))
-        .to.emit(factory, "PriceOracleUpdated")
-        .withArgs(oracleAddr);
-
-      expect(await factory.priceOracle()).to.equal(oracleAddr);
-
-      await factory.createVault(alice.address, ethers.ZeroAddress, ethers.ZeroAddress, ethers.ZeroHash);
-      const vault = await ethers.getContractAt("StrategyBuilderVault", await factory.getVault(0));
-      expect(await vault.priceOracle()).to.equal(oracleAddr);
     });
   });
 });

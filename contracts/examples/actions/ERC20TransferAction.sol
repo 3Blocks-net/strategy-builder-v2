@@ -4,34 +4,26 @@ pragma solidity ^0.8.28;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "../../interfaces/IAction.sol";
+import "../../interfaces/IFeeRegistry.sol";
 
 /**
  * @title ERC20TransferAction
- * @notice Transfers ERC-20 tokens from the vault to a recipient.
- *         Called via delegatecall — executes in the vault's context, so
- *         address(this) == vault and the vault's token balance is used.
+ * @notice Transfers ERC-20 tokens from the vault to a recipient, optionally
+ *         deducting a withdraw fee and sending it to FeeRegistry.
+ *         Called via delegatecall — executes in the vault's context.
+ *
+ * Fee handling
+ * ─────────────
+ * When feeRegistry != address(0), the action reads the current withdrawFeeBps
+ * from FeeRegistry, deducts the fee from the transfer amount, and sends
+ * (amount - fee) to the recipient and fee to FeeRegistry via collectFee.
  *
  * Context wiring
  * ──────────────
- * amountFromSlot – if != NO_SLOT, read the transfer amount from ctx[slot]
- *                  instead of the static `amount` field.
+ * amountFromSlot – if != NO_SLOT, read the transfer amount from ctx[slot].
  * amountToSlot   – if != NO_SLOT, write the actual transferred amount to ctx[slot].
  *
- * Volume / fee
- * ─────────────
- * Returns (volumeToken = token, volumeAmount = transferAmount) so the vault can
- * look up the USD price via its configured IPriceOracle and compute the fee.
- * If the transfer amount resolves to zero no volume is reported.
- *
- * Params encoding (ABI):
- *   address token           – ERC-20 token to transfer
- *   address recipient       – destination address (must not be address(0))
- *   uint256 amount          – static amount (0 = full vault balance when amountFromSlot == NO_SLOT)
- *   uint32  amountFromSlot  – context slot to read amount from  (NO_SLOT = use static)
- *   uint32  amountToSlot    – context slot to write amount into (NO_SLOT = no output)
- *
  * IMPORTANT: No state variables declared here — stateless by design.
- *            Any storage access operates on the vault's storage layout.
  */
 contract ERC20TransferAction is IAction {
     using SafeERC20 for IERC20;
@@ -44,6 +36,7 @@ contract ERC20TransferAction is IAction {
         uint256 amount;
         uint32  amountFromSlot;
         uint32  amountToSlot;
+        address feeRegistry;
     }
 
     error ZeroToken();
@@ -55,9 +48,7 @@ contract ERC20TransferAction is IAction {
         bytes[] calldata ctx
     ) external override returns (
         uint32[] memory updatedSlots,
-        bytes[] memory updatedValues,
-        address volumeToken,
-        uint256 volumeAmount
+        bytes[] memory updatedValues
     ) {
         Params memory p = abi.decode(params, (Params));
 
@@ -71,19 +62,27 @@ contract ERC20TransferAction is IAction {
                 revert SlotOutOfBounds(p.amountFromSlot);
             transferAmount = abi.decode(ctx[p.amountFromSlot], (uint256));
         } else if (p.amount == 0) {
-            // "Transfer full balance" shortcut: reads live balance at execution time.
             transferAmount = IERC20(p.token).balanceOf(address(this));
         } else {
             transferAmount = p.amount;
         }
 
-        // --- Execute transfer (delegatecall: address(this) == vault) ---
-        IERC20(p.token).safeTransfer(p.recipient, transferAmount);
+        // --- Deduct withdraw fee and transfer ---
+        uint256 fee = 0;
+        if (p.feeRegistry != address(0) && transferAmount > 0) {
+            uint16 feeBps = IFeeRegistry(p.feeRegistry).withdrawFeeBps();
+            if (feeBps > 0) {
+                fee = (transferAmount * feeBps) / 10_000;
+            }
+        }
 
-        // --- Report volume for fee tracking ---
-        if (transferAmount > 0) {
-            volumeToken  = p.token;
-            volumeAmount = transferAmount;
+        if (transferAmount > fee) {
+            IERC20(p.token).safeTransfer(p.recipient, transferAmount - fee);
+        }
+
+        if (fee > 0) {
+            IERC20(p.token).forceApprove(p.feeRegistry, fee);
+            IFeeRegistry(p.feeRegistry).collectFee(p.token, fee);
         }
 
         // --- Write output to context diff (if requested) ---
@@ -93,6 +92,5 @@ contract ERC20TransferAction is IAction {
             updatedSlots[0] = p.amountToSlot;
             updatedValues[0] = abi.encode(transferAmount);
         }
-        // If amountToSlot == NO_SLOT, both arrays remain empty → no context update.
     }
 }

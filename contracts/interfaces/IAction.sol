@@ -20,19 +20,6 @@ pragma solidity ^0.8.28;
  *   updatedValues – new ABI-encoded values for those slots
  * Return both arrays empty to signal "no context change".
  *
- * Volume / fee
- * ─────────────
- * volumeToken  – ERC-20 token address whose amount was moved/generated.
- *                Return address(0) if this action is not fee-bearing.
- * volumeAmount – Raw token amount (in token's native decimals) that represents
- *                the economic volume of this action.
- *                Return 0 if the action is not fee-bearing.
- *
- * The vault converts (volumeToken, volumeAmount) → USD using an external
- * IPriceOracle and multiplies by the fee basis points from FeeRegistry to
- * compute the per-step fee (emitted as FeeAccrued).  No token transfer happens
- * inside the action for fee purposes.
- *
  * IMPORTANT: Action implementations MUST NOT declare state variables.
  *            Any storage access operates on the vault's storage layout.
  */
@@ -42,8 +29,6 @@ interface IAction {
         bytes[] calldata ctx
     ) external returns (
         uint32[] memory updatedSlots,
-        bytes[] memory updatedValues,
-        address volumeToken,
-        uint256 volumeAmount
+        bytes[] memory updatedValues
     );
 }

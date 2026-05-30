@@ -6,19 +6,17 @@ import type { TypedContractEvent, TypedDeferredTopicFilter, TypedEventLog, Typed
   
 
   export interface StrategyBuilderVaultFactoryInterface extends Interface {
-    getFunction(nameOrSignature: "createVault" | "feeRegistry" | "getVault" | "isRegisteredVault" | "owner" | "priceOracle" | "renounceOwnership" | "setFeeRegistry" | "setPriceOracle" | "setVaultImplementation" | "transferOwnership" | "vaultCount" | "vaultImplementation"): FunctionFragment;
+    getFunction(nameOrSignature: "createVault" | "feeRegistry" | "getVault" | "isRegisteredVault" | "owner" | "renounceOwnership" | "setFeeRegistry" | "setVaultImplementation" | "transferOwnership" | "vaultCount" | "vaultImplementation"): FunctionFragment;
 
-    getEvent(nameOrSignatureOrTopic: "FeeRegistryUpdated" | "OwnershipTransferred" | "PriceOracleUpdated" | "VaultCreated" | "VaultImplementationUpdated"): EventFragment;
+    getEvent(nameOrSignatureOrTopic: "FeeRegistryUpdated" | "OwnershipTransferred" | "VaultCreated" | "VaultImplementationUpdated"): EventFragment;
 
-    encodeFunctionData(functionFragment: 'createVault', values: [AddressLike, AddressLike, AddressLike, BytesLike]): string;
+    encodeFunctionData(functionFragment: 'createVault', values: [AddressLike, AddressLike, BytesLike]): string;
 encodeFunctionData(functionFragment: 'feeRegistry', values?: undefined): string;
 encodeFunctionData(functionFragment: 'getVault', values: [BigNumberish]): string;
 encodeFunctionData(functionFragment: 'isRegisteredVault', values: [AddressLike]): string;
 encodeFunctionData(functionFragment: 'owner', values?: undefined): string;
-encodeFunctionData(functionFragment: 'priceOracle', values?: undefined): string;
 encodeFunctionData(functionFragment: 'renounceOwnership', values?: undefined): string;
 encodeFunctionData(functionFragment: 'setFeeRegistry', values: [AddressLike]): string;
-encodeFunctionData(functionFragment: 'setPriceOracle', values: [AddressLike]): string;
 encodeFunctionData(functionFragment: 'setVaultImplementation', values: [AddressLike]): string;
 encodeFunctionData(functionFragment: 'transferOwnership', values: [AddressLike]): string;
 encodeFunctionData(functionFragment: 'vaultCount', values?: undefined): string;
@@ -29,10 +27,8 @@ decodeFunctionResult(functionFragment: 'feeRegistry', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'getVault', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'isRegisteredVault', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'owner', data: BytesLike): Result;
-decodeFunctionResult(functionFragment: 'priceOracle', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'renounceOwnership', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'setFeeRegistry', data: BytesLike): Result;
-decodeFunctionResult(functionFragment: 'setPriceOracle', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'setVaultImplementation', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'transferOwnership', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'vaultCount', data: BytesLike): Result;
@@ -56,18 +52,6 @@ decodeFunctionResult(functionFragment: 'vaultImplementation', data: BytesLike): 
       export type InputTuple = [previousOwner: AddressLike, newOwner: AddressLike];
       export type OutputTuple = [previousOwner: string, newOwner: string];
       export interface OutputObject {previousOwner: string, newOwner: string };
-      export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>
-      export type Filter = TypedDeferredTopicFilter<Event>
-      export type Log = TypedEventLog<Event>
-      export type LogDescription = TypedLogDescription<Event>
-    }
-
-  
-
-    export namespace PriceOracleUpdatedEvent {
-      export type InputTuple = [newPriceOracle: AddressLike];
-      export type OutputTuple = [newPriceOracle: string];
-      export interface OutputObject {newPriceOracle: string };
       export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>
       export type Filter = TypedDeferredTopicFilter<Event>
       export type Log = TypedEventLog<Event>
@@ -135,7 +119,7 @@ decodeFunctionResult(functionFragment: 'vaultImplementation', data: BytesLike): 
     
     
     createVault: TypedContractMethod<
-      [vaultOwner: AddressLike, depositToken_: AddressLike, creator_: AddressLike, salt: BytesLike, ],
+      [vaultOwner: AddressLike, depositToken_: AddressLike, salt: BytesLike, ],
       [string],
       'nonpayable'
     >
@@ -174,14 +158,6 @@ decodeFunctionResult(functionFragment: 'vaultImplementation', data: BytesLike): 
     
 
     
-    priceOracle: TypedContractMethod<
-      [],
-      [string],
-      'view'
-    >
-    
-
-    
     renounceOwnership: TypedContractMethod<
       [],
       [void],
@@ -192,14 +168,6 @@ decodeFunctionResult(functionFragment: 'vaultImplementation', data: BytesLike): 
     
     setFeeRegistry: TypedContractMethod<
       [newFeeRegistry: AddressLike, ],
-      [void],
-      'nonpayable'
-    >
-    
-
-    
-    setPriceOracle: TypedContractMethod<
-      [newPriceOracle: AddressLike, ],
       [void],
       'nonpayable'
     >
@@ -241,7 +209,7 @@ decodeFunctionResult(functionFragment: 'vaultImplementation', data: BytesLike): 
     getFunction<T extends ContractMethod = ContractMethod>(key: string | FunctionFragment): T;
 
     getFunction(nameOrSignature: 'createVault'): TypedContractMethod<
-      [vaultOwner: AddressLike, depositToken_: AddressLike, creator_: AddressLike, salt: BytesLike, ],
+      [vaultOwner: AddressLike, depositToken_: AddressLike, salt: BytesLike, ],
       [string],
       'nonpayable'
     >;
@@ -265,11 +233,6 @@ getFunction(nameOrSignature: 'owner'): TypedContractMethod<
       [string],
       'view'
     >;
-getFunction(nameOrSignature: 'priceOracle'): TypedContractMethod<
-      [],
-      [string],
-      'view'
-    >;
 getFunction(nameOrSignature: 'renounceOwnership'): TypedContractMethod<
       [],
       [void],
@@ -277,11 +240,6 @@ getFunction(nameOrSignature: 'renounceOwnership'): TypedContractMethod<
     >;
 getFunction(nameOrSignature: 'setFeeRegistry'): TypedContractMethod<
       [newFeeRegistry: AddressLike, ],
-      [void],
-      'nonpayable'
-    >;
-getFunction(nameOrSignature: 'setPriceOracle'): TypedContractMethod<
-      [newPriceOracle: AddressLike, ],
       [void],
       'nonpayable'
     >;
@@ -308,7 +266,6 @@ getFunction(nameOrSignature: 'vaultImplementation'): TypedContractMethod<
 
     getEvent(key: 'FeeRegistryUpdated'): TypedContractEvent<FeeRegistryUpdatedEvent.InputTuple, FeeRegistryUpdatedEvent.OutputTuple, FeeRegistryUpdatedEvent.OutputObject>;
 getEvent(key: 'OwnershipTransferred'): TypedContractEvent<OwnershipTransferredEvent.InputTuple, OwnershipTransferredEvent.OutputTuple, OwnershipTransferredEvent.OutputObject>;
-getEvent(key: 'PriceOracleUpdated'): TypedContractEvent<PriceOracleUpdatedEvent.InputTuple, PriceOracleUpdatedEvent.OutputTuple, PriceOracleUpdatedEvent.OutputObject>;
 getEvent(key: 'VaultCreated'): TypedContractEvent<VaultCreatedEvent.InputTuple, VaultCreatedEvent.OutputTuple, VaultCreatedEvent.OutputObject>;
 getEvent(key: 'VaultImplementationUpdated'): TypedContractEvent<VaultImplementationUpdatedEvent.InputTuple, VaultImplementationUpdatedEvent.OutputTuple, VaultImplementationUpdatedEvent.OutputObject>;
 
@@ -320,10 +277,6 @@ getEvent(key: 'VaultImplementationUpdated'): TypedContractEvent<VaultImplementat
 
       'OwnershipTransferred(address,address)': TypedContractEvent<OwnershipTransferredEvent.InputTuple, OwnershipTransferredEvent.OutputTuple, OwnershipTransferredEvent.OutputObject>;
       OwnershipTransferred: TypedContractEvent<OwnershipTransferredEvent.InputTuple, OwnershipTransferredEvent.OutputTuple, OwnershipTransferredEvent.OutputObject>;
-    
-
-      'PriceOracleUpdated(address)': TypedContractEvent<PriceOracleUpdatedEvent.InputTuple, PriceOracleUpdatedEvent.OutputTuple, PriceOracleUpdatedEvent.OutputObject>;
-      PriceOracleUpdated: TypedContractEvent<PriceOracleUpdatedEvent.InputTuple, PriceOracleUpdatedEvent.OutputTuple, PriceOracleUpdatedEvent.OutputObject>;
     
 
       'VaultCreated(address,address,uint256)': TypedContractEvent<VaultCreatedEvent.InputTuple, VaultCreatedEvent.OutputTuple, VaultCreatedEvent.OutputObject>;

@@ -1,8 +1,12 @@
-# Strategy Builder V2 — CLAUDE.md
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+# Strategy Builder V2
 
 ## Overview
 
-On-chain automation protocol deployed on BSC. Users create **vaults** (ERC1967 proxies) and configure **automations** — directed graphs of Conditions and Actions. A public executor calls `executeAutomation`, the trigger condition gates execution, and actions run in sequence modifying the vault's shared context. Fees are tracked per-action via a price oracle and settled at the end via FeeRegistry.
+On-chain automation protocol deployed on BSC. Users create **vaults** (ERC1967 proxies) and configure **automations** — directed graphs of Conditions and Actions. A public executor calls `executeAutomation`, the trigger condition gates execution, and actions run in sequence modifying the vault's shared context. Fees are charged at the vault boundary (deposit/withdraw), and executors receive gas compensation from a pre-funded deposit in FeeRegistry.
 
 ## Commands
 
@@ -11,9 +15,21 @@ npx hardhat compile          # Compile all contracts
 npx hardhat test             # Run all tests
 npx hardhat test test/StrategyBuilderVault.ts   # Run single test file
 npx hardhat clean            # Clean artifacts
+npx hardhat test --grep "pattern"  # Run tests matching pattern
 ```
 
-**Compiler**: Solidity 0.8.28, `viaIR: true` (required — stack-too-deep in `_executeAction`), 200 optimizer runs in production profile. Target chain: BSC (EVM cancun).
+**Deploy** (Hardhat Ignition):
+```bash
+npx hardhat ignition deploy --network bscTestnet ignition/modules/StrategyBuilderVault.ts
+npx hardhat ignition deploy --network bscMainnet ignition/modules/StrategyBuilderVault.ts
+```
+
+**Hardhat 3** (`hardhat ^3.2.0`) — uses `defineConfig`, `network.connect()`, and ESM (`"type": "module"` in package.json). Tests use top-level `await` for network connection:
+```typescript
+const { ethers } = await network.connect();
+```
+
+**Compiler**: Solidity 0.8.28, `viaIR: true` (required — stack-too-deep in `_executeAction`), 200 optimizer runs in production profile. Target chain: BSC.
 
 ## Architecture
 
@@ -22,19 +38,19 @@ npx hardhat clean            # Clean artifacts
 ```
 StrategyBuilderVaultFactory  (Ownable, NOT upgradeable)
     │  owns _vaultImplementation (shared implementation)
-    │  stores feeRegistry + priceOracle → forwarded to every new vault
+    │  stores feeRegistry → forwarded to every new vault
     └─ deploys ERC1967Proxy instances via CREATE2
            │  proxy.implementation = StrategyBuilderVault
            └─ per-user isolated storage
 
 FeeRegistry  (Ownable, NOT upgradeable)
-    │  stores per-action fee rates
-    │  holds vaultDeposits + claimable balances
-    └─ called by vaults at end of execution
+    │  stores depositFeeBps / withdrawFeeBps (global flat rates)
+    │  holds vaultDeposits (gas comp pre-funding)
+    │  holds collectedFees (deposit/withdraw fees for owner withdrawal)
+    └─ gas compensation via IPriceOracle
 
 External contracts (pre-existing, read-only interfaces):
     IPriceOracle   — 18-decimal USD prices per token
-    IFeeReduction  — per-wallet volume-fee reduction in bps
 ```
 
 ### Execution Flow (`executeAutomation`)
@@ -42,35 +58,33 @@ External contracts (pre-existing, read-only interfaces):
 1. Load vault context (`bytes[]`) into memory
 2. Traverse directed graph starting at step 0 (always a CONDITION):
    - **Condition**: `staticcall` → `bool` → follow `nextOnTrue` or `nextOnFalse`
-   - **Action**: `delegatecall` → apply context diff + accumulate `stepFeeUSD`
+   - **Action**: `delegatecall` → apply context diff
 3. Record `triggerFired` on the first step (step 0)
 4. If `triggerFired`: call `afterExecution` (staticcall) on step 0 — applies context diff (e.g. IntervalCondition advances schedule)
 5. Save context back to storage
-6. Measure `gasUsed = gasStart - gasleft()` → `_settleFees`
+6. If caller is not owner: measure `gasUsed = gasStart - gasleft()` → `_settleGasComp`
 
-### Fee Flow
+### Fee Model
 
 ```
-Action returns (volumeToken, volumeAmount)
-  → vault queries IPriceOracle for USD price
-  → volumeUSD = volumeAmount × price / 1e18
-  → stepFeeUSD = volumeUSD × feeBps / 10_000
+Fees at vault boundary (deposit/withdraw):
+  deposit():  fee = amount × depositFeeBps / 10_000 → FeeRegistry.collectFee()
+  withdraw(): fee = amount × withdrawFeeBps / 10_000 → FeeRegistry.collectFee()
+  ERC20TransferAction: reads withdrawFeeBps dynamically, deducts from transfer
 
-At settlement (FeeRegistry.deductFees):
-  gasCompTokens  = (gasUsed + overhead) × tx.gasprice × nativePriceUSD / 1e18
-                   × (10_000 + executorMarkupBps) / 10_000
-  volumeTokens   = feeTokenAmount(feeUSD)  ← with per-owner reduction applied
-  totalTokens    = max(volumeTokens, gasCompTokens)   ← gas is minimum
+Gas compensation (per automation execution):
+  gasCompTokens = (gasUsed + overhead) × tx.gasprice × nativePriceUSD / 1e18
+                  × (10_000 + executorMarkupBps) / 10_000
+  → converted to deposit token via IPriceOracle
+  → deducted from vault's pre-funded deposit in FeeRegistry
+  → transferred directly to executor (push, not pull)
 
-  gasCompTokens  → executor (guaranteed)
-  remaining = totalTokens - gasCompTokens:
-    protocolBps  → protocolVault (claimable)
-    executorBps  → executor     (claimable)
-    creatorBps   → referral     (claimable)
-    burnBps      → burnContract (direct transfer)
+Fee collection:
+  collectedFees[token] accumulates in FeeRegistry
+  Owner calls withdrawFees(token) to withdraw
 ```
 
-Fee reduction applies only to `volumeTokens`, never to `gasCompTokens`. Only factory-registered vaults qualify.
+Owner-executed automations pay no gas compensation.
 
 ## Key Interfaces
 
@@ -79,14 +93,12 @@ Fee reduction applies only to `volumeTokens`, never to `gasCompTokens`. Only fac
 ```solidity
 function execute(bytes calldata params, bytes[] calldata ctx)
     external
-    returns (uint32[] memory updatedSlots, bytes[] memory updatedValues,
-             address volumeToken, uint256 volumeAmount);
+    returns (uint32[] memory updatedSlots, bytes[] memory updatedValues);
 ```
 
 - Called via **delegatecall** — runs in vault's storage context
 - **Must be stateless** (no state variables)
 - Returns a context diff as two parallel arrays
-- `volumeToken = address(0)` / `volumeAmount = 0` = no fee for this step
 
 ### ICondition (`check`)
 
@@ -96,7 +108,6 @@ function check(bytes calldata params, bytes[] calldata ctx)
 ```
 
 - Called via **staticcall** — read-only
-- Context is read-only here
 
 ### IUpdatableCondition (`afterExecution`)
 
@@ -108,17 +119,14 @@ function afterExecution(bytes calldata params, bytes[] calldata ctx)
 - Extends ICondition
 - Called via **staticcall** on step 0 after successful execution
 - Vault applies returned diff before saving context
-- Silently skipped if condition doesn't implement it (try/catch)
 
 ## Contract Reference
 
 ### StrategyBuilderVault
 
-**State** (set once at `initialize`, immutable-by-convention — no setters):
+**State** (set once at `initialize`):
 - `_feeRegistry` — IFeeRegistry; address(0) = fees disabled
-- `_feeToken` — ERC-20 for fee settlement; address(0) = tracking only
-- `_referral` — creator fee recipient
-- `_priceOracle` — IPriceOracle; address(0) = fee accrual disabled
+- `_depositToken` — ERC-20 for gas comp pre-funding; address(0) = gas comp disabled
 
 **Other state:**
 - `_automations` — mapping(uint32 → Automation)
@@ -128,6 +136,12 @@ function afterExecution(bytes calldata params, bytes[] calldata ctx)
 **Constants:**
 - `DONE = type(uint32).max` — terminates graph traversal
 - `MAX_STEPS = 256` — per-execution step limit
+
+**Key functions:**
+- `deposit(token, amount)` — owner deposits tokens, deducts depositFee to FeeRegistry
+- `withdraw(token, amount, recipient)` — owner withdraws, deducts withdrawFee from amount
+- `depositFees(token, amount)` — moves vault tokens to FeeRegistry for gas comp pre-funding
+- `executeAutomation(automationId)` — public, gas comp settled for non-owner callers
 
 **Step struct:**
 ```solidity
@@ -141,43 +155,38 @@ struct Step {
 }
 ```
 
-**Validation rules:**
-- `steps[0]` must be `CONDITION`
-- No zero target or zero selector
-- All `nextOnTrue`/`nextOnFalse` must be `< steps.length` or `DONE`
-- ACTION steps must have `nextOnFalse == DONE`
-
 ### StrategyBuilderVaultFactory
 
 **Protocol-controlled (owner only):**
 - `setVaultImplementation(address)` — implementation for future vaults
 - `setFeeRegistry(address)` — forwarded to all new vaults
-- `setPriceOracle(address)` — forwarded to all new vaults
 
 **Vault creation:**
 ```solidity
 function createVault(
     address vaultOwner,
-    address feeToken_,   // address(0) = tracking only
-    address referral_,   // address(0) = protocol receives creator share
+    address depositToken_,  // address(0) = gas comp disabled
     bytes32 salt
 ) external returns (address vault)
 ```
-Effective CREATE2 salt: `keccak256(abi.encode(msg.sender, salt))` — prevents front-running griefing.
-
-**`isRegisteredVault(address)`** — used by FeeRegistry to gate fee reduction.
 
 ### FeeRegistry
 
 **Setup sequence:**
 1. `addAcceptedToken(token, decimals)` — register fee-payment ERC-20s
-2. `setDistribution(protocolVault, burnContract, pBps, eBps, cBps, burnBps)` — bps must sum to 10_000
-3. `setGasConfig(priceOracle, nativeToken, executorMarkupBps, overhead)` — address(0) oracle disables gas comp
-4. `setFee(actionContract, selector, feeBps)` — per-function fee rates (max 1000 bps = 10%)
-5. `setFeeReductionConfig(feeReduction, trustedFactory)` — optional per-owner reduction
+2. `setDepositFeeBps(bps)` / `setWithdrawFeeBps(bps)` — max 1000 bps (10%)
+3. `setGasConfig(priceOracle, nativeToken, executorMarkupBps, overhead, maxGasPrice)` — optional
 
-**Vault deposits**: `depositFor(vault, token, amount)` pre-funds a vault's fee balance.
-**Invariant**: `physicalBalance(token) == Σ vaultDeposits[*][token] + Σ claimable[*][token]`
+**Vault-facing:**
+- `collectFee(token, amount)` — pulls fee via transferFrom, accumulates in `collectedFees`
+- `deductGasComp(token, executor, gasUsed)` — computes gas comp, deducts from vault deposit, transfers to executor
+- `depositFor(vault, token, amount)` — pre-fund gas comp deposit
+- `withdrawDeposit(token, amount)` — vault withdraws its deposit
+
+**Owner:**
+- `withdrawFees(token)` — withdraw accumulated deposit/withdraw fees
+
+**Invariant**: `physicalBalance(token) == Σ vaultDeposits[*][token] + collectedFees[token]`
 
 ## Example Contracts
 
@@ -197,7 +206,7 @@ struct Params {
 
 ### IntervalCondition
 
-Time-based trigger. Fires when `block.timestamp >= ctx[timeSlot]`. After execution, advances `ctx[timeSlot] += interval` (drift-free — relative to schedule, not `block.timestamp`).
+Time-based trigger. Fires when `block.timestamp >= ctx[timeSlot]`. After execution, advances `ctx[timeSlot] += interval` (drift-free).
 
 ```solidity
 struct Params {
@@ -206,15 +215,20 @@ struct Params {
 }
 ```
 
-**Setup:**
+### TimerCondition
+
+One-shot trigger. Fires once when `block.timestamp >= startTime + delta`, then resets slot to 0 via `afterExecution`.
+
 ```solidity
-vault.setContext([abi.encode(startTimestamp)]);   // initialise slot 0
-// step 0: IntervalCondition, data = abi.encode(3600, 0)
+struct Params {
+    uint256 delta;     // seconds after startTime before firing (must be > 0)
+    uint32 timeSlot;   // context slot holding start timestamp (0 = stopped)
+}
 ```
 
 ### ERC20TransferAction
 
-Transfers ERC-20 from vault to recipient.
+Transfers ERC-20 from vault to recipient. Optionally deducts withdraw fee.
 
 ```solidity
 struct Params {
@@ -223,14 +237,15 @@ struct Params {
     uint256 amount;           // 0 = full vault balance
     uint32 amountFromSlot;    // type(uint32).max = use static amount
     uint32 amountToSlot;      // type(uint32).max = no context write
+    address feeRegistry;      // address(0) = no fee deduction
 }
 ```
 
-Reports `(volumeToken=token, volumeAmount=transferAmount)` for fee tracking.
+When `feeRegistry != address(0)`, reads `withdrawFeeBps()` dynamically and deducts fee from transfer amount.
 
 ### FeeDepositAction
 
-Tops up vault's fee deposit when below `vault.minFeeDeposit()`.
+Tops up vault's gas comp deposit when below `vault.minFeeDeposit()`.
 
 ```solidity
 struct Params {
@@ -240,8 +255,6 @@ struct Params {
 }
 ```
 
-No fee for the top-up itself (`volumeToken = address(0)`).
-
 ## Test Helpers (TypeScript)
 
 ```typescript
@@ -250,8 +263,10 @@ const EXECUTE_SEL    = id("execute(bytes,bytes[])").slice(0, 10);
 const AFTER_EXEC_SEL = id("afterExecution(bytes,bytes[])").slice(0, 10);
 
 encodeBalanceParams(token, account, minBalance, aboveOrEqual, minBalanceFromSlot?)
-encodeTransferParams(token, recipient, amount, amountFromSlot?, amountToSlot?)
+encodeTransferParams(token, recipient, amount, amountFromSlot?, amountToSlot?, feeRegistry?)
 encodeIntervalParams(interval, timeSlot)
+encodeTimerParams(delta, timeSlot)
+encodeFeeDepositParams(feeRegistry, token, topUpAmount?)
 
 conditionStep(target, data, nextOnTrue, nextOnFalse?, sel?)
 actionStep(target, data, nextOnTrue?, sel?)
@@ -269,14 +284,12 @@ await ethers.provider.send("evm_mine", []);
 |---|---|
 | `MockERC20` | Standard ERC-20, mints on deploy |
 | `MockPriceOracle` | `setPrice(token, priceUSD18)` — reverts `OracleNotExist` if unset |
-| `MockFeeReduction` | `setFeeReduction(wallet, bps)` — returns 0 by default |
 
 ## Security Notes
 
 - **Actions are delegatecall** — only use audited, stateless action contracts
 - `_disableInitializers()` in vault constructor prevents direct-impl initialization
 - CREATE2 salt mixes `msg.sender` to prevent vault address griefing
-- Fee reduction gated to factory-registered vaults (prevents impersonation)
-- Gas compensation never reduced (only volume fees eligible for reduction)
 - `MAX_STEPS = 256` prevents infinite loop DoS
 - `ReentrancyGuardTransient` on vault execution; `ReentrancyGuard` on FeeRegistry
+- Gas compensation never reduced — always paid to executor at full computed amount

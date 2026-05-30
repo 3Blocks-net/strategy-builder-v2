@@ -10,7 +10,6 @@ import "./interfaces/ICondition.sol";
 import "./interfaces/IUpdatableCondition.sol";
 import "./interfaces/IAction.sol";
 import "./interfaces/IFeeRegistry.sol";
-import "./interfaces/external/IPriceOracle.sol";
 
 /**
  * @title StrategyBuilderVault
@@ -29,31 +28,15 @@ import "./interfaces/external/IPriceOracle.sol";
  *   2. Graph traversal starts at step 0 (always a Condition — the trigger).
  *   3. Conditions receive the context (read-only, staticcall).
  *   4. Actions receive the context and return a slot diff
- *      (updatedSlots[], updatedValues[]) plus a USD volume via delegatecall.
+ *      (updatedSlots[], updatedValues[]) via delegatecall.
  *      The vault applies the diff immediately so the next step sees the update.
- *      If a FeeRegistry is set, the vault emits a FeeAccrued event.
  *   5. After traversal the final context is written back to vault storage.
  *
- * Condition branching
- * ────────────────────
- * Each condition carries two outgoing edges: nextOnTrue / nextOnFalse.
- * DONE (type(uint32).max) terminates traversal on that edge.
- * A false result does NOT revert — it follows nextOnFalse.
- *
- * Multi-function action contracts
- * ────────────────────────────────
- * The Step.selector field specifies which function to call on the target
- * contract, enabling a single contract to expose multiple action or condition
- * functions. All action functions must match the IAction return signature.
- *
- * Security notes
- * ───────────────
- * - executeAutomation is callable by anyone. The trigger condition (step 0)
- *   gates whether actions run.
- * - Action contracts are executed via delegatecall in the vault's storage/balance
- *   context. Only use audited, stateless action contracts without state variables.
- * - Context slots are shared across all automations: owners must manage slot
- *   assignments carefully to avoid unintended cross-automation reads/writes.
+ * Fee model
+ * ──────────
+ * Fees are charged at the vault boundary (deposit/withdraw), not per-action.
+ * Gas compensation for executors is deducted from a pre-funded deposit in
+ * FeeRegistry and transferred directly to the executor.
  */
 contract StrategyBuilderVault is
     Initializable,
@@ -63,10 +46,7 @@ contract StrategyBuilderVault is
     using SafeERC20 for IERC20;
     // ─── Constants ────────────────────────────────────────────────────────────
 
-    /// @dev Sentinel: "end of path". Use as nextOnTrue / nextOnFalse to stop traversal.
     uint32 public constant DONE = type(uint32).max;
-
-    /// @dev Maximum steps traversed per execution to prevent infinite loops / cycles.
     uint32 public constant MAX_STEPS = 256;
 
     // ─── Types ────────────────────────────────────────────────────────────────
@@ -78,17 +58,15 @@ contract StrategyBuilderVault is
 
     struct Step {
         StepType stepType;
-        address target; // condition or action contract — must not be address(0)
-        bytes4 selector; // function to call on target (must not be bytes4(0))
-        uint32 nextOnTrue; // CONDITION: next step if true  | ACTION: next step
-        uint32 nextOnFalse; // CONDITION: next step if false | ACTION: must be DONE
-        bytes data; // ABI-encoded static params forwarded to the function
+        address target;
+        bytes4 selector;
+        uint32 nextOnTrue;
+        uint32 nextOnFalse;
+        bytes data;
     }
 
     struct Automation {
         bool active;
-        /// @dev When true: only owner can execute; step 0 may be ACTION or CONDITION.
-        ///      When false: anyone can execute; step 0 must be CONDITION.
         bool ownerOnly;
         Step[] steps;
     }
@@ -98,29 +76,17 @@ contract StrategyBuilderVault is
     mapping(uint32 => Automation) private _automations;
     uint32 private _automationCount;
 
-    /// @dev Vault-wide shared context — all automations read and write the same slots.
     bytes[] private _ctx;
 
-    /// @dev Optional fee registry. address(0) = fee tracking disabled.
+    /// @dev Optional fee registry. address(0) = fees disabled.
     IFeeRegistry private _feeRegistry;
 
-    /// @dev Strategy creator address. Receives the creator fee share.
-    ///      Defaults to the vault owner set at initialization. Changeable by owner.
-    address private _creator;
-
-    /// @dev ERC-20 token this vault uses as deposit currency and to pay fees
-    ///      (must be accepted by _feeRegistry).  address(0) = fees are tracked but not settled.
+    /// @dev ERC-20 token used for gas compensation pre-funding.
+    ///      address(0) = gas compensation disabled.
     address private _depositToken;
 
     /// @dev Minimum fee deposit (in token units) that should be maintained in FeeRegistry.
-    ///      Read by FeeDepositAction to decide whether to top up after an action step.
-    ///      0 = no minimum enforced.
     uint256 private _minFeeDeposit;
-
-    /// @dev Price oracle used to convert (volumeToken, volumeAmount) → volumeUSD for
-    ///      per-step fee calculation.  address(0) = fee accrual disabled even if
-    ///      FeeRegistry is set.
-    IPriceOracle private _priceOracle;
 
     // ─── Events ───────────────────────────────────────────────────────────────
 
@@ -135,48 +101,21 @@ contract StrategyBuilderVault is
         uint256 stepCount
     );
     event ContextSlotSet(uint32 indexed slot);
+    event MinFeeDepositUpdated(uint256 newMinFeeDeposit);
 
-    /**
-     * @dev Emitted for each action step when a non-zero USD volume is derived via the
-     *      price oracle from the action's (volumeToken, volumeAmount) return values,
-     *      and FeeRegistry has a non-zero fee for that function.
-     * @param automationId  ID of the automation being executed.
-     * @param stepIndex     Index of the action step within the automation.
-     * @param target        Action contract address.
-     * @param selector      Function selector that was called.
-     * @param volumeUSD     Oracle-derived USD volume (18 decimals).
-     * @param feeUSD        Computed fee: volumeUSD * feeBps / 10_000 (18 decimals).
-     */
-    event FeeAccrued(
-        uint32 indexed automationId,
-        uint32 indexed stepIndex,
-        address indexed target,
-        bytes4 selector,
-        uint256 volumeUSD,
-        uint256 feeUSD
+    event Deposited(address indexed token, uint256 amount);
+    event Withdrawn(
+        address indexed token,
+        uint256 amount,
+        uint256 fee,
+        address indexed recipient
     );
-
-    /**
-     * @dev Emitted once per automation execution when fees are settled.
-     * @param automationId       ID of the automation that was executed.
-     * @param executor           Address that called executeAutomation.
-     * @param depositToken       ERC-20 token used as deposit currency and to pay fees.
-     * @param creator            Vault's strategy creator address.
-     * @param totalFeeUSD        Sum of all per-step fees, 18 decimals.
-     * @param depositTokenAmount Total deposit-token amount deducted from FeeRegistry.
-     * @param gasCompTokens      Portion of depositTokenAmount guaranteed to executor for gas.
-     */
-    event FeesSettled(
+    event GasCompSettled(
         uint32 indexed automationId,
         address indexed executor,
-        address indexed depositToken,
-        address creator,
-        uint256 totalFeeUSD,
-        uint256 depositTokenAmount,
+        address indexed token,
         uint256 gasCompTokens
     );
-
-    event MinFeeDepositUpdated(uint256 newMinFeeDeposit);
 
     // ─── Errors ───────────────────────────────────────────────────────────────
 
@@ -205,56 +144,31 @@ contract StrategyBuilderVault is
 
     /**
      * @notice Initializer — called once by the factory through the proxy.
-     *         All fee-related addresses are fixed at creation and cannot
-     *         be changed afterwards (immutable-by-convention).
-     *
      * @param initialOwner  Address that will own this vault instance.
      * @param feeRegistry_  Optional FeeRegistry address. Pass address(0) to disable fees.
-     * @param depositToken_ ERC-20 token used as deposit currency and to pay fees
-     *                      (must be accepted by feeRegistry_).
-     *                      Pass address(0) to disable fee settlement.
-     * @param creator_     Strategy creator that receives the creator fee share.
-     *                      Pass address(0) to route that share to the protocol vault.
-     * @param priceOracle_  IPriceOracle used to convert (volumeToken, volumeAmount) → USD.
-     *                      Pass address(0) to disable fee accrual (FeeAccrued not emitted).
+     * @param depositToken_ ERC-20 token used for gas compensation pre-funding.
+     *                      Pass address(0) to disable gas compensation.
      */
     function initialize(
         address initialOwner,
         address feeRegistry_,
-        address depositToken_,
-        address creator_,
-        address priceOracle_
+        address depositToken_
     ) external initializer {
         __Ownable_init(initialOwner);
-        // ReentrancyGuardTransient is stateless — no init needed
         _feeRegistry = IFeeRegistry(feeRegistry_);
         _depositToken = depositToken_;
-        _creator = creator_;
-        _priceOracle = IPriceOracle(priceOracle_);
     }
 
-    /**
-     * @notice Set the minimum fee deposit that should be maintained in FeeRegistry.
-     *         FeeDepositAction compares the current deposit against this value and
-     *         tops up automatically when the balance falls below it.
-     *         Set to 0 to disable the minimum-deposit check.
-     */
+    // ─── Owner: fee deposit management ───────────────────────────────────────
+
     function setMinFeeDeposit(uint256 minAmount) external onlyOwner {
         _minFeeDeposit = minAmount;
         emit MinFeeDepositUpdated(minAmount);
     }
 
     /**
-     * @notice Move ERC-20 tokens from THIS vault's balance into the FeeRegistry
-     *         deposit, so they are protected from automation actions.
-     *         Can be called by the vault owner directly, or encoded as an action
-     *         step so that a strategy can top up its own fee deposit automatically.
-     *
-     *         Approval of FeeRegistry is given for exactly `amount` tokens and
-     *         revoked implicitly once the transferFrom in depositFor consumes it.
-     *
-     * @param token   Accepted fee token (must be registered in FeeRegistry).
-     * @param amount  Amount to move from vault balance → FeeRegistry deposit.
+     * @notice Move ERC-20 tokens from this vault's balance into FeeRegistry
+     *         to pre-fund gas compensation.
      */
     function depositFees(address token, uint256 amount) external onlyOwner {
         IFeeRegistry reg = _feeRegistry;
@@ -262,13 +176,57 @@ contract StrategyBuilderVault is
         reg.depositFor(address(this), token, amount);
     }
 
-    // ─── Owner: Automation management ─────────────────────────────────────────
+    // ─── Owner: deposit / withdraw tokens ────────────────────────────────────
 
     /**
-     * @notice Create a new public automation executable by anyone.
-     *         steps[0] MUST be a CONDITION — it acts as the public gate.
-     * @return automationId  The uint32 ID of the newly created automation.
+     * @notice Deposit ERC-20 tokens into the vault. A deposit fee (if configured)
+     *         is deducted and sent to FeeRegistry.
+     * @param token  ERC-20 token to deposit.
+     * @param amount Gross amount to pull from msg.sender. Vault receives amount - fee.
      */
+    function deposit(address token, uint256 amount) external onlyOwner {
+        IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
+
+        IFeeRegistry reg = _feeRegistry;
+        if (address(reg) != address(0)) {
+            uint16 feeBps = reg.depositFeeBps();
+            if (feeBps > 0) {
+                uint256 fee = (amount * feeBps) / 10_000;
+                IERC20(token).forceApprove(address(reg), fee);
+                reg.collectFee(token, fee);
+            }
+        }
+
+        emit Deposited(token, amount);
+    }
+
+    /**
+     * @notice Withdraw ERC-20 tokens from the vault. A withdraw fee (if configured)
+     *         is deducted from the amount and sent to FeeRegistry.
+     * @param token     ERC-20 token to withdraw.
+     * @param amount    Gross amount. Recipient receives amount - fee.
+     * @param recipient Destination address.
+     */
+    function withdraw(address token, uint256 amount, address recipient) external onlyOwner {
+        if (recipient == address(0)) revert ZeroRecipient();
+
+        uint256 fee = 0;
+        IFeeRegistry reg = _feeRegistry;
+        if (address(reg) != address(0)) {
+            uint16 feeBps = reg.withdrawFeeBps();
+            if (feeBps > 0) {
+                fee = (amount * feeBps) / 10_000;
+                IERC20(token).forceApprove(address(reg), fee);
+                reg.collectFee(token, fee);
+            }
+        }
+
+        IERC20(token).safeTransfer(recipient, amount - fee);
+        emit Withdrawn(token, amount, fee, recipient);
+    }
+
+    // ─── Owner: Automation management ─────────────────────────────────────────
+
     function createAutomation(
         Step[] calldata steps
     ) external onlyOwner returns (uint32 automationId) {
@@ -276,14 +234,6 @@ contract StrategyBuilderVault is
         automationId = _storeAutomation(steps, false);
     }
 
-    /**
-     * @notice Create an owner-only automation.
-     *         Only the vault owner can execute it.
-     *         steps[0] may be a CONDITION or an ACTION — no public gate is required
-     *         since the owner's call is the authorisation.
-     *         Fees are never charged when the owner executes any automation.
-     * @return automationId  The uint32 ID of the newly created automation.
-     */
     function createOwnerAutomation(
         Step[] calldata steps
     ) external onlyOwner returns (uint32 automationId) {
@@ -291,11 +241,6 @@ contract StrategyBuilderVault is
         automationId = _storeAutomation(steps, true);
     }
 
-    /**
-     * @notice Replace all steps of an existing automation.
-     *         Validates against the same rules used at creation (ownerOnly flag preserved).
-     *         The shared vault context is NOT affected.
-     */
     function updateAutomationSteps(
         uint32 automationId,
         Step[] calldata steps
@@ -308,18 +253,15 @@ contract StrategyBuilderVault is
         uint256 oldLen = automation.steps.length;
         uint256 newLen = steps.length;
 
-        // Overwrite existing slots to avoid the SSTORE overhead of pop+push.
         uint256 overwrite = oldLen < newLen ? oldLen : newLen;
         for (uint256 i = 0; i < overwrite; ) {
             automation.steps[i] = steps[i];
             unchecked { ++i; }
         }
-        // Append extra steps if newLen > oldLen.
         for (uint256 i = overwrite; i < newLen; ) {
             automation.steps.push(steps[i]);
             unchecked { ++i; }
         }
-        // Remove trailing steps if newLen < oldLen.
         for (uint256 i = oldLen; i > newLen; ) {
             automation.steps.pop();
             unchecked { --i; }
@@ -328,9 +270,6 @@ contract StrategyBuilderVault is
         emit AutomationStepsUpdated(automationId, steps.length);
     }
 
-    /**
-     * @notice Activate or deactivate an automation.
-     */
     function setAutomationActive(
         uint32 automationId,
         bool active
@@ -342,38 +281,24 @@ contract StrategyBuilderVault is
 
     // ─── Owner: Shared context management ────────────────────────────────────
 
-    /**
-     * @notice Replace the entire vault context.
-     *         Resizes the slot array to match the new length.
-     */
     function setContext(bytes[] calldata ctx) external onlyOwner {
         uint256 newLen = ctx.length;
         uint256 oldLen = _ctx.length;
 
         for (uint256 i = oldLen; i < newLen; ) {
             _ctx.push();
-            unchecked {
-                ++i;
-            }
+            unchecked { ++i; }
         }
         for (uint256 i = oldLen; i > newLen; ) {
             _ctx.pop();
-            unchecked {
-                --i;
-            }
+            unchecked { --i; }
         }
         for (uint256 i = 0; i < newLen; ) {
             _ctx[i] = ctx[i];
-            unchecked {
-                ++i;
-            }
+            unchecked { ++i; }
         }
     }
 
-    /**
-     * @notice Override a single context slot.
-     *         slot must be within the current context length.
-     */
     function setContextSlot(
         uint32 slot,
         bytes calldata value
@@ -385,15 +310,6 @@ contract StrategyBuilderVault is
 
     // ─── Execution ────────────────────────────────────────────────────────────
 
-    /**
-     * @notice Execute an automation.
-     *         Public automations (ownerOnly = false) can be called by anyone;
-     *         the trigger condition (step 0) acts as the gate.
-     *         Owner-only automations (ownerOnly = true) can only be called by the
-     *         vault owner; no condition is required at step 0.
-     *         When the vault owner executes ANY automation, fees are never charged.
-     * @param automationId ID of the automation to run.
-     */
     function executeAutomation(uint32 automationId) external nonReentrant {
         if (automationId >= _automationCount) revert AutomationDoesNotExist();
 
@@ -407,10 +323,6 @@ contract StrategyBuilderVault is
 
         uint32 current = 0;
         uint32 stepCount = 0;
-        uint256 totalFeeUSD = 0;
-        // For ownerOnly automations whose first step is an ACTION there is no condition
-        // to gate execution — the owner's call is the authorisation, so we treat the
-        // trigger as always fired so afterExecution hooks are called correctly.
         bool triggerFired = automation.ownerOnly &&
             automation.steps[0].stepType == StepType.ACTION;
         bool ctxDirty = false;
@@ -428,25 +340,19 @@ contract StrategyBuilderVault is
                     current,
                     ctx
                 );
-                // current == 0 && stepCount == 0: this is the initial trigger condition.
                 if (current == 0 && stepCount == 0) {
                     triggerFired = met;
-                    // Non-owners cannot benefit from running a graph whose trigger is
-                    // false — revert immediately to save their remaining gas.
                     if (!met && msg.sender != owner()) revert TriggerNotMet();
                 }
                 current = met ? step.nextOnTrue : step.nextOnFalse;
             } else {
-                uint256 stepFeeUSD;
-                (ctx, stepFeeUSD) = _executeAction(
+                ctx = _executeAction(
                     step.target,
                     step.selector,
                     step.data,
                     current,
-                    automationId,
                     ctx
                 );
-                totalFeeUSD += stepFeeUSD;
                 ctxDirty = true;
                 current = step.nextOnTrue;
             }
@@ -456,23 +362,16 @@ contract StrategyBuilderVault is
             }
         }
 
-        // If the trigger fired, give step 0 a chance to update the context
-        // (e.g. advance an interval schedule). Silently skipped when step 0 does
-        // not implement IUpdatableCondition.afterExecution.
         if (triggerFired) {
             ctx = _updateTriggerCondition(automation.steps[0], ctx);
             ctxDirty = true;
         }
 
-        // Only write context back when it was actually modified.
-        // When the trigger condition is false (common case), this avoids
-        // re-writing every slot to storage — a significant gas saving.
         if (ctxDirty) _saveCtx(ctx);
 
-        // Owner pays no fees when executing any automation.
         if (msg.sender != owner()) {
             uint256 gasUsed = gasStart - gasleft();
-            _settleFees(automationId, msg.sender, totalFeeUSD, gasUsed);
+            _settleGasComp(automationId, msg.sender, gasUsed);
         }
 
         emit AutomationExecuted(automationId, msg.sender);
@@ -480,12 +379,6 @@ contract StrategyBuilderVault is
 
     // ─── Views ────────────────────────────────────────────────────────────────
 
-    /**
-     * @notice Returns true when the trigger condition (step 0) is currently met.
-     *         For owner-only automations whose step 0 is an ACTION, always returns
-     *         true — the owner's call is the only gate.
-     *         Returns false (not reverts) on any condition failure or bad config.
-     */
     function isTriggerMet(uint32 automationId) external view returns (bool) {
         if (automationId >= _automationCount) return false;
         Automation storage automation = _automations[automationId];
@@ -493,7 +386,6 @@ contract StrategyBuilderVault is
 
         Step storage trigger = automation.steps[0];
 
-        // Owner-only automations with no condition are always "ready".
         if (automation.ownerOnly && trigger.stepType == StepType.ACTION) return true;
 
         bytes[] memory ctx = _loadCtx();
@@ -504,7 +396,6 @@ contract StrategyBuilderVault is
         return abi.decode(result, (bool));
     }
 
-    /** @notice Return the metadata and steps of an automation. */
     function getAutomation(
         uint32 automationId
     ) external view returns (bool active, bool ownerOnly, Step[] memory steps) {
@@ -513,49 +404,28 @@ contract StrategyBuilderVault is
         return (automation.active, automation.ownerOnly, automation.steps);
     }
 
-    /** @notice Return the current vault-wide shared context. */
     function getContext() external view returns (bytes[] memory) {
         return _ctx;
     }
 
-    /** @notice Total number of automations ever created (includes inactive ones). */
     function automationCount() external view returns (uint32) {
         return _automationCount;
     }
 
-    /** @notice Current fee registry address (address(0) = disabled). */
     function feeRegistry() external view returns (address) {
         return address(_feeRegistry);
     }
 
-    /** @notice Strategy creator address that receives the creator fee share. */
-    function creator() external view returns (address) {
-        return _creator;
-    }
-
-    /** @notice ERC-20 token used as deposit currency and to settle fees. address(0) = settlement disabled. */
     function depositToken() external view returns (address) {
         return _depositToken;
     }
 
-    /** @notice Minimum fee deposit (in token units) required in FeeRegistry. */
     function minFeeDeposit() external view returns (uint256) {
         return _minFeeDeposit;
     }
 
-    /** @notice Price oracle used to derive USD volume from action return values. */
-    function priceOracle() external view returns (address) {
-        return address(_priceOracle);
-    }
-
     // ─── ABI helpers ──────────────────────────────────────────────────────────
 
-    /**
-     * @notice Decode a (uint32[], bytes[]) context diff returned by afterExecution.
-     *         Exposed as external pure so _updateTriggerCondition can wrap the decode
-     *         in a try/catch — abi.decode reverts on malformed input and try/catch
-     *         only works on external calls in Solidity.
-     */
     function decodeContextDiff(
         bytes calldata data
     ) external pure returns (uint32[] memory slots, bytes[] memory values) {
@@ -581,8 +451,6 @@ contract StrategyBuilderVault is
 
     // ─── Internal: step validation ────────────────────────────────────────────
 
-    /// @param ownerOnly  When false, step 0 must be a CONDITION.
-    ///                   When true, step 0 may be a CONDITION or an ACTION.
     function _validateSteps(Step[] calldata steps, bool ownerOnly) internal pure {
         if (steps.length == 0) revert NoSteps();
         if (!ownerOnly && steps[0].stepType != StepType.CONDITION)
@@ -602,14 +470,10 @@ contract StrategyBuilderVault is
                 if (onFalse != DONE && onFalse >= len)
                     revert InvalidStepReference(i);
             } else {
-                // ACTION: nextOnFalse is never read — enforce DONE to prevent
-                // silent misconfiguration where an owner expects branching.
                 if (onFalse != DONE) revert InvalidStepReference(i);
             }
 
-            unchecked {
-                ++i;
-            }
+            unchecked { ++i; }
         }
     }
 
@@ -620,9 +484,7 @@ contract StrategyBuilderVault is
         ctx = new bytes[](len);
         for (uint256 i = 0; i < len; ) {
             ctx[i] = _ctx[i];
-            unchecked {
-                ++i;
-            }
+            unchecked { ++i; }
         }
     }
 
@@ -632,31 +494,20 @@ contract StrategyBuilderVault is
 
         for (uint256 i = oldLen; i < newLen; ) {
             _ctx.push();
-            unchecked {
-                ++i;
-            }
+            unchecked { ++i; }
         }
         for (uint256 i = oldLen; i > newLen; ) {
             _ctx.pop();
-            unchecked {
-                --i;
-            }
+            unchecked { --i; }
         }
         for (uint256 i = 0; i < newLen; ) {
             _ctx[i] = ctx[i];
-            unchecked {
-                ++i;
-            }
+            unchecked { ++i; }
         }
     }
 
     // ─── Internal: condition / action dispatch ────────────────────────────────
 
-    /**
-     * @dev Call afterExecution on the trigger condition (step 0) if it implements
-     *      IUpdatableCondition. Uses staticcall — the condition only computes a
-     *      context diff, the vault applies the write. Silently skips on any failure.
-     */
     function _updateTriggerCondition(
         Step storage step,
         bytes[] memory ctx
@@ -684,9 +535,7 @@ contract StrategyBuilderVault is
             if (slots[i] < ctx.length) {
                 ctx[slots[i]] = values[i];
             }
-            unchecked {
-                ++i;
-            }
+            unchecked { ++i; }
         }
         return ctx;
     }
@@ -711,22 +560,18 @@ contract StrategyBuilderVault is
         bytes4 selector,
         bytes storage data,
         uint32 stepIndex,
-        uint32 automationId,
         bytes[] memory ctx
-    ) internal returns (bytes[] memory, uint256 stepFeeUSD) {
+    ) internal returns (bytes[] memory) {
         (bool success, bytes memory returnData) = target.delegatecall(
             abi.encodeWithSelector(selector, data, ctx)
         );
         if (!success) revert ActionExecutionFailed(stepIndex);
 
-        // Apply context diff and accumulate per-step fee.
         if (returnData.length > 0) {
             (
                 uint32[] memory slots,
-                bytes[] memory values,
-                address volumeToken,
-                uint256 volumeAmount
-            ) = abi.decode(returnData, (uint32[], bytes[], address, uint256));
+                bytes[] memory values
+            ) = abi.decode(returnData, (uint32[], bytes[]));
 
             if (slots.length != values.length)
                 revert ContextDiffLengthMismatch();
@@ -735,61 +580,21 @@ contract StrategyBuilderVault is
                 if (slots[i] >= ctx.length)
                     revert ContextSlotOutOfBounds(slots[i]);
                 ctx[slots[i]] = values[i];
-                unchecked {
-                    ++i;
-                }
-            }
-
-            // Convert (volumeToken, volumeAmount) → volumeUSD via the price oracle,
-            // then compute the per-step fee and emit an audit event.
-            if (
-                volumeToken != address(0) &&
-                volumeAmount > 0 &&
-                address(_feeRegistry) != address(0) &&
-                address(_priceOracle) != address(0)
-            ) {
-                uint256 feeBps = _feeRegistry.getFee(target, selector);
-                if (feeBps > 0) {
-                    uint256 volumeUSD;
-                    try _priceOracle.getTokenPrice(volumeToken) returns (
-                        uint256 price
-                    ) {
-                        if (price > 0) {
-                            volumeUSD = (volumeAmount * price) / 1e18;
-                        }
-                    } catch {}
-
-                    if (volumeUSD > 0) {
-                        stepFeeUSD = (volumeUSD * feeBps) / 10_000;
-                        emit FeeAccrued(
-                            automationId,
-                            stepIndex,
-                            target,
-                            selector,
-                            volumeUSD,
-                            stepFeeUSD
-                        );
-                    }
-                }
+                unchecked { ++i; }
             }
         }
 
-        return (ctx, stepFeeUSD);
+        return ctx;
     }
 
     /**
-     * @notice Settle accumulated fees at the end of an automation execution.
-     *         Tokens are already held by FeeRegistry (pre-deposited via depositFees /
-     *         depositFor) — no ERC-20 approval is needed here.
-     *         Silently skips when registry/feeToken is not set.
-     *         Reverts (via FeeRegistry) when the vault's deposit is insufficient.
-     * @param gasUsed  Gas consumed so far (gasleft() diff); FeeRegistry adds its
-     *                 configured overhead to cover the settlement path.
+     * @notice Settle gas compensation at the end of an automation execution.
+     *         Deducts from the vault's pre-funded deposit in FeeRegistry and
+     *         transfers directly to the executor.
      */
-    function _settleFees(
+    function _settleGasComp(
         uint32 automationId,
         address executor,
-        uint256 totalFeeUSD,
         uint256 gasUsed
     ) internal {
         IFeeRegistry reg = _feeRegistry;
@@ -798,37 +603,17 @@ contract StrategyBuilderVault is
         address token = _depositToken;
         if (token == address(0)) return;
 
-        (uint256 totalTokens, uint256 gasCompTokens) = reg.deductFees(
-            token,
-            executor,
-            _creator,
-            totalFeeUSD,
-            gasUsed
-        );
+        uint256 gasCompTokens = reg.deductGasComp(token, executor, gasUsed);
 
-        if (totalTokens == 0) return;
-
-        emit FeesSettled(
-            automationId,
-            executor,
-            token,
-            _creator,
-            totalFeeUSD,
-            totalTokens,
-            gasCompTokens
-        );
+        if (gasCompTokens > 0) {
+            emit GasCompSettled(automationId, executor, token, gasCompTokens);
+        }
     }
 
     // ─── ETH handling ─────────────────────────────────────────────────────────
 
     receive() external payable {}
 
-    /**
-     * @notice Withdraw ETH accidentally sent to the vault.
-     *         Only the vault owner can call this.
-     * @param to     Recipient address (must not be address(0)).
-     * @param amount Amount in wei (0 = withdraw full balance).
-     */
     function withdrawETH(address payable to, uint256 amount) external onlyOwner {
         if (to == address(0)) revert ZeroRecipient();
         uint256 toSend = amount == 0 ? address(this).balance : amount;

@@ -3,5 +3,4 @@
 /* eslint-disable */
 export type { ERC1967ProxyHelper } from './ERC1967ProxyHelper.js';
 export type { MockERC20 } from './MockERC20.js';
-export type { MockFeeReduction } from './MockFeeReduction.js';
 export type { MockPriceOracle } from './MockPriceOracle.js';

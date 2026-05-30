@@ -6,76 +6,70 @@ import type { TypedContractEvent, TypedDeferredTopicFilter, TypedEventLog, Typed
   
 
   export interface FeeRegistryInterface extends Interface {
-    getFunction(nameOrSignature: "MAX_FEE_BPS" | "addAcceptedToken" | "burnBps" | "burnContract" | "claim" | "claimable" | "creatorBps" | "deductFees" | "depositFor" | "estimateGasComp" | "executorBps" | "executorMarkupBps" | "feeTokenAmount" | "gasOverhead" | "getFee" | "isAcceptedToken" | "nativeToken" | "owner" | "priceOracle" | "protocolBps" | "protocolVault" | "removeAcceptedToken" | "renounceOwnership" | "setDistribution" | "setFee" | "setGasConfig" | "transferOwnership" | "vaultDeposit" | "vaultDeposits"): FunctionFragment;
+    getFunction(nameOrSignature: "MAX_FEE_BPS" | "addAcceptedToken" | "collectFee" | "collectedFees" | "deductGasComp" | "depositFeeBps" | "depositFor" | "estimateGasComp" | "executorMarkupBps" | "gasOverhead" | "isAcceptedToken" | "maxGasPrice" | "nativeToken" | "owner" | "priceOracle" | "removeAcceptedToken" | "renounceOwnership" | "setDepositFeeBps" | "setGasConfig" | "setWithdrawFeeBps" | "transferOwnership" | "vaultDeposit" | "vaultDeposits" | "withdrawDeposit" | "withdrawFeeBps" | "withdrawFees"): FunctionFragment;
 
-    getEvent(nameOrSignatureOrTopic: "DistributionSet" | "FeeClaimed" | "FeeDeducted" | "FeeDeposited" | "FeeSet" | "GasConfigSet" | "OwnershipTransferred" | "TokenAdded" | "TokenRemoved"): EventFragment;
+    getEvent(nameOrSignatureOrTopic: "DepositFeeBpsSet" | "FeeCollected" | "FeeDepositWithdrawn" | "FeeDeposited" | "FeesWithdrawn" | "GasCompDeducted" | "GasConfigSet" | "OwnershipTransferred" | "TokenAdded" | "TokenRemoved" | "WithdrawFeeBpsSet"): EventFragment;
 
     encodeFunctionData(functionFragment: 'MAX_FEE_BPS', values?: undefined): string;
 encodeFunctionData(functionFragment: 'addAcceptedToken', values: [AddressLike, BigNumberish]): string;
-encodeFunctionData(functionFragment: 'burnBps', values?: undefined): string;
-encodeFunctionData(functionFragment: 'burnContract', values?: undefined): string;
-encodeFunctionData(functionFragment: 'claim', values: [AddressLike]): string;
-encodeFunctionData(functionFragment: 'claimable', values: [AddressLike, AddressLike]): string;
-encodeFunctionData(functionFragment: 'creatorBps', values?: undefined): string;
-encodeFunctionData(functionFragment: 'deductFees', values: [AddressLike, AddressLike, AddressLike, BigNumberish, BigNumberish]): string;
+encodeFunctionData(functionFragment: 'collectFee', values: [AddressLike, BigNumberish]): string;
+encodeFunctionData(functionFragment: 'collectedFees', values: [AddressLike]): string;
+encodeFunctionData(functionFragment: 'deductGasComp', values: [AddressLike, AddressLike, BigNumberish]): string;
+encodeFunctionData(functionFragment: 'depositFeeBps', values?: undefined): string;
 encodeFunctionData(functionFragment: 'depositFor', values: [AddressLike, AddressLike, BigNumberish]): string;
 encodeFunctionData(functionFragment: 'estimateGasComp', values: [AddressLike, BigNumberish, BigNumberish]): string;
-encodeFunctionData(functionFragment: 'executorBps', values?: undefined): string;
 encodeFunctionData(functionFragment: 'executorMarkupBps', values?: undefined): string;
-encodeFunctionData(functionFragment: 'feeTokenAmount', values: [AddressLike, BigNumberish]): string;
 encodeFunctionData(functionFragment: 'gasOverhead', values?: undefined): string;
-encodeFunctionData(functionFragment: 'getFee', values: [AddressLike, BytesLike]): string;
 encodeFunctionData(functionFragment: 'isAcceptedToken', values: [AddressLike]): string;
+encodeFunctionData(functionFragment: 'maxGasPrice', values?: undefined): string;
 encodeFunctionData(functionFragment: 'nativeToken', values?: undefined): string;
 encodeFunctionData(functionFragment: 'owner', values?: undefined): string;
 encodeFunctionData(functionFragment: 'priceOracle', values?: undefined): string;
-encodeFunctionData(functionFragment: 'protocolBps', values?: undefined): string;
-encodeFunctionData(functionFragment: 'protocolVault', values?: undefined): string;
 encodeFunctionData(functionFragment: 'removeAcceptedToken', values: [AddressLike]): string;
 encodeFunctionData(functionFragment: 'renounceOwnership', values?: undefined): string;
-encodeFunctionData(functionFragment: 'setDistribution', values: [AddressLike, AddressLike, BigNumberish, BigNumberish, BigNumberish, BigNumberish]): string;
-encodeFunctionData(functionFragment: 'setFee', values: [AddressLike, BytesLike, BigNumberish]): string;
-encodeFunctionData(functionFragment: 'setGasConfig', values: [AddressLike, AddressLike, BigNumberish, BigNumberish]): string;
+encodeFunctionData(functionFragment: 'setDepositFeeBps', values: [BigNumberish]): string;
+encodeFunctionData(functionFragment: 'setGasConfig', values: [AddressLike, AddressLike, BigNumberish, BigNumberish, BigNumberish]): string;
+encodeFunctionData(functionFragment: 'setWithdrawFeeBps', values: [BigNumberish]): string;
 encodeFunctionData(functionFragment: 'transferOwnership', values: [AddressLike]): string;
 encodeFunctionData(functionFragment: 'vaultDeposit', values: [AddressLike, AddressLike]): string;
 encodeFunctionData(functionFragment: 'vaultDeposits', values: [AddressLike, AddressLike]): string;
+encodeFunctionData(functionFragment: 'withdrawDeposit', values: [AddressLike, BigNumberish]): string;
+encodeFunctionData(functionFragment: 'withdrawFeeBps', values?: undefined): string;
+encodeFunctionData(functionFragment: 'withdrawFees', values: [AddressLike]): string;
 
     decodeFunctionResult(functionFragment: 'MAX_FEE_BPS', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'addAcceptedToken', data: BytesLike): Result;
-decodeFunctionResult(functionFragment: 'burnBps', data: BytesLike): Result;
-decodeFunctionResult(functionFragment: 'burnContract', data: BytesLike): Result;
-decodeFunctionResult(functionFragment: 'claim', data: BytesLike): Result;
-decodeFunctionResult(functionFragment: 'claimable', data: BytesLike): Result;
-decodeFunctionResult(functionFragment: 'creatorBps', data: BytesLike): Result;
-decodeFunctionResult(functionFragment: 'deductFees', data: BytesLike): Result;
+decodeFunctionResult(functionFragment: 'collectFee', data: BytesLike): Result;
+decodeFunctionResult(functionFragment: 'collectedFees', data: BytesLike): Result;
+decodeFunctionResult(functionFragment: 'deductGasComp', data: BytesLike): Result;
+decodeFunctionResult(functionFragment: 'depositFeeBps', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'depositFor', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'estimateGasComp', data: BytesLike): Result;
-decodeFunctionResult(functionFragment: 'executorBps', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'executorMarkupBps', data: BytesLike): Result;
-decodeFunctionResult(functionFragment: 'feeTokenAmount', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'gasOverhead', data: BytesLike): Result;
-decodeFunctionResult(functionFragment: 'getFee', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'isAcceptedToken', data: BytesLike): Result;
+decodeFunctionResult(functionFragment: 'maxGasPrice', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'nativeToken', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'owner', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'priceOracle', data: BytesLike): Result;
-decodeFunctionResult(functionFragment: 'protocolBps', data: BytesLike): Result;
-decodeFunctionResult(functionFragment: 'protocolVault', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'removeAcceptedToken', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'renounceOwnership', data: BytesLike): Result;
-decodeFunctionResult(functionFragment: 'setDistribution', data: BytesLike): Result;
-decodeFunctionResult(functionFragment: 'setFee', data: BytesLike): Result;
+decodeFunctionResult(functionFragment: 'setDepositFeeBps', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'setGasConfig', data: BytesLike): Result;
+decodeFunctionResult(functionFragment: 'setWithdrawFeeBps', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'transferOwnership', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'vaultDeposit', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'vaultDeposits', data: BytesLike): Result;
+decodeFunctionResult(functionFragment: 'withdrawDeposit', data: BytesLike): Result;
+decodeFunctionResult(functionFragment: 'withdrawFeeBps', data: BytesLike): Result;
+decodeFunctionResult(functionFragment: 'withdrawFees', data: BytesLike): Result;
   }
 
   
-    export namespace DistributionSetEvent {
-      export type InputTuple = [protocolVault: AddressLike, burnContract: AddressLike, protocolBps: BigNumberish, executorBps: BigNumberish, creatorBps: BigNumberish, burnBps: BigNumberish];
-      export type OutputTuple = [protocolVault: string, burnContract: string, protocolBps: bigint, executorBps: bigint, creatorBps: bigint, burnBps: bigint];
-      export interface OutputObject {protocolVault: string, burnContract: string, protocolBps: bigint, executorBps: bigint, creatorBps: bigint, burnBps: bigint };
+    export namespace DepositFeeBpsSetEvent {
+      export type InputTuple = [bps: BigNumberish];
+      export type OutputTuple = [bps: bigint];
+      export interface OutputObject {bps: bigint };
       export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>
       export type Filter = TypedDeferredTopicFilter<Event>
       export type Log = TypedEventLog<Event>
@@ -84,10 +78,10 @@ decodeFunctionResult(functionFragment: 'vaultDeposits', data: BytesLike): Result
 
   
 
-    export namespace FeeClaimedEvent {
-      export type InputTuple = [claimant: AddressLike, token: AddressLike, amount: BigNumberish];
-      export type OutputTuple = [claimant: string, token: string, amount: bigint];
-      export interface OutputObject {claimant: string, token: string, amount: bigint };
+    export namespace FeeCollectedEvent {
+      export type InputTuple = [vault: AddressLike, token: AddressLike, amount: BigNumberish];
+      export type OutputTuple = [vault: string, token: string, amount: bigint];
+      export interface OutputObject {vault: string, token: string, amount: bigint };
       export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>
       export type Filter = TypedDeferredTopicFilter<Event>
       export type Log = TypedEventLog<Event>
@@ -96,10 +90,10 @@ decodeFunctionResult(functionFragment: 'vaultDeposits', data: BytesLike): Result
 
   
 
-    export namespace FeeDeductedEvent {
-      export type InputTuple = [vault: AddressLike, executor: AddressLike, creator: AddressLike, token: AddressLike, feeUSD: BigNumberish, totalTokens: BigNumberish, gasCompTokens: BigNumberish];
-      export type OutputTuple = [vault: string, executor: string, creator: string, token: string, feeUSD: bigint, totalTokens: bigint, gasCompTokens: bigint];
-      export interface OutputObject {vault: string, executor: string, creator: string, token: string, feeUSD: bigint, totalTokens: bigint, gasCompTokens: bigint };
+    export namespace FeeDepositWithdrawnEvent {
+      export type InputTuple = [vault: AddressLike, token: AddressLike, amount: BigNumberish];
+      export type OutputTuple = [vault: string, token: string, amount: bigint];
+      export interface OutputObject {vault: string, token: string, amount: bigint };
       export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>
       export type Filter = TypedDeferredTopicFilter<Event>
       export type Log = TypedEventLog<Event>
@@ -120,10 +114,22 @@ decodeFunctionResult(functionFragment: 'vaultDeposits', data: BytesLike): Result
 
   
 
-    export namespace FeeSetEvent {
-      export type InputTuple = [target: AddressLike, selector: BytesLike, feeBps: BigNumberish];
-      export type OutputTuple = [target: string, selector: string, feeBps: bigint];
-      export interface OutputObject {target: string, selector: string, feeBps: bigint };
+    export namespace FeesWithdrawnEvent {
+      export type InputTuple = [token: AddressLike, amount: BigNumberish];
+      export type OutputTuple = [token: string, amount: bigint];
+      export interface OutputObject {token: string, amount: bigint };
+      export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>
+      export type Filter = TypedDeferredTopicFilter<Event>
+      export type Log = TypedEventLog<Event>
+      export type LogDescription = TypedLogDescription<Event>
+    }
+
+  
+
+    export namespace GasCompDeductedEvent {
+      export type InputTuple = [vault: AddressLike, executor: AddressLike, token: AddressLike, gasCompTokens: BigNumberish];
+      export type OutputTuple = [vault: string, executor: string, token: string, gasCompTokens: bigint];
+      export interface OutputObject {vault: string, executor: string, token: string, gasCompTokens: bigint };
       export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>
       export type Filter = TypedDeferredTopicFilter<Event>
       export type Log = TypedEventLog<Event>
@@ -133,9 +139,9 @@ decodeFunctionResult(functionFragment: 'vaultDeposits', data: BytesLike): Result
   
 
     export namespace GasConfigSetEvent {
-      export type InputTuple = [priceOracle: AddressLike, nativeToken: AddressLike, executorMarkupBps: BigNumberish, overhead: BigNumberish];
-      export type OutputTuple = [priceOracle: string, nativeToken: string, executorMarkupBps: bigint, overhead: bigint];
-      export interface OutputObject {priceOracle: string, nativeToken: string, executorMarkupBps: bigint, overhead: bigint };
+      export type InputTuple = [priceOracle: AddressLike, nativeToken: AddressLike, executorMarkupBps: BigNumberish, overhead: BigNumberish, maxGasPrice: BigNumberish];
+      export type OutputTuple = [priceOracle: string, nativeToken: string, executorMarkupBps: bigint, overhead: bigint, maxGasPrice: bigint];
+      export interface OutputObject {priceOracle: string, nativeToken: string, executorMarkupBps: bigint, overhead: bigint, maxGasPrice: bigint };
       export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>
       export type Filter = TypedDeferredTopicFilter<Event>
       export type Log = TypedEventLog<Event>
@@ -172,6 +178,18 @@ decodeFunctionResult(functionFragment: 'vaultDeposits', data: BytesLike): Result
       export type InputTuple = [token: AddressLike];
       export type OutputTuple = [token: string];
       export interface OutputObject {token: string };
+      export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>
+      export type Filter = TypedDeferredTopicFilter<Event>
+      export type Log = TypedEventLog<Event>
+      export type LogDescription = TypedLogDescription<Event>
+    }
+
+  
+
+    export namespace WithdrawFeeBpsSetEvent {
+      export type InputTuple = [bps: BigNumberish];
+      export type OutputTuple = [bps: bigint];
+      export interface OutputObject {bps: bigint };
       export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>
       export type Filter = TypedDeferredTopicFilter<Event>
       export type Log = TypedEventLog<Event>
@@ -230,50 +248,34 @@ decodeFunctionResult(functionFragment: 'vaultDeposits', data: BytesLike): Result
     
 
     
-    burnBps: TypedContractMethod<
-      [],
-      [bigint],
-      'view'
-    >
-    
-
-    
-    burnContract: TypedContractMethod<
-      [],
-      [string],
-      'view'
-    >
-    
-
-    
-    claim: TypedContractMethod<
-      [token: AddressLike, ],
+    collectFee: TypedContractMethod<
+      [token: AddressLike, amount: BigNumberish, ],
       [void],
       'nonpayable'
     >
     
 
     
-    claimable: TypedContractMethod<
-      [party: AddressLike, token: AddressLike, ],
+    collectedFees: TypedContractMethod<
+      [token: AddressLike, ],
       [bigint],
       'view'
     >
     
 
     
-    creatorBps: TypedContractMethod<
+    deductGasComp: TypedContractMethod<
+      [token: AddressLike, executor: AddressLike, gasUsed: BigNumberish, ],
+      [bigint],
+      'nonpayable'
+    >
+    
+
+    
+    depositFeeBps: TypedContractMethod<
       [],
       [bigint],
       'view'
-    >
-    
-
-    
-    deductFees: TypedContractMethod<
-      [token: AddressLike, executor: AddressLike, creator: AddressLike, feeUSD: BigNumberish, gasUsed: BigNumberish, ],
-      [[bigint, bigint] & {totalTokens: bigint, gasCompTokens: bigint }],
-      'nonpayable'
     >
     
 
@@ -294,24 +296,8 @@ decodeFunctionResult(functionFragment: 'vaultDeposits', data: BytesLike): Result
     
 
     
-    executorBps: TypedContractMethod<
-      [],
-      [bigint],
-      'view'
-    >
-    
-
-    
     executorMarkupBps: TypedContractMethod<
       [],
-      [bigint],
-      'view'
-    >
-    
-
-    
-    feeTokenAmount: TypedContractMethod<
-      [token: AddressLike, feeUSD: BigNumberish, ],
       [bigint],
       'view'
     >
@@ -326,17 +312,17 @@ decodeFunctionResult(functionFragment: 'vaultDeposits', data: BytesLike): Result
     
 
     
-    getFee: TypedContractMethod<
-      [target: AddressLike, selector: BytesLike, ],
-      [bigint],
+    isAcceptedToken: TypedContractMethod<
+      [token: AddressLike, ],
+      [boolean],
       'view'
     >
     
 
     
-    isAcceptedToken: TypedContractMethod<
-      [token: AddressLike, ],
-      [boolean],
+    maxGasPrice: TypedContractMethod<
+      [],
+      [bigint],
       'view'
     >
     
@@ -366,22 +352,6 @@ decodeFunctionResult(functionFragment: 'vaultDeposits', data: BytesLike): Result
     
 
     
-    protocolBps: TypedContractMethod<
-      [],
-      [bigint],
-      'view'
-    >
-    
-
-    
-    protocolVault: TypedContractMethod<
-      [],
-      [string],
-      'view'
-    >
-    
-
-    
     removeAcceptedToken: TypedContractMethod<
       [token: AddressLike, ],
       [void],
@@ -398,16 +368,8 @@ decodeFunctionResult(functionFragment: 'vaultDeposits', data: BytesLike): Result
     
 
     
-    setDistribution: TypedContractMethod<
-      [protocolVault_: AddressLike, burnContract_: AddressLike, protocolBps_: BigNumberish, executorBps_: BigNumberish, creatorBps_: BigNumberish, burnBps_: BigNumberish, ],
-      [void],
-      'nonpayable'
-    >
-    
-
-    
-    setFee: TypedContractMethod<
-      [target: AddressLike, selector: BytesLike, feeBps: BigNumberish, ],
+    setDepositFeeBps: TypedContractMethod<
+      [bps: BigNumberish, ],
       [void],
       'nonpayable'
     >
@@ -415,7 +377,15 @@ decodeFunctionResult(functionFragment: 'vaultDeposits', data: BytesLike): Result
 
     
     setGasConfig: TypedContractMethod<
-      [priceOracle_: AddressLike, nativeToken_: AddressLike, executorMarkupBps_: BigNumberish, overhead_: BigNumberish, ],
+      [priceOracle_: AddressLike, nativeToken_: AddressLike, executorMarkupBps_: BigNumberish, overhead_: BigNumberish, maxGasPrice_: BigNumberish, ],
+      [void],
+      'nonpayable'
+    >
+    
+
+    
+    setWithdrawFeeBps: TypedContractMethod<
+      [bps: BigNumberish, ],
       [void],
       'nonpayable'
     >
@@ -445,6 +415,30 @@ decodeFunctionResult(functionFragment: 'vaultDeposits', data: BytesLike): Result
     >
     
 
+    
+    withdrawDeposit: TypedContractMethod<
+      [token: AddressLike, amount: BigNumberish, ],
+      [void],
+      'nonpayable'
+    >
+    
+
+    
+    withdrawFeeBps: TypedContractMethod<
+      [],
+      [bigint],
+      'view'
+    >
+    
+
+    
+    withdrawFees: TypedContractMethod<
+      [token: AddressLike, ],
+      [void],
+      'nonpayable'
+    >
+    
+
 
     getFunction<T extends ContractMethod = ContractMethod>(key: string | FunctionFragment): T;
 
@@ -458,35 +452,25 @@ getFunction(nameOrSignature: 'addAcceptedToken'): TypedContractMethod<
       [void],
       'nonpayable'
     >;
-getFunction(nameOrSignature: 'burnBps'): TypedContractMethod<
-      [],
-      [bigint],
-      'view'
-    >;
-getFunction(nameOrSignature: 'burnContract'): TypedContractMethod<
-      [],
-      [string],
-      'view'
-    >;
-getFunction(nameOrSignature: 'claim'): TypedContractMethod<
-      [token: AddressLike, ],
+getFunction(nameOrSignature: 'collectFee'): TypedContractMethod<
+      [token: AddressLike, amount: BigNumberish, ],
       [void],
       'nonpayable'
     >;
-getFunction(nameOrSignature: 'claimable'): TypedContractMethod<
-      [party: AddressLike, token: AddressLike, ],
+getFunction(nameOrSignature: 'collectedFees'): TypedContractMethod<
+      [token: AddressLike, ],
       [bigint],
       'view'
     >;
-getFunction(nameOrSignature: 'creatorBps'): TypedContractMethod<
+getFunction(nameOrSignature: 'deductGasComp'): TypedContractMethod<
+      [token: AddressLike, executor: AddressLike, gasUsed: BigNumberish, ],
+      [bigint],
+      'nonpayable'
+    >;
+getFunction(nameOrSignature: 'depositFeeBps'): TypedContractMethod<
       [],
       [bigint],
       'view'
-    >;
-getFunction(nameOrSignature: 'deductFees'): TypedContractMethod<
-      [token: AddressLike, executor: AddressLike, creator: AddressLike, feeUSD: BigNumberish, gasUsed: BigNumberish, ],
-      [[bigint, bigint] & {totalTokens: bigint, gasCompTokens: bigint }],
-      'nonpayable'
     >;
 getFunction(nameOrSignature: 'depositFor'): TypedContractMethod<
       [vault: AddressLike, token: AddressLike, amount: BigNumberish, ],
@@ -498,18 +482,8 @@ getFunction(nameOrSignature: 'estimateGasComp'): TypedContractMethod<
       [bigint],
       'view'
     >;
-getFunction(nameOrSignature: 'executorBps'): TypedContractMethod<
-      [],
-      [bigint],
-      'view'
-    >;
 getFunction(nameOrSignature: 'executorMarkupBps'): TypedContractMethod<
       [],
-      [bigint],
-      'view'
-    >;
-getFunction(nameOrSignature: 'feeTokenAmount'): TypedContractMethod<
-      [token: AddressLike, feeUSD: BigNumberish, ],
       [bigint],
       'view'
     >;
@@ -518,14 +492,14 @@ getFunction(nameOrSignature: 'gasOverhead'): TypedContractMethod<
       [bigint],
       'view'
     >;
-getFunction(nameOrSignature: 'getFee'): TypedContractMethod<
-      [target: AddressLike, selector: BytesLike, ],
-      [bigint],
-      'view'
-    >;
 getFunction(nameOrSignature: 'isAcceptedToken'): TypedContractMethod<
       [token: AddressLike, ],
       [boolean],
+      'view'
+    >;
+getFunction(nameOrSignature: 'maxGasPrice'): TypedContractMethod<
+      [],
+      [bigint],
       'view'
     >;
 getFunction(nameOrSignature: 'nativeToken'): TypedContractMethod<
@@ -543,16 +517,6 @@ getFunction(nameOrSignature: 'priceOracle'): TypedContractMethod<
       [string],
       'view'
     >;
-getFunction(nameOrSignature: 'protocolBps'): TypedContractMethod<
-      [],
-      [bigint],
-      'view'
-    >;
-getFunction(nameOrSignature: 'protocolVault'): TypedContractMethod<
-      [],
-      [string],
-      'view'
-    >;
 getFunction(nameOrSignature: 'removeAcceptedToken'): TypedContractMethod<
       [token: AddressLike, ],
       [void],
@@ -563,18 +527,18 @@ getFunction(nameOrSignature: 'renounceOwnership'): TypedContractMethod<
       [void],
       'nonpayable'
     >;
-getFunction(nameOrSignature: 'setDistribution'): TypedContractMethod<
-      [protocolVault_: AddressLike, burnContract_: AddressLike, protocolBps_: BigNumberish, executorBps_: BigNumberish, creatorBps_: BigNumberish, burnBps_: BigNumberish, ],
-      [void],
-      'nonpayable'
-    >;
-getFunction(nameOrSignature: 'setFee'): TypedContractMethod<
-      [target: AddressLike, selector: BytesLike, feeBps: BigNumberish, ],
+getFunction(nameOrSignature: 'setDepositFeeBps'): TypedContractMethod<
+      [bps: BigNumberish, ],
       [void],
       'nonpayable'
     >;
 getFunction(nameOrSignature: 'setGasConfig'): TypedContractMethod<
-      [priceOracle_: AddressLike, nativeToken_: AddressLike, executorMarkupBps_: BigNumberish, overhead_: BigNumberish, ],
+      [priceOracle_: AddressLike, nativeToken_: AddressLike, executorMarkupBps_: BigNumberish, overhead_: BigNumberish, maxGasPrice_: BigNumberish, ],
+      [void],
+      'nonpayable'
+    >;
+getFunction(nameOrSignature: 'setWithdrawFeeBps'): TypedContractMethod<
+      [bps: BigNumberish, ],
       [void],
       'nonpayable'
     >;
@@ -593,40 +557,61 @@ getFunction(nameOrSignature: 'vaultDeposits'): TypedContractMethod<
       [bigint],
       'view'
     >;
+getFunction(nameOrSignature: 'withdrawDeposit'): TypedContractMethod<
+      [token: AddressLike, amount: BigNumberish, ],
+      [void],
+      'nonpayable'
+    >;
+getFunction(nameOrSignature: 'withdrawFeeBps'): TypedContractMethod<
+      [],
+      [bigint],
+      'view'
+    >;
+getFunction(nameOrSignature: 'withdrawFees'): TypedContractMethod<
+      [token: AddressLike, ],
+      [void],
+      'nonpayable'
+    >;
 
-    getEvent(key: 'DistributionSet'): TypedContractEvent<DistributionSetEvent.InputTuple, DistributionSetEvent.OutputTuple, DistributionSetEvent.OutputObject>;
-getEvent(key: 'FeeClaimed'): TypedContractEvent<FeeClaimedEvent.InputTuple, FeeClaimedEvent.OutputTuple, FeeClaimedEvent.OutputObject>;
-getEvent(key: 'FeeDeducted'): TypedContractEvent<FeeDeductedEvent.InputTuple, FeeDeductedEvent.OutputTuple, FeeDeductedEvent.OutputObject>;
+    getEvent(key: 'DepositFeeBpsSet'): TypedContractEvent<DepositFeeBpsSetEvent.InputTuple, DepositFeeBpsSetEvent.OutputTuple, DepositFeeBpsSetEvent.OutputObject>;
+getEvent(key: 'FeeCollected'): TypedContractEvent<FeeCollectedEvent.InputTuple, FeeCollectedEvent.OutputTuple, FeeCollectedEvent.OutputObject>;
+getEvent(key: 'FeeDepositWithdrawn'): TypedContractEvent<FeeDepositWithdrawnEvent.InputTuple, FeeDepositWithdrawnEvent.OutputTuple, FeeDepositWithdrawnEvent.OutputObject>;
 getEvent(key: 'FeeDeposited'): TypedContractEvent<FeeDepositedEvent.InputTuple, FeeDepositedEvent.OutputTuple, FeeDepositedEvent.OutputObject>;
-getEvent(key: 'FeeSet'): TypedContractEvent<FeeSetEvent.InputTuple, FeeSetEvent.OutputTuple, FeeSetEvent.OutputObject>;
+getEvent(key: 'FeesWithdrawn'): TypedContractEvent<FeesWithdrawnEvent.InputTuple, FeesWithdrawnEvent.OutputTuple, FeesWithdrawnEvent.OutputObject>;
+getEvent(key: 'GasCompDeducted'): TypedContractEvent<GasCompDeductedEvent.InputTuple, GasCompDeductedEvent.OutputTuple, GasCompDeductedEvent.OutputObject>;
 getEvent(key: 'GasConfigSet'): TypedContractEvent<GasConfigSetEvent.InputTuple, GasConfigSetEvent.OutputTuple, GasConfigSetEvent.OutputObject>;
 getEvent(key: 'OwnershipTransferred'): TypedContractEvent<OwnershipTransferredEvent.InputTuple, OwnershipTransferredEvent.OutputTuple, OwnershipTransferredEvent.OutputObject>;
 getEvent(key: 'TokenAdded'): TypedContractEvent<TokenAddedEvent.InputTuple, TokenAddedEvent.OutputTuple, TokenAddedEvent.OutputObject>;
 getEvent(key: 'TokenRemoved'): TypedContractEvent<TokenRemovedEvent.InputTuple, TokenRemovedEvent.OutputTuple, TokenRemovedEvent.OutputObject>;
+getEvent(key: 'WithdrawFeeBpsSet'): TypedContractEvent<WithdrawFeeBpsSetEvent.InputTuple, WithdrawFeeBpsSetEvent.OutputTuple, WithdrawFeeBpsSetEvent.OutputObject>;
 
     filters: {
       
-      'DistributionSet(address,address,uint16,uint16,uint16,uint16)': TypedContractEvent<DistributionSetEvent.InputTuple, DistributionSetEvent.OutputTuple, DistributionSetEvent.OutputObject>;
-      DistributionSet: TypedContractEvent<DistributionSetEvent.InputTuple, DistributionSetEvent.OutputTuple, DistributionSetEvent.OutputObject>;
+      'DepositFeeBpsSet(uint16)': TypedContractEvent<DepositFeeBpsSetEvent.InputTuple, DepositFeeBpsSetEvent.OutputTuple, DepositFeeBpsSetEvent.OutputObject>;
+      DepositFeeBpsSet: TypedContractEvent<DepositFeeBpsSetEvent.InputTuple, DepositFeeBpsSetEvent.OutputTuple, DepositFeeBpsSetEvent.OutputObject>;
     
 
-      'FeeClaimed(address,address,uint256)': TypedContractEvent<FeeClaimedEvent.InputTuple, FeeClaimedEvent.OutputTuple, FeeClaimedEvent.OutputObject>;
-      FeeClaimed: TypedContractEvent<FeeClaimedEvent.InputTuple, FeeClaimedEvent.OutputTuple, FeeClaimedEvent.OutputObject>;
+      'FeeCollected(address,address,uint256)': TypedContractEvent<FeeCollectedEvent.InputTuple, FeeCollectedEvent.OutputTuple, FeeCollectedEvent.OutputObject>;
+      FeeCollected: TypedContractEvent<FeeCollectedEvent.InputTuple, FeeCollectedEvent.OutputTuple, FeeCollectedEvent.OutputObject>;
     
 
-      'FeeDeducted(address,address,address,address,uint256,uint256,uint256)': TypedContractEvent<FeeDeductedEvent.InputTuple, FeeDeductedEvent.OutputTuple, FeeDeductedEvent.OutputObject>;
-      FeeDeducted: TypedContractEvent<FeeDeductedEvent.InputTuple, FeeDeductedEvent.OutputTuple, FeeDeductedEvent.OutputObject>;
+      'FeeDepositWithdrawn(address,address,uint256)': TypedContractEvent<FeeDepositWithdrawnEvent.InputTuple, FeeDepositWithdrawnEvent.OutputTuple, FeeDepositWithdrawnEvent.OutputObject>;
+      FeeDepositWithdrawn: TypedContractEvent<FeeDepositWithdrawnEvent.InputTuple, FeeDepositWithdrawnEvent.OutputTuple, FeeDepositWithdrawnEvent.OutputObject>;
     
 
       'FeeDeposited(address,address,uint256)': TypedContractEvent<FeeDepositedEvent.InputTuple, FeeDepositedEvent.OutputTuple, FeeDepositedEvent.OutputObject>;
       FeeDeposited: TypedContractEvent<FeeDepositedEvent.InputTuple, FeeDepositedEvent.OutputTuple, FeeDepositedEvent.OutputObject>;
     
 
-      'FeeSet(address,bytes4,uint256)': TypedContractEvent<FeeSetEvent.InputTuple, FeeSetEvent.OutputTuple, FeeSetEvent.OutputObject>;
-      FeeSet: TypedContractEvent<FeeSetEvent.InputTuple, FeeSetEvent.OutputTuple, FeeSetEvent.OutputObject>;
+      'FeesWithdrawn(address,uint256)': TypedContractEvent<FeesWithdrawnEvent.InputTuple, FeesWithdrawnEvent.OutputTuple, FeesWithdrawnEvent.OutputObject>;
+      FeesWithdrawn: TypedContractEvent<FeesWithdrawnEvent.InputTuple, FeesWithdrawnEvent.OutputTuple, FeesWithdrawnEvent.OutputObject>;
     
 
-      'GasConfigSet(address,address,uint256,uint256)': TypedContractEvent<GasConfigSetEvent.InputTuple, GasConfigSetEvent.OutputTuple, GasConfigSetEvent.OutputObject>;
+      'GasCompDeducted(address,address,address,uint256)': TypedContractEvent<GasCompDeductedEvent.InputTuple, GasCompDeductedEvent.OutputTuple, GasCompDeductedEvent.OutputObject>;
+      GasCompDeducted: TypedContractEvent<GasCompDeductedEvent.InputTuple, GasCompDeductedEvent.OutputTuple, GasCompDeductedEvent.OutputObject>;
+    
+
+      'GasConfigSet(address,address,uint256,uint256,uint256)': TypedContractEvent<GasConfigSetEvent.InputTuple, GasConfigSetEvent.OutputTuple, GasConfigSetEvent.OutputObject>;
       GasConfigSet: TypedContractEvent<GasConfigSetEvent.InputTuple, GasConfigSetEvent.OutputTuple, GasConfigSetEvent.OutputObject>;
     
 
@@ -640,6 +625,10 @@ getEvent(key: 'TokenRemoved'): TypedContractEvent<TokenRemovedEvent.InputTuple, 
 
       'TokenRemoved(address)': TypedContractEvent<TokenRemovedEvent.InputTuple, TokenRemovedEvent.OutputTuple, TokenRemovedEvent.OutputObject>;
       TokenRemoved: TypedContractEvent<TokenRemovedEvent.InputTuple, TokenRemovedEvent.OutputTuple, TokenRemovedEvent.OutputObject>;
+    
+
+      'WithdrawFeeBpsSet(uint16)': TypedContractEvent<WithdrawFeeBpsSetEvent.InputTuple, WithdrawFeeBpsSetEvent.OutputTuple, WithdrawFeeBpsSetEvent.OutputObject>;
+      WithdrawFeeBpsSet: TypedContractEvent<WithdrawFeeBpsSetEvent.InputTuple, WithdrawFeeBpsSetEvent.OutputTuple, WithdrawFeeBpsSetEvent.OutputObject>;
     
     };
   }

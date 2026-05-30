@@ -8,11 +8,6 @@
   const _abi = [
   {
     "inputs": [],
-    "name": "DistributionNotSet",
-    "type": "error"
-  },
-  {
-    "inputs": [],
     "name": "FeeTooHigh",
     "type": "error"
   },
@@ -34,27 +29,7 @@
   },
   {
     "inputs": [],
-    "name": "InvalidDiscountBps",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "InvalidDistribution",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "NothingToClaim",
-    "type": "error"
-  },
-  {
-    "inputs": [],
     "name": "NothingToWithdraw",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "ProtocolTokenNotSet",
     "type": "error"
   },
   {
@@ -87,43 +62,13 @@
     "anonymous": false,
     "inputs": [
       {
-        "indexed": true,
-        "internalType": "address",
-        "name": "protocolVault",
-        "type": "address"
-      },
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "burnContract",
-        "type": "address"
-      },
-      {
         "indexed": false,
         "internalType": "uint16",
-        "name": "protocolBps",
-        "type": "uint16"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint16",
-        "name": "executorBps",
-        "type": "uint16"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint16",
-        "name": "creatorBps",
-        "type": "uint16"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint16",
-        "name": "burnBps",
+        "name": "bps",
         "type": "uint16"
       }
     ],
-    "name": "DistributionSet",
+    "name": "DepositFeeBpsSet",
     "type": "event"
   },
   {
@@ -132,7 +77,7 @@
       {
         "indexed": true,
         "internalType": "address",
-        "name": "claimant",
+        "name": "vault",
         "type": "address"
       },
       {
@@ -148,56 +93,7 @@
         "type": "uint256"
       }
     ],
-    "name": "FeeClaimed",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "vault",
-        "type": "address"
-      },
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "executor",
-        "type": "address"
-      },
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "creator",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "address",
-        "name": "token",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "feeUSD",
-        "type": "uint256"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "totalTokens",
-        "type": "uint256"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "gasCompTokens",
-        "type": "uint256"
-      }
-    ],
-    "name": "FeeDeducted",
+    "name": "FeeCollected",
     "type": "event"
   },
   {
@@ -256,17 +152,17 @@
       {
         "indexed": true,
         "internalType": "address",
-        "name": "feeReduction",
+        "name": "token",
         "type": "address"
       },
       {
-        "indexed": true,
-        "internalType": "address",
-        "name": "trustedFactory",
-        "type": "address"
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
       }
     ],
-    "name": "FeeReductionConfigSet",
+    "name": "FeesWithdrawn",
     "type": "event"
   },
   {
@@ -275,23 +171,29 @@
       {
         "indexed": true,
         "internalType": "address",
-        "name": "target",
+        "name": "vault",
         "type": "address"
       },
       {
         "indexed": true,
-        "internalType": "bytes4",
-        "name": "selector",
-        "type": "bytes4"
+        "internalType": "address",
+        "name": "executor",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
       },
       {
         "indexed": false,
         "internalType": "uint256",
-        "name": "feeBps",
+        "name": "gasCompTokens",
         "type": "uint256"
       }
     ],
-    "name": "FeeSet",
+    "name": "GasCompDeducted",
     "type": "event"
   },
   {
@@ -337,75 +239,6 @@
       {
         "indexed": true,
         "internalType": "address",
-        "name": "owner",
-        "type": "address"
-      },
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "token",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "amount",
-        "type": "uint256"
-      }
-    ],
-    "name": "ProtocolTokenDeposited",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "token",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "discountBps",
-        "type": "uint256"
-      }
-    ],
-    "name": "ProtocolTokenSet",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "owner",
-        "type": "address"
-      },
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "token",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "amount",
-        "type": "uint256"
-      }
-    ],
-    "name": "ProtocolTokenWithdrawn",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "address",
         "name": "token",
         "type": "address"
       },
@@ -433,6 +266,19 @@
     "type": "event"
   },
   {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint16",
+        "name": "bps",
+        "type": "uint16"
+      }
+    ],
+    "name": "WithdrawFeeBpsSet",
+    "type": "event"
+  },
+  {
     "inputs": [
       {
         "internalType": "address",
@@ -456,9 +302,14 @@
         "internalType": "address",
         "name": "token",
         "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
       }
     ],
-    "name": "claim",
+    "name": "collectFee",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -467,16 +318,11 @@
     "inputs": [
       {
         "internalType": "address",
-        "name": "party",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
         "name": "token",
         "type": "address"
       }
     ],
-    "name": "claimable",
+    "name": "collectedFees",
     "outputs": [
       {
         "internalType": "uint256",
@@ -500,28 +346,13 @@
         "type": "address"
       },
       {
-        "internalType": "address",
-        "name": "creator",
-        "type": "address"
-      },
-      {
-        "internalType": "uint256",
-        "name": "feeUSD",
-        "type": "uint256"
-      },
-      {
         "internalType": "uint256",
         "name": "gasUsed",
         "type": "uint256"
       }
     ],
-    "name": "deductFees",
+    "name": "deductGasComp",
     "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "totalTokens",
-        "type": "uint256"
-      },
       {
         "internalType": "uint256",
         "name": "gasCompTokens",
@@ -529,6 +360,19 @@
       }
     ],
     "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "depositFeeBps",
+    "outputs": [
+      {
+        "internalType": "uint16",
+        "name": "",
+        "type": "uint16"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -557,19 +401,6 @@
   {
     "inputs": [
       {
-        "internalType": "uint256",
-        "name": "amount",
-        "type": "uint256"
-      }
-    ],
-    "name": "depositProtocolToken",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
         "internalType": "address",
         "name": "token",
         "type": "address"
@@ -586,67 +417,6 @@
       }
     ],
     "name": "estimateGasComp",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "feeReduction",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "token",
-        "type": "address"
-      },
-      {
-        "internalType": "uint256",
-        "name": "feeUSD",
-        "type": "uint256"
-      }
-    ],
-    "name": "feeTokenAmount",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "target",
-        "type": "address"
-      },
-      {
-        "internalType": "bytes4",
-        "name": "selector",
-        "type": "bytes4"
-      }
-    ],
-    "name": "getFee",
     "outputs": [
       {
         "internalType": "uint256",
@@ -690,30 +460,6 @@
     "type": "function"
   },
   {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "owner",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "token",
-        "type": "address"
-      }
-    ],
-    "name": "ownerProtocolDeposits",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
     "inputs": [],
     "name": "priceOracle",
     "outputs": [
@@ -721,32 +467,6 @@
         "internalType": "address",
         "name": "",
         "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "protocolToken",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "protocolTokenDiscountBps",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
       }
     ],
     "stateMutability": "view",
@@ -768,78 +488,12 @@
   {
     "inputs": [
       {
-        "internalType": "address",
-        "name": "protocolVault_",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "burnContract_",
-        "type": "address"
-      },
-      {
         "internalType": "uint16",
-        "name": "protocolBps_",
-        "type": "uint16"
-      },
-      {
-        "internalType": "uint16",
-        "name": "executorBps_",
-        "type": "uint16"
-      },
-      {
-        "internalType": "uint16",
-        "name": "creatorBps_",
-        "type": "uint16"
-      },
-      {
-        "internalType": "uint16",
-        "name": "burnBps_",
+        "name": "bps",
         "type": "uint16"
       }
     ],
-    "name": "setDistribution",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "target",
-        "type": "address"
-      },
-      {
-        "internalType": "bytes4",
-        "name": "selector",
-        "type": "bytes4"
-      },
-      {
-        "internalType": "uint256",
-        "name": "feeBps",
-        "type": "uint256"
-      }
-    ],
-    "name": "setFee",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "feeReduction_",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "trustedFactory_",
-        "type": "address"
-      }
-    ],
-    "name": "setFeeReductionConfig",
+    "name": "setDepositFeeBps",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -880,32 +534,14 @@
   {
     "inputs": [
       {
-        "internalType": "address",
-        "name": "token",
-        "type": "address"
-      },
-      {
-        "internalType": "uint256",
-        "name": "discountBps",
-        "type": "uint256"
+        "internalType": "uint16",
+        "name": "bps",
+        "type": "uint16"
       }
     ],
-    "name": "setProtocolToken",
+    "name": "setWithdrawFeeBps",
     "outputs": [],
     "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "trustedFactory",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -951,19 +587,27 @@
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "withdrawFeeBps",
+    "outputs": [
+      {
+        "internalType": "uint16",
+        "name": "",
+        "type": "uint16"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "internalType": "address",
         "name": "token",
         "type": "address"
-      },
-      {
-        "internalType": "uint256",
-        "name": "amount",
-        "type": "uint256"
       }
     ],
-    "name": "withdrawProtocolToken",
+    "name": "withdrawFees",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"

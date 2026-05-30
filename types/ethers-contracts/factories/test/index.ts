@@ -3,5 +3,4 @@
 /* eslint-disable */
 export { ERC1967ProxyHelper__factory } from './ERC1967ProxyHelper__factory.js';
 export { MockERC20__factory } from './MockERC20__factory.js';
-export { MockFeeReduction__factory } from './MockFeeReduction__factory.js';
 export { MockPriceOracle__factory } from './MockPriceOracle__factory.js';
