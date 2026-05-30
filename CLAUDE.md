@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-On-chain automation protocol deployed on BSC. Users create **vaults** (ERC1967 proxies) and configure **automations** — directed graphs of Conditions and Actions. A public executor calls `executeAutomation`, the trigger condition gates execution, and actions run in sequence modifying the vault's shared context. Fees are charged at the vault boundary (deposit/withdraw), and executors receive gas compensation from a pre-funded deposit in FeeRegistry.
+On-chain automation protocol deployed on BSC. Users create **vaults** (ERC1967 proxies) and configure **automations** — directed graphs of Conditions and Actions. A public executor calls `executeAutomation`, the trigger condition gates execution, and actions run in sequence modifying the vault's shared context. Fees are charged at the vault boundary (deposit/withdraw BPS), and executors receive gas compensation from a pre-funded deposit in FeeRegistry.
 
 ## Commands
 
@@ -36,7 +36,7 @@ const { ethers } = await network.connect();
 ### Deployment Topology
 
 ```
-StrategyBuilderVaultFactory  (Ownable, NOT upgradeable)
+StrategyBuilderVaultFactory  (Ownable, NOT upgradeable, implements IVaultRegistry)
     │  owns _vaultImplementation (shared implementation)
     │  stores feeRegistry → forwarded to every new vault
     └─ deploys ERC1967Proxy instances via CREATE2
@@ -44,9 +44,9 @@ StrategyBuilderVaultFactory  (Ownable, NOT upgradeable)
            └─ per-user isolated storage
 
 FeeRegistry  (Ownable, NOT upgradeable)
-    │  stores depositFeeBps / withdrawFeeBps (global flat rates)
-    │  holds vaultDeposits (gas comp pre-funding)
-    │  holds collectedFees (deposit/withdraw fees for owner withdrawal)
+    │  stores depositFeeBps / withdrawFeeBps (global flat rates, max 1000 bps)
+    │  holds vaultDeposits[vault][token] (gas comp pre-funding)
+    │  holds collectedFees[token] (deposit/withdraw fees for owner withdrawal)
     └─ gas compensation via IPriceOracle
 
 External contracts (pre-existing, read-only interfaces):
@@ -55,14 +55,18 @@ External contracts (pre-existing, read-only interfaces):
 
 ### Execution Flow (`executeAutomation`)
 
-1. Load vault context (`bytes[]`) into memory
-2. Traverse directed graph starting at step 0 (always a CONDITION):
+1. Check `ownerOnly` — non-owner callers revert with `CallerNotOwner`
+2. Load vault context (`bytes[]`) into memory
+3. Traverse directed graph starting at step 0:
+   - **Public automations**: step 0 must be a CONDITION (the trigger)
+   - **Owner automations**: step 0 can be ACTION (runs unconditionally)
    - **Condition**: `staticcall` → `bool` → follow `nextOnTrue` or `nextOnFalse`
-   - **Action**: `delegatecall` → apply context diff
-3. Record `triggerFired` on the first step (step 0)
-4. If `triggerFired`: call `afterExecution` (staticcall) on step 0 — applies context diff (e.g. IntervalCondition advances schedule)
-5. Save context back to storage
-6. If caller is not owner: measure `gasUsed = gasStart - gasleft()` → `_settleGasComp`
+   - **Action**: `delegatecall` → apply context diff → follow `nextOnTrue`
+4. Record `triggerFired` on the first step (step 0)
+   - If step 0 condition returns false and caller is not owner → revert `TriggerNotMet`
+5. If `triggerFired`: call `afterExecution` (staticcall) on step 0 — applies context diff (e.g. IntervalCondition advances schedule)
+6. Save context back to storage (only when modified)
+7. If caller is not owner: measure `gasUsed = gasStart - gasleft()` → `_settleGasComp`
 
 ### Fee Model
 
@@ -72,10 +76,11 @@ Fees at vault boundary (deposit/withdraw):
   withdraw(): fee = amount × withdrawFeeBps / 10_000 → FeeRegistry.collectFee()
   ERC20TransferAction: reads withdrawFeeBps dynamically, deducts from transfer
 
-Gas compensation (per automation execution):
-  gasCompTokens = (gasUsed + overhead) × tx.gasprice × nativePriceUSD / 1e18
-                  × (10_000 + executorMarkupBps) / 10_000
-  → converted to deposit token via IPriceOracle
+Gas compensation (per automation execution, non-owner callers only):
+  effectiveGasPrice = min(tx.gasprice, maxGasPrice)  (if maxGasPrice > 0)
+  gasCostUSD = (gasUsed + overhead) × effectiveGasPrice × nativePriceUSD / 1e18
+  gasCompUSD = gasCostUSD × (10_000 + executorMarkupBps) / 10_000
+  gasCompTokens = feeTokenAmount(gasCompUSD)
   → deducted from vault's pre-funded deposit in FeeRegistry
   → transferred directly to executor (push, not pull)
 
@@ -129,7 +134,7 @@ function afterExecution(bytes calldata params, bytes[] calldata ctx)
 - `_depositToken` — ERC-20 for gas comp pre-funding; address(0) = gas comp disabled
 
 **Other state:**
-- `_automations` — mapping(uint32 → Automation)
+- `_automations` — mapping(uint32 → Automation), each has `active`, `ownerOnly`, `steps[]`
 - `_ctx` — shared `bytes[]` context, all automations read/write the same slots
 - `_minFeeDeposit` — target balance in FeeRegistry (for FeeDepositAction)
 
@@ -138,10 +143,21 @@ function afterExecution(bytes calldata params, bytes[] calldata ctx)
 - `MAX_STEPS = 256` — per-execution step limit
 
 **Key functions:**
+- `createAutomation(steps[])` — public automation, step 0 must be CONDITION
+- `createOwnerAutomation(steps[])` — owner-only automation, step 0 can be ACTION
+- `updateAutomationSteps(id, steps[])` — replace all steps (context unaffected)
+- `setAutomationActive(id, bool)` — pause or resume
+- `setContext(bytes[])` — replace entire shared context
+- `setContextSlot(slot, value)` — update a single context slot
 - `deposit(token, amount)` — owner deposits tokens, deducts depositFee to FeeRegistry
 - `withdraw(token, amount, recipient)` — owner withdraws, deducts withdrawFee from amount
 - `depositFees(token, amount)` — moves vault tokens to FeeRegistry for gas comp pre-funding
-- `executeAutomation(automationId)` — public, gas comp settled for non-owner callers
+- `setMinFeeDeposit(amount)` — set target fee reserve for FeeDepositAction
+- `withdrawETH(to, amount)` — recover accidentally sent ETH (amount=0 sends full balance)
+- `executeAutomation(automationId)` — public; owner-only automations restricted to owner
+- `isTriggerMet(automationId)` — view, checks if trigger condition is currently true
+
+**Views:** `getAutomation(id)`, `getContext()`, `automationCount()`, `depositToken()`, `feeRegistry()`, `minFeeDeposit()`
 
 **Step struct:**
 ```solidity
@@ -157,6 +173,8 @@ struct Step {
 
 ### StrategyBuilderVaultFactory
 
+Implements `IVaultRegistry` — `isRegisteredVault(address) → bool`.
+
 **Protocol-controlled (owner only):**
 - `setVaultImplementation(address)` — implementation for future vaults
 - `setFeeRegistry(address)` — forwarded to all new vaults
@@ -169,6 +187,10 @@ function createVault(
     bytes32 salt
 ) external returns (address vault)
 ```
+- `depositToken_` is validated against FeeRegistry — reverts `FeeTokenNotAccepted` if not accepted
+- CREATE2 salt mixed with `msg.sender` to prevent address griefing
+
+**Views:** `vaultImplementation()`, `getVault(index)`, `vaultCount()`, `isRegisteredVault(addr)`
 
 ### FeeRegistry
 
@@ -181,10 +203,13 @@ function createVault(
 - `collectFee(token, amount)` — pulls fee via transferFrom, accumulates in `collectedFees`
 - `deductGasComp(token, executor, gasUsed)` — computes gas comp, deducts from vault deposit, transfers to executor
 - `depositFor(vault, token, amount)` — pre-fund gas comp deposit
-- `withdrawDeposit(token, amount)` — vault withdraws its deposit
+- `withdrawDeposit(token, amount)` — vault withdraws its deposit (0 = full balance)
 
 **Owner:**
 - `withdrawFees(token)` — withdraw accumulated deposit/withdraw fees
+- `removeAcceptedToken(token)` — disable a token
+
+**Views:** `depositFeeBps()`, `withdrawFeeBps()`, `isAcceptedToken(token)`, `vaultDeposit(vault, token)`, `collectedFees(token)`, `priceOracle()`, `nativeToken()`, `estimateGasComp(token, gasUsed, gasPrice)`
 
 **Invariant**: `physicalBalance(token) == Σ vaultDeposits[*][token] + collectedFees[token]`
 
@@ -284,6 +309,7 @@ await ethers.provider.send("evm_mine", []);
 |---|---|
 | `MockERC20` | Standard ERC-20, mints on deploy |
 | `MockPriceOracle` | `setPrice(token, priceUSD18)` — reverts `OracleNotExist` if unset |
+| `ERC1967ProxyHelper` | Proxy helper for tests |
 
 ## Security Notes
 
@@ -292,4 +318,6 @@ await ethers.provider.send("evm_mine", []);
 - CREATE2 salt mixes `msg.sender` to prevent vault address griefing
 - `MAX_STEPS = 256` prevents infinite loop DoS
 - `ReentrancyGuardTransient` on vault execution; `ReentrancyGuard` on FeeRegistry
-- Gas compensation never reduced — always paid to executor at full computed amount
+- Gas compensation always paid to executor at full computed amount — never reduced
+- Non-owner trigger failure reverts early with `TriggerNotMet` to save gas
+- Owner-only automations revert with `CallerNotOwner` for non-owner callers

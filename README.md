@@ -18,8 +18,6 @@ An on-chain automation protocol for the BNB Smart Chain. Users deploy personal v
   - [Contract System](#contract-system)
   - [Execution Flow](#execution-flow)
   - [Fee System](#fee-system)
-  - [Fee Reduction](#fee-reduction)
-  - [Protocol Token](#protocol-token)
   - [Interval Scheduling](#interval-scheduling)
 - [Contracts](#contracts)
   - [StrategyBuilderVault](#strategybuildervault)
@@ -57,7 +55,7 @@ Typical use cases:
 
 Each user gets their own **StrategyBuilderVault** — an ERC1967 proxy with isolated storage. The vault holds the user's tokens, manages their automations, and is the address from which all actions execute.
 
-Vaults are deployed by the **StrategyBuilderVaultFactory** via CREATE2. The factory owner sets the shared `FeeRegistry` and `PriceOracle` that all new vaults inherit — vault creators choose only their `depositToken` (ERC-20 used to pay fees) and `creator` (strategy creator address for fee sharing).
+Vaults are deployed by the **StrategyBuilderVaultFactory** via CREATE2. The factory owner sets the shared `FeeRegistry` that all new vaults inherit — vault creators choose only their `depositToken` (ERC-20 used to pre-fund gas compensation).
 
 ### Automations
 
@@ -80,7 +78,7 @@ Owner automations are created with `createOwnerAutomation(steps[])`. They differ
 
 - **Step 0 can be an ACTION** — no condition is required. The automation runs unconditionally when the owner calls it.
 - **Only the vault owner can execute them** — any other caller reverts with `CallerNotOwner`.
-- **No fees are charged** — owner executions bypass the fee settlement entirely.
+- **No gas compensation is charged** — owner executions bypass gas compensation entirely.
 
 This is useful for manual one-shot operations (e.g. emergency withdrawals, owner-controlled rebalances) that should not be callable or payable by the public.
 
@@ -98,8 +96,6 @@ A condition can optionally implement `IUpdatableCondition` to also provide an `a
 ### Actions
 
 Actions are executable operations. They receive the vault context, perform work (token transfers, approvals, etc.), and return a **context diff** — two parallel arrays of slot indices and new values. The vault applies the diff immediately, so the next step sees the updated context.
-
-Actions also return a `(volumeToken, volumeAmount)` pair used for fee tracking. The vault queries the price oracle to convert this to USD and accrues a per-step fee.
 
 Actions run via **delegatecall**: `address(this)` inside an action is the vault, so actions operate directly on the vault's token balances. **Actions must be stateless** (no storage variables).
 
@@ -120,38 +116,34 @@ This allows data to flow between steps within a single execution, and between se
 ### Contract System
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                    Protocol (Factory Owner)                      │
-│                                                                  │
-│  ┌──────────────────────────────────────────────────────────┐   │
-│  │              StrategyBuilderVaultFactory                  │   │
-│  │  - _vaultImplementation  (shared implementation)         │   │
-│  │  - feeRegistry            ──────────────────────────┐    │   │
-│  │  - priceOracle            ──────────────────────┐   │    │   │
-│  │  - isRegisteredVault()    (IVaultRegistry)      │   │    │   │
-│  └──────────────────────────────────────────────────────────┘   │
-│                         │ CREATE2                │   │           │
-│          ┌──────────────┘                        │   │           │
-└──────────┼───────────────────────────────────────┼───┼───────────┘
-           │                                       │   │
-           ▼                                       │   │
-  ┌─────────────────────┐  ┌───────────────────────▼───▼──────────┐
-  │  ERC1967Proxy        │  │             FeeRegistry               │
-  │  (per user)          │  │  - vaultDeposits[vault][token]        │
-  │                      │  │  - ownerProtocolDeposits[owner][token]│
-  │  ┌────────────────┐  │  │  - claimable[party][token]            │
-  │  │StrategyBuilder │  │  │  - fee rates per (contract,selector)  │
-  │  │    Vault        │  │  │  - gas comp (IPriceOracle)            │
-  │  │  - automations │  │  │  - fee reduction (IFeeReduction)      │
-  │  │  - context[]   │  │  │  - protocol token + discount          │
-  │  │  - owner       │  │  └───────────────────────────────────────┘
-  │  └────────────────┘  │
-  └─────────────────────┘   External (pre-existing):
-                             ┌──────────────────┐  ┌───────────────┐
-                             │  IPriceOracle     │  │ IFeeReduction │
-                             │  (USD prices)     │  │ (per-wallet   │
-                             └──────────────────┘  │  reduction)   │
-                                                    └───────────────┘
+┌─────────────────────────────────────────────────────────┐
+│                Protocol (Factory Owner)                   │
+│                                                           │
+│  ┌─────────────────────────────────────────────────────┐ │
+│  │           StrategyBuilderVaultFactory                │ │
+│  │  - _vaultImplementation  (shared implementation)    │ │
+│  │  - feeRegistry            ─────────────────────┐    │ │
+│  │  - isRegisteredVault()    (IVaultRegistry)     │    │ │
+│  └─────────────────────────────────────────────────────┘ │
+│                      │ CREATE2                    │       │
+│       ┌──────────────┘                            │       │
+└───────┼───────────────────────────────────────────┼───────┘
+        │                                           │
+        ▼                                           │
+  ┌─────────────────────┐  ┌────────────────────────▼─────┐
+  │  ERC1967Proxy        │  │          FeeRegistry          │
+  │  (per user)          │  │  - depositFeeBps              │
+  │                      │  │  - withdrawFeeBps             │
+  │  ┌────────────────┐  │  │  - vaultDeposits[vault][tkn]  │
+  │  │StrategyBuilder │  │  │  - collectedFees[token]       │
+  │  │    Vault        │  │  │  - gas comp (IPriceOracle)    │
+  │  │  - automations │  │  └─────────────────────────────────┘
+  │  │  - context[]   │  │
+  │  │  - owner       │  │  External (pre-existing):
+  │  └────────────────┘  │    ┌──────────────────┐
+  └─────────────────────┘    │  IPriceOracle     │
+                              │  (USD prices)     │
+                              └──────────────────┘
 ```
 
 ### Execution Flow
@@ -171,10 +163,9 @@ executeAutomation(automationId)
 │   │   └─ Follow nextOnTrue or nextOnFalse
 │   │
 │   └─ Step is ACTION?
-│       ├─ delegatecall → (slots, values, volumeToken, volumeAmount)
+│       ├─ delegatecall → (updatedSlots, updatedValues)
 │       ├─ Apply context diff
-│       ├─ Query price oracle → compute stepFeeUSD
-│       └─ emit FeeAccrued
+│       └─ Follow nextOnTrue
 │
 ├─ triggerFired?
 │   └─ staticcall afterExecution on step 0 (if IUpdatableCondition)
@@ -182,31 +173,33 @@ executeAutomation(automationId)
 │
 ├─ Save context to storage (only when modified)
 │
-├─ owner caller? → skip fees, done
+├─ owner caller? → skip gas comp, done
 │
 ├─ gasUsed = gasStart − gasleft()
-└─ _settleFees → FeeRegistry.deductFees
-    └─ emit FeesSettled
+└─ _settleGasComp → FeeRegistry.deductGasComp
+    └─ emit GasCompSettled
 ```
 
 ### Fee System
 
-Fees consist of two components:
+Fees consist of two independent mechanisms:
 
-**1. Volume-based fee**
+**1. Deposit/withdraw fees (flat BPS)**
 
-Each `(actionContract, functionSelector)` pair can have a fee rate (in basis points, max 10%) registered in FeeRegistry. When an action reports a non-zero `(volumeToken, volumeAmount)`:
+When a vault owner deposits or withdraws tokens, a flat percentage fee is deducted and sent to FeeRegistry:
 
 ```
-volumeUSD  = volumeAmount × tokenPriceUSD / 1e18
-stepFeeUSD = volumeUSD × feeBps / 10_000
+deposit():  fee = amount × depositFeeBps / 10_000  → FeeRegistry.collectFee()
+withdraw(): fee = amount × withdrawFeeBps / 10_000 → FeeRegistry.collectFee()
 ```
 
-All per-step fees accumulate over the automation run and are settled once at the end.
+ERC20TransferAction also reads `withdrawFeeBps` dynamically and deducts the fee from the transfer amount when `feeRegistry` is set.
 
-**2. Gas compensation**
+Collected fees accumulate in `collectedFees[token]`. The FeeRegistry owner withdraws them via `withdrawFees(token)`.
 
-Every execution reimburses the executor for gas. The gas price is capped at `maxGasPrice` to prevent executors from inflating reimbursement with an artificially high `tx.gasprice`:
+**2. Gas compensation (per automation execution)**
+
+Every execution by a non-owner caller reimburses the executor for gas. The gas price is capped at `maxGasPrice` to prevent inflation:
 
 ```
 effectiveGasPrice = min(tx.gasprice, maxGasPrice)   (if maxGasPrice > 0)
@@ -215,11 +208,7 @@ gasCompUSD        = gasCostUSD × (10_000 + executorMarkupBps) / 10_000
 gasCompTokens     = feeTokenAmount(gasCompUSD)
 ```
 
-Gas compensation is the **minimum fee** — if the volume fee is smaller, gas comp wins:
-
-```
-totalTokens = max(volumeTokens, gasCompTokens)
-```
+Gas compensation is deducted from the vault's pre-funded deposit in FeeRegistry and transferred directly to the executor.
 
 **Token pricing**
 
@@ -231,58 +220,13 @@ tokenAmount = feeUSD × 10^decimals / tokenPriceUSD
 
 If the oracle is unavailable or has no price for that token, it falls back to a 1-token-per-USD assumption adjusted for decimals.
 
-**Distribution**
-
-After deducting `gasCompTokens` for the executor (guaranteed), the remainder is split four ways:
-
-| Party | Share |
-|---|---|
-| Protocol vault | `protocolBps` |
-| Executor | `executorBps` (additional profit on top of gas comp) |
-| Strategy creator | `creatorBps` |
-| Burn contract | `burnBps` (direct transfer, not claimable) |
-
-All bps must sum to 10,000. Protocol, executor, and creator accumulate claimable balances and pull them with `claim(token)`.
-
 **Pre-funded deposits**
 
-Fees are deducted from a vault's pre-funded deposit in FeeRegistry, not from the vault's live token balance (preventing automation actions from accidentally draining the fee reserve). Vault owners call `depositFor` or use `FeeDepositAction` to maintain this balance. Deposits can be recovered at any time via `withdrawDeposit`, even after the token has been removed from the accepted list.
+Gas compensation is deducted from a vault's pre-funded deposit in FeeRegistry, not from the vault's live token balance (preventing automation actions from accidentally draining the gas reserve). Vault owners call `depositFor` or use `FeeDepositAction` to maintain this balance. Deposits can be recovered at any time via `withdrawDeposit`.
 
 **Owner executions**
 
-When the vault owner calls `executeAutomation` directly, no fees are calculated or deducted — regardless of the automation type.
-
-### Fee Reduction
-
-Vault owners can qualify for a volume-fee discount via an external `IFeeReduction` contract. Reduction is expressed in basis points (0 = no reduction, 5000 = 50% off, 10000 = free).
-
-**Security**: Only vaults created by the registered factory are eligible. The FeeRegistry reads the vault's `owner()` to identify who the reduction belongs to — a contract that is not in the factory's registry cannot claim anyone's discount.
-
-Gas compensation is **never** reduced.
-
-### Protocol Token
-
-The protocol can designate a special ERC-20 as the **protocol token**. Vault owners deposit this token once — not per vault, but once for their entire owner address — and it covers fees for all their vaults at a discount.
-
-**How it works:**
-
-1. Protocol owner calls `setProtocolToken(token, discountBps)` — token must already be accepted.
-2. Vault owner calls `depositProtocolToken(amount)` — funds credited to `ownerProtocolDeposits[owner][token]`.
-3. On every `deductFees` call, FeeRegistry first checks if the vault's owner has enough protocol token balance to cover the fee (with discount applied to the volume component). If yes, it deducts from the owner's deposit instead of the vault's deposit-token balance.
-4. If the protocol token balance is insufficient, it falls back to the vault's normal deposit-token balance.
-
-**Discount:**
-
-The discount applies only to the volume-based fee component, not to gas compensation:
-
-```
-discountedVolume = rawVolumeTokens × (10_000 − discountBps) / 10_000
-totalProto       = max(discountedVolume, gasCompTokens)
-```
-
-**Withdrawal:**
-
-Vault owners can reclaim unused protocol tokens at any time via `withdrawProtocolToken(token, amount)`. The token address is passed explicitly so withdrawals work correctly even if the protocol token was later changed to a different address.
+When the vault owner calls `executeAutomation` directly, no gas compensation is calculated or deducted — regardless of the automation type.
 
 ### Interval Scheduling
 
@@ -308,21 +252,21 @@ The core vault. Each user owns one (or more) vault proxies.
 |---|---|
 | `initialOwner` | Address that owns and controls this vault |
 | `feeRegistry_` | FeeRegistry for fee settlement (`address(0)` = disabled) |
-| `depositToken_` | ERC-20 used to pay fees (`address(0)` = tracking only, no settlement) |
-| `creator_` | Strategy creator receiving the creator fee share (`address(0)` = protocol) |
-| `priceOracle_` | IPriceOracle for USD conversion (`address(0)` = no fee accrual) |
+| `depositToken_` | ERC-20 used for gas comp pre-funding (`address(0)` = gas comp disabled) |
 
 **Owner functions:**
 
 | Function | Description |
 |---|---|
 | `createAutomation(steps[])` | Create a public automation (step 0 must be CONDITION) |
-| `createOwnerAutomation(steps[])` | Create an owner-only automation (step 0 can be ACTION or CONDITION; no fees) |
+| `createOwnerAutomation(steps[])` | Create an owner-only automation (step 0 can be ACTION or CONDITION; no gas comp) |
 | `updateAutomationSteps(id, steps[])` | Replace all steps (context unaffected) |
 | `setAutomationActive(id, bool)` | Pause or resume an automation |
 | `setContext(bytes[])` | Replace the entire shared context |
 | `setContextSlot(slot, value)` | Update a single context slot |
 | `setMinFeeDeposit(amount)` | Set target fee reserve for FeeDepositAction |
+| `deposit(token, amount)` | Deposit tokens into vault, deducts depositFee to FeeRegistry |
+| `withdraw(token, amount, recipient)` | Withdraw tokens, deducts withdrawFee from amount |
 | `depositFees(token, amount)` | Move tokens from vault balance into FeeRegistry deposit |
 | `withdrawETH(to, amount)` | Recover accidentally sent ETH from the vault |
 
@@ -338,8 +282,9 @@ The core vault. Each user owns one (or more) vault proxies.
 | Function | Returns |
 |---|---|
 | `getAutomation(id)` | `(bool active, bool ownerOnly, Step[] steps)` |
-| `depositToken()` | ERC-20 token used for fee settlement |
-| `creator()` | Strategy creator address for the creator fee share |
+| `getContext()` | `bytes[]` — the full shared context |
+| `automationCount()` | Total automations created |
+| `depositToken()` | ERC-20 token used for gas compensation |
 | `feeRegistry()` | Address of the FeeRegistry |
 | `minFeeDeposit()` | Minimum fee deposit target |
 
@@ -349,7 +294,7 @@ The core vault. Each user owns one (or more) vault proxies.
 
 ### StrategyBuilderVaultFactory
 
-Deploys vaults. The factory owner controls which FeeRegistry and PriceOracle all vaults use.
+Deploys vaults. The factory owner controls which FeeRegistry all vaults use. Implements `IVaultRegistry` so FeeRegistry can verify a vault was created by a trusted factory.
 
 **Owner functions:**
 
@@ -357,15 +302,13 @@ Deploys vaults. The factory owner controls which FeeRegistry and PriceOracle all
 |---|---|
 | `setVaultImplementation(addr)` | Set implementation for future vaults (existing vaults unaffected) |
 | `setFeeRegistry(addr)` | FeeRegistry forwarded to all new vaults |
-| `setPriceOracle(addr)` | PriceOracle forwarded to all new vaults |
 
 **Public functions:**
 
 ```solidity
 function createVault(
     address vaultOwner,    // who owns the vault
-    address depositToken_, // ERC-20 for fee settlement (must be accepted by FeeRegistry)
-    address creator_,      // strategy creator (address(0) = protocol receives creator share)
+    address depositToken_, // ERC-20 for gas comp pre-funding (must be accepted by FeeRegistry)
     bytes32 salt           // per-caller CREATE2 entropy
 ) external returns (address vault)
 ```
@@ -376,11 +319,11 @@ function createVault(
 **Views:**
 - `getVault(index)` — vault address by creation index
 - `vaultCount()` — total vaults ever created
-- `isRegisteredVault(addr)` — O(1) check (used by FeeRegistry for fee reduction and protocol token gating)
+- `isRegisteredVault(addr)` — O(1) check (IVaultRegistry)
 
 ### FeeRegistry
 
-Custodian for all vault fee deposits. Tracks per-action fee rates, distributes fees, guarantees executor gas reimbursement, and supports owner-wide protocol token payments.
+Custodian for vault fee deposits. Collects flat deposit/withdraw fees and reimburses executors for gas costs.
 
 **Setup sequence (owner):**
 
@@ -388,16 +331,11 @@ Custodian for all vault fee deposits. Tracks per-action fee rates, distributes f
 // 1. Register accepted fee tokens
 feeRegistry.addAcceptedToken(token, decimals);
 
-// 2. Set distribution (all bps must sum to 10_000)
-feeRegistry.setDistribution(
-    protocolVault, burnContract,
-    5000,  // protocol 50%
-    2000,  // executor 20%
-    2000,  // creator  20%
-    1000   // burn     10%
-);
+// 2. Set deposit/withdraw fee rates (max 1000 bps = 10%)
+feeRegistry.setDepositFeeBps(50);   // 0.5%
+feeRegistry.setWithdrawFeeBps(50);  // 0.5%
 
-// 3. Configure gas compensation
+// 3. Configure gas compensation (optional)
 feeRegistry.setGasConfig(
     priceOracle,      // IPriceOracle for native token price
     address(0),       // native token convention (e.g. address(0) = BNB)
@@ -405,51 +343,19 @@ feeRegistry.setGasConfig(
     50_000,           // overhead gas units covering settlement path
     500e9             // maxGasPrice cap in wei (0 = no cap)
 );
-
-// 4. Set fee rates per action
-feeRegistry.setFee(actionContract, selector, 100); // 1% (100 bps)
-
-// 5. Optional: fee reduction
-feeRegistry.setFeeReductionConfig(feeReductionContract, factoryAddress);
-
-// 6. Optional: protocol token
-feeRegistry.setProtocolToken(protoTokenAddress, 5000); // 50% discount on volume fee
 ```
 
 **Vault deposit:**
 
 ```solidity
-// Vault owner pre-funds fees (or use FeeDepositAction for automation)
+// Vault owner pre-funds gas compensation (or use FeeDepositAction)
 depositToken.approve(address(feeRegistry), amount);
 feeRegistry.depositFor(vaultAddress, depositToken, amount);
 
-// Withdraw deposit (e.g. when migrating or delisting a token)
+// Withdraw deposit
 // Called from the vault itself (msg.sender == vault)
 feeRegistry.withdrawDeposit(token, amount); // 0 = full balance
 ```
-
-**Protocol token deposit (owner-wide):**
-
-```solidity
-// Owner deposits once to cover all their vaults
-protoToken.approve(address(feeRegistry), amount);
-feeRegistry.depositProtocolToken(amount);
-
-// Withdraw unused protocol tokens (explicit token address for safety)
-feeRegistry.withdrawProtocolToken(protoTokenAddress, amount); // 0 = full balance
-```
-
-**Claiming:**
-
-```solidity
-// Any party with claimable balance calls:
-feeRegistry.claim(token);
-```
-
-**deductFees priority:**
-
-1. If `protocolToken` is set and the vault's owner has sufficient `ownerProtocolDeposits` → pay in protocol token (discounted volume fee)
-2. Otherwise → deduct from `vaultDeposits[vault][depositToken]` (with any `IFeeReduction` discount applied)
 
 ---
 
@@ -464,14 +370,12 @@ interface IAction {
         bytes[] calldata ctx
     ) external returns (
         uint32[] memory updatedSlots,
-        bytes[] memory updatedValues,
-        address volumeToken,
-        uint256 volumeAmount
+        bytes[] memory updatedValues
     );
 }
 ```
 
-Called via `delegatecall`. Must be **stateless** (no storage variables). `updatedSlots` and `updatedValues` must have equal length. Return `(address(0), 0)` to report no fee-bearing volume.
+Called via `delegatecall`. Must be **stateless** (no storage variables). `updatedSlots` and `updatedValues` must have equal length. Return both arrays empty to signal no context change.
 
 ### ICondition
 
@@ -506,9 +410,7 @@ Optional extension. Called via `staticcall` on step 0 after a successful executi
 
 **IPriceOracle** — returns 18-decimal USD price for a token address. Reverts with `OracleNotExist(token)` when no price is set.
 
-**IFeeReduction** — returns a per-wallet fee reduction in basis points (0–10,000).
-
-**IVaultRegistry** — `isRegisteredVault(address) → bool`. Implemented by the factory; used by FeeRegistry for fee reduction and protocol token gating.
+**IVaultRegistry** — `isRegisteredVault(address) → bool`. Implemented by the factory.
 
 ---
 
@@ -528,7 +430,7 @@ struct Params {
 }
 ```
 
-**Example** — trigger when vault holds ≥ 100 USDC:
+**Example** — trigger when vault holds >= 100 USDC:
 
 ```solidity
 abi.encode(usdcAddress, vaultAddress, 100e6, true, NO_SLOT)
@@ -622,7 +524,7 @@ Once the timer fires and the actions run, `afterExecution` resets slot 0 to `0`.
 
 ### ERC20TransferAction
 
-Transfers ERC-20 tokens from the vault to a recipient.
+Transfers ERC-20 tokens from the vault to a recipient. Optionally deducts a withdraw fee.
 
 ```solidity
 struct Params {
@@ -631,29 +533,30 @@ struct Params {
     uint256 amount;          // 0 = transfer full vault balance
     uint32  amountFromSlot;  // read amount from context slot (NO_SLOT to use static)
     uint32  amountToSlot;    // write transferred amount to context slot (NO_SLOT to skip)
+    address feeRegistry;     // address(0) = no fee deduction
 }
 ```
+
+When `feeRegistry != address(0)`, reads `withdrawFeeBps()` dynamically, deducts the fee from the transfer amount, and sends the fee to FeeRegistry via `collectFee`.
 
 **Examples:**
 
 ```solidity
-// Transfer exactly 50 USDC to a cold wallet
-abi.encode(usdc, coldWallet, 50e6, NO_SLOT, NO_SLOT)
+// Transfer exactly 50 USDC to a cold wallet (no fee)
+abi.encode(usdc, coldWallet, 50e6, NO_SLOT, NO_SLOT, address(0))
 
 // Transfer full BNB balance, write the amount to slot 2
-abi.encode(wbnb, recipient, 0, NO_SLOT, 2)
+abi.encode(wbnb, recipient, 0, NO_SLOT, 2, address(0))
 
 // Transfer whatever amount is stored in slot 2 (chained from previous step)
-abi.encode(usdc, recipient, 0, 2, NO_SLOT)
+abi.encode(usdc, recipient, 0, 2, NO_SLOT, address(0))
 ```
-
-Reports the transferred amount as fee-bearing volume. If no transfer occurs (e.g. zero balance), no fee is accrued for that step.
 
 ---
 
 ### FeeDepositAction
 
-Automatically tops up the vault's fee deposit in FeeRegistry when it falls below the configured minimum.
+Automatically tops up the vault's gas compensation deposit in FeeRegistry whenever it drops below the configured minimum.
 
 ```solidity
 struct Params {
@@ -665,7 +568,7 @@ struct Params {
 
 **Typical placement:** as the last action in an automation — after a fee-generating step, check if the deposit needs topping up.
 
-The action reads `vault.minFeeDeposit()` to know the target. If the current deposit already meets or exceeds the minimum, it does nothing. The top-up itself does not generate a fee.
+The action reads `vault.minFeeDeposit()` to know the target. If the current deposit already meets or exceeds the minimum, it does nothing.
 
 ---
 
@@ -680,19 +583,12 @@ The action reads `vault.minFeeDeposit()` to know the target. If the current depo
 # 4. Configure factory
 factory.setVaultImplementation(vaultImplAddress)
 factory.setFeeRegistry(feeRegistryAddress)
-factory.setPriceOracle(priceOracleAddress)
 
 # 5. Configure FeeRegistry
 feeRegistry.addAcceptedToken(token, decimals)
-feeRegistry.setDistribution(protocolVault, burnContract, pBps, eBps, cBps, burnBps)
+feeRegistry.setDepositFeeBps(50)    # 0.5%
+feeRegistry.setWithdrawFeeBps(50)   # 0.5%
 feeRegistry.setGasConfig(oracle, nativeToken, markupBps, overhead, maxGasPrice)
-feeRegistry.setFee(actionContract, selector, feeBps)
-
-# 6. Optional: fee reduction
-feeRegistry.setFeeReductionConfig(feeReductionContract, factoryAddress)
-
-# 7. Optional: protocol token (token must be added first)
-feeRegistry.setProtocolToken(protoTokenAddress, discountBps)
 ```
 
 ### Creating a Vault (User)
@@ -700,18 +596,13 @@ feeRegistry.setProtocolToken(protoTokenAddress, discountBps)
 ```solidity
 address vault = factory.createVault(
     msg.sender,      // vault owner
-    depositToken,    // ERC-20 to pay fees with (e.g. USDT; must be accepted by FeeRegistry)
-    creator,         // address(0) if no strategy creator
+    depositToken,    // ERC-20 for gas comp pre-funding (must be accepted by FeeRegistry)
     bytes32(0)       // salt (use different values to create multiple vaults)
 );
 
-// Pre-fund the fee deposit
+// Pre-fund the gas compensation deposit
 depositToken.approve(feeRegistry, depositAmount);
 feeRegistry.depositFor(vault, depositToken, depositAmount);
-
-// Optional: deposit protocol tokens for owner-wide fee coverage
-protoToken.approve(feeRegistry, protoAmount);
-feeRegistry.depositProtocolToken(protoAmount);
 ```
 
 ### Creating a Public Automation
@@ -740,7 +631,7 @@ vault.createAutomation([
         selector:    bytes4(keccak256("execute(bytes,bytes[])")),
         nextOnTrue:  DONE,
         nextOnFalse: DONE,
-        data:        abi.encode(usdc, coldWallet, 100e6, NO_SLOT, NO_SLOT)
+        data:        abi.encode(usdc, coldWallet, 100e6, NO_SLOT, NO_SLOT, address(0))
     })
 ]);
 ```
@@ -756,11 +647,11 @@ vault.createOwnerAutomation([
         selector:    bytes4(keccak256("execute(bytes,bytes[])")),
         nextOnTrue:  DONE,
         nextOnFalse: DONE,
-        data:        abi.encode(usdc, owner, 0, NO_SLOT, NO_SLOT) // amount=0 → full balance
+        data:        abi.encode(usdc, owner, 0, NO_SLOT, NO_SLOT, address(0))
     })
 ]);
 
-// Only the vault owner can call this — no fees charged
+// Only the vault owner can call this — no gas comp charged
 vault.executeAutomation(automationId);
 ```
 
@@ -807,8 +698,7 @@ contracts/
 │   ├── IFeeRegistry.sol
 │   ├── IVaultRegistry.sol
 │   └── external/
-│       ├── IPriceOracle.sol
-│       └── IFeeReduction.sol
+│       └── IPriceOracle.sol
 ├── examples/
 │   ├── conditions/
 │   │   ├── TokenBalanceCondition.sol
@@ -818,9 +708,9 @@ contracts/
 │       ├── ERC20TransferAction.sol
 │       └── FeeDepositAction.sol
 └── test/                             # Mock contracts for testing
+    ├── ERC1967ProxyHelper.sol
     ├── MockERC20.sol
-    ├── MockPriceOracle.sol
-    └── MockFeeReduction.sol
+    └── MockPriceOracle.sol
 test/
 ├── StrategyBuilderVault.ts
 └── StrategyBuilderVaultFactory.ts
@@ -871,9 +761,7 @@ contract MyAction is IAction {
         bytes[] calldata ctx
     ) external override returns (
         uint32[] memory updatedSlots,
-        bytes[] memory updatedValues,
-        address volumeToken,
-        uint256 volumeAmount
+        bytes[] memory updatedValues
     ) {
         Params memory p = abi.decode(params, (Params));
         // address(this) == vault — access vault's tokens directly
@@ -881,10 +769,6 @@ contract MyAction is IAction {
         // return empty diff if no context updates needed
         updatedSlots  = new uint32[](0);
         updatedValues = new bytes[](0);
-
-        // report no fee-bearing volume
-        volumeToken  = address(0);
-        volumeAmount = 0;
     }
 }
 ```
