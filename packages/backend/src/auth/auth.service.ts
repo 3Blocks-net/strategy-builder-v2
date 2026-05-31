@@ -60,7 +60,7 @@ export class AuthService {
       'FRONTEND_URL',
       'http://localhost:5173',
     );
-    const expectedDomain = new URL(frontendUrl).hostname;
+    const expectedDomain = new URL(frontendUrl).host;
 
     const result = await this.signatureService.verify(
       message,

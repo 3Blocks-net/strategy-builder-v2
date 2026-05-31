@@ -11,7 +11,7 @@ import { createHash } from 'crypto';
 const TEST_WALLET = new Wallet(
   '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80',
 );
-const DOMAIN = 'localhost';
+const DOMAIN = 'localhost:5173';
 
 function mockPrismaService() {
   const nonces = new Map<string, { nonce: string; expiresAt: Date; used: boolean }>();

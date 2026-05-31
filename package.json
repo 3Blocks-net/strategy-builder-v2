@@ -15,7 +15,11 @@
     "backend:test:e2e": "pnpm --filter backend test:e2e",
     "frontend:dev": "pnpm --filter frontend dev",
     "frontend:build": "pnpm --filter frontend build",
-    "frontend:test": "pnpm --filter frontend test"
+    "frontend:test": "pnpm --filter frontend test",
+    "dev": "node scripts/dev.mjs",
+    "db:up": "docker compose up -d db",
+    "db:down": "docker compose down",
+    "db:migrate": "pnpm --filter backend prisma:migrate"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
