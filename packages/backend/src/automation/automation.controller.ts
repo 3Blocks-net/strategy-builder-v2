@@ -11,12 +11,14 @@ import {
 import { VaultOwnerGuard } from '../vault/vault-owner.guard';
 import { AutomationService } from './automation.service';
 import { EncodingService } from './encoding.service';
+import { TriggerStatusService } from './trigger-status.service';
 
 @Controller('vaults')
 export class AutomationController {
   constructor(
     private readonly automationService: AutomationService,
     private readonly encodingService: EncodingService,
+    private readonly triggerStatusService: TriggerStatusService,
   ) {}
 
   @Post(':address/automations')
@@ -29,10 +31,32 @@ export class AutomationController {
     return this.automationService.createDraft(vault.id, body.label, body.description);
   }
 
+  @Get(':address/automations/trigger-statuses')
+  @UseGuards(VaultOwnerGuard)
+  async triggerStatuses(@Param('address') address: string) {
+    const statuses = await this.triggerStatusService.getStatuses(address);
+    return { statuses };
+  }
+
   @Get(':address/automations')
   @UseGuards(VaultOwnerGuard)
-  async list(@Request() req: any) {
-    return this.automationService.findByVault(req.vault.id);
+  async list(@Param('address') address: string, @Request() req: any) {
+    const automations = await this.automationService.findByVault(req.vault.id);
+    let statusMap = new Map<number, any>();
+    try {
+      const statuses = await this.triggerStatusService.getStatuses(address);
+      statusMap = new Map(statuses.map((s) => [s.onChainId, s]));
+    } catch {}
+
+    return automations.map((a) => {
+      const status = a.onChainId !== null ? statusMap.get(a.onChainId) : undefined;
+      return {
+        ...a,
+        editorState: undefined,
+        active: status?.active ?? null,
+        triggerStatus: status?.triggerStatus ?? null,
+      };
+    });
   }
 
   @Get(':address/automations/:id')

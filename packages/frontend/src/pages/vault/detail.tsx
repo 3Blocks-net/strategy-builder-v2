@@ -6,6 +6,7 @@ import { DepositForm } from '@/components/deposit-form';
 import { WithdrawForm } from '@/components/withdraw-form';
 import { HistoryTable } from '@/components/history-table';
 import { apiFetch } from '@/lib/api';
+import { AutomationList } from '@/features/automation-editor/components/automation-list';
 
 interface Position {
   address: string;
@@ -271,6 +272,8 @@ export function VaultDetailPage() {
             />
           </div>
         )}
+
+        {address && <AutomationList vaultAddress={address} />}
 
         {address && <HistoryTable vaultAddress={address} />}
       </div>
