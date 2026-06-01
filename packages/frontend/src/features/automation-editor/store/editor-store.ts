@@ -32,6 +32,8 @@ export interface EditorNodeData {
   [key: string]: unknown;
 }
 
+export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
+
 export interface EditorState {
   nodes: Node<EditorNodeData>[];
   edges: Edge[];
@@ -40,6 +42,8 @@ export interface EditorState {
   description: string;
   validationErrors: ValidationError[];
   ownerOnly: boolean;
+  isDirty: boolean;
+  saveStatus: SaveStatus;
 
   onNodesChange: OnNodesChange<Node<EditorNodeData>>;
   onEdgesChange: OnEdgesChange;
@@ -51,6 +55,9 @@ export interface EditorState {
   runValidation: () => void;
   setLabel: (label: string) => void;
   setDescription: (description: string) => void;
+  markDirty: () => void;
+  setSaveStatus: (status: SaveStatus) => void;
+  loadEditorState: (state: { nodes: Node<EditorNodeData>[]; edges: Edge[]; label?: string; description?: string }) => void;
 }
 
 let nodeCounter = 0;
@@ -104,6 +111,8 @@ export const useEditorStore = create<EditorState>((set, get) => {
   description: '',
   validationErrors: [],
   ownerOnly: false,
+  isDirty: false,
+  saveStatus: 'idle' as SaveStatus,
 
   onNodesChange: (changes) => {
     set({ nodes: applyNodeChanges(changes, get().nodes) });
@@ -114,13 +123,14 @@ export const useEditorStore = create<EditorState>((set, get) => {
       set({ selectedNodeId: selectionChange.id });
     }
     const structural = changes.some((c) => c.type === 'add' || c.type === 'remove');
-    if (structural) scheduleValidation();
+    if (structural) { set({ isDirty: true }); scheduleValidation(); }
+    if (changes.some((c) => c.type === 'position' && !c.dragging)) set({ isDirty: true });
   },
 
   onEdgesChange: (changes) => {
     set({ edges: applyEdgeChanges(changes, get().edges) });
     const structural = changes.some((c) => c.type === 'add' || c.type === 'remove');
-    if (structural) scheduleValidation();
+    if (structural) { set({ isDirty: true }); scheduleValidation(); }
   },
 
   onConnect: (connection) => {
@@ -146,7 +156,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
       type: 'default',
     };
 
-    set({ edges: addEdge(edge, get().edges) });
+    set({ edges: addEdge(edge, get().edges), isDirty: true });
     scheduleValidation();
   },
 
@@ -167,7 +177,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
         params: {},
       },
     };
-    set({ nodes: [...get().nodes, newNode] });
+    set({ nodes: [...get().nodes, newNode], isDirty: true });
     scheduleValidation();
   },
 
@@ -180,6 +190,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
         (e) => e.source !== selectedNodeId && e.target !== selectedNodeId,
       ),
       selectedNodeId: null,
+      isDirty: true,
     });
     scheduleValidation();
   },
@@ -191,6 +202,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
           ? { ...n, data: { ...n.data, params: { ...n.data.params, ...params } } }
           : n,
       ),
+      isDirty: true,
     });
   },
 
@@ -203,7 +215,23 @@ export const useEditorStore = create<EditorState>((set, get) => {
     set({ validationErrors: errors, ownerOnly: oo });
   },
 
-  setLabel: (label) => set({ label }),
-  setDescription: (description) => set({ description }),
+  setLabel: (label) => set({ label, isDirty: true }),
+  setDescription: (description) => set({ description, isDirty: true }),
+
+  markDirty: () => set({ isDirty: true }),
+  setSaveStatus: (status) => set({ saveStatus: status, ...(status === 'saved' ? { isDirty: false } : {}) }),
+
+  loadEditorState: (state) => {
+    set({
+      nodes: state.nodes,
+      edges: state.edges,
+      label: state.label ?? '',
+      description: state.description ?? '',
+      isDirty: false,
+      saveStatus: 'idle',
+    });
+    // Run validation after loading
+    setTimeout(() => get().runValidation(), 0);
+  },
 };
 });

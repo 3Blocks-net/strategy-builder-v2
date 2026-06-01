@@ -15,6 +15,7 @@ import { EditorToolbar } from './components/editor-toolbar';
 import { SidePanel } from './components/side-panel';
 import { ValidationPanel } from './components/validation-panel';
 import { DeployDialog } from './components/deploy-dialog';
+import { useAutoSave } from './hooks/use-auto-save';
 import { isValidConnection as checkCycle } from './lib/is-valid-connection';
 import type { GraphNode, GraphEdge } from './lib/types';
 import { apiFetch } from '@/lib/api';
@@ -25,9 +26,10 @@ const nodeTypes: NodeTypes = {
 };
 
 export function AutomationEditorPage() {
+  const { address: vaultAddress, id: routeId } = useParams<{ address: string; id: string }>();
   const [stepTypes, setStepTypes] = useState<StepTypeOption[]>([]);
   const [showDeploy, setShowDeploy] = useState(false);
-  const [automationId, setAutomationId] = useState<string | null>(null);
+  const [automationId, setAutomationId] = useState<string | null>(routeId === 'new' ? null : routeId ?? null);
 
   const {
     nodes,
@@ -39,7 +41,10 @@ export function AutomationEditorPage() {
     removeSelected,
     label,
     setLabel,
+    loadEditorState,
   } = useEditorStore();
+
+  useAutoSave(vaultAddress, automationId);
 
   useEffect(() => {
     apiFetch('/step-types')
@@ -47,6 +52,23 @@ export function AutomationEditorPage() {
       .then(setStepTypes)
       .catch(console.error);
   }, []);
+
+  useEffect(() => {
+    if (!vaultAddress || !automationId) return;
+    apiFetch(`/vaults/${vaultAddress}/automations/${automationId}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.editorState?.nodes) {
+          loadEditorState({
+            nodes: data.editorState.nodes,
+            edges: data.editorState.edges ?? [],
+            label: data.label,
+            description: data.description,
+          });
+        }
+      })
+      .catch(() => {});
+  }, [automationId]);
 
   const handleAddStep = useCallback(
     (stepType: StepTypeOption) => {
@@ -97,8 +119,6 @@ export function AutomationEditorPage() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [removeSelected]);
-
-  const { address: vaultAddress } = useParams<{ address: string }>();
 
   const handleDeploy = useCallback(async () => {
     if (!vaultAddress) return;
