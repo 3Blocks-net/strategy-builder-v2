@@ -1,7 +1,7 @@
 import { useNavigate, useParams } from 'react-router';
 import { Button } from '@/components/ui/button';
 import { AddStepDropdown } from './add-step-dropdown';
-import type { StepTypeOption } from '../store/editor-store';
+import { useEditorStore, type StepTypeOption } from '../store/editor-store';
 
 interface EditorToolbarProps {
   stepTypes: StepTypeOption[];
@@ -18,6 +18,7 @@ export function EditorToolbar({
 }: EditorToolbarProps) {
   const navigate = useNavigate();
   const { address } = useParams<{ address: string }>();
+  const errorCount = useEditorStore((s) => s.validationErrors.length);
 
   return (
     <div className="flex items-center gap-3 px-4 py-2 bg-white border-b border-gray-200">
@@ -39,6 +40,16 @@ export function EditorToolbar({
       <div className="h-5 w-px bg-gray-200" />
       <AddStepDropdown stepTypes={stepTypes} onAdd={onAddStep} />
       <div className="flex-1" />
+      {errorCount > 0 && (
+        <div className="flex items-center gap-1.5 text-red-600">
+          <span className="bg-red-600 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+            {errorCount}
+          </span>
+          <span className="text-xs font-medium">
+            {errorCount === 1 ? 'error' : 'errors'}
+          </span>
+        </div>
+      )}
     </div>
   );
 }

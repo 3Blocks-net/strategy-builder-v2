@@ -1,16 +1,25 @@
 import { memo } from 'react';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
 import type { EditorNodeData } from '../store/editor-store';
+import { useEditorStore } from '../store/editor-store';
 
 export const ConditionNode = memo(function ConditionNode({
+  id,
   data,
   selected,
 }: NodeProps) {
   const nodeData = data as unknown as EditorNodeData;
+  const hasError = useEditorStore((s) =>
+    s.validationErrors.some((e) => e.nodeId === id),
+  );
   return (
     <div
       className={`rounded-lg border-2 bg-white shadow-sm min-w-[180px] ${
-        selected ? 'border-blue-600 ring-2 ring-blue-200' : 'border-blue-400'
+        hasError
+          ? 'border-red-500 ring-2 ring-red-200'
+          : selected
+            ? 'border-blue-600 ring-2 ring-blue-200'
+            : 'border-blue-400'
       }`}
     >
       <Handle type="target" position={Position.Top} className="!w-3 !h-3" />

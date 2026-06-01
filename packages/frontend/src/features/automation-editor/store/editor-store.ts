@@ -9,6 +9,8 @@ import {
   applyEdgeChanges,
   addEdge,
 } from '@xyflow/react';
+import { validateGraph } from '../lib/validate-graph';
+import type { ValidationError, GraphNode, GraphEdge } from '../lib/types';
 
 export interface StepTypeOption {
   id: string;
@@ -36,6 +38,8 @@ export interface EditorState {
   selectedNodeId: string | null;
   label: string;
   description: string;
+  validationErrors: ValidationError[];
+  ownerOnly: boolean;
 
   onNodesChange: OnNodesChange<Node<EditorNodeData>>;
   onEdgesChange: OnEdgesChange;
@@ -44,18 +48,62 @@ export interface EditorState {
   addNode: (stepType: StepTypeOption, position: { x: number; y: number }) => void;
   removeSelected: () => void;
   updateNodeParams: (nodeId: string, params: Record<string, unknown>) => void;
+  runValidation: () => void;
   setLabel: (label: string) => void;
   setDescription: (description: string) => void;
 }
 
 let nodeCounter = 0;
+let validationTimer: ReturnType<typeof setTimeout> | null = null;
 
-export const useEditorStore = create<EditorState>((set, get) => ({
+function toGraphNodes(nodes: Node<EditorNodeData>[]): GraphNode[] {
+  return nodes.map((n) => ({
+    id: n.id,
+    type: (n.type as 'CONDITION' | 'ACTION') ?? 'ACTION',
+    position: n.position,
+    data: {
+      stepTypeId: n.data.stepTypeId,
+      label: n.data.stepTypeName,
+      contractAddress: n.data.contractAddress,
+      selector: n.data.selector,
+      params: n.data.params,
+    },
+  }));
+}
+
+function toGraphEdges(edges: Edge[]): GraphEdge[] {
+  return edges.map((e) => ({
+    id: e.id,
+    source: e.source,
+    target: e.target,
+    sourceHandle: (e.sourceHandle as 'true' | 'false' | 'out') ?? 'out',
+  }));
+}
+
+function inferOwnerOnly(nodes: Node<EditorNodeData>[], edges: Edge[]): boolean {
+  if (nodes.length === 0) return false;
+  const incomingCount = new Map<string, number>();
+  for (const n of nodes) incomingCount.set(n.id, 0);
+  for (const e of edges)
+    incomingCount.set(e.target, (incomingCount.get(e.target) ?? 0) + 1);
+  const startNodes = nodes.filter((n) => incomingCount.get(n.id) === 0);
+  return startNodes.length === 1 && startNodes[0].type === 'ACTION';
+}
+
+export const useEditorStore = create<EditorState>((set, get) => {
+  function scheduleValidation() {
+    if (validationTimer) clearTimeout(validationTimer);
+    validationTimer = setTimeout(() => get().runValidation(), 300);
+  }
+
+  return {
   nodes: [],
   edges: [],
   selectedNodeId: null,
   label: '',
   description: '',
+  validationErrors: [],
+  ownerOnly: false,
 
   onNodesChange: (changes) => {
     set({ nodes: applyNodeChanges(changes, get().nodes) });
@@ -65,10 +113,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     if (selectionChange && 'id' in selectionChange) {
       set({ selectedNodeId: selectionChange.id });
     }
+    const structural = changes.some((c) => c.type === 'add' || c.type === 'remove');
+    if (structural) scheduleValidation();
   },
 
   onEdgesChange: (changes) => {
     set({ edges: applyEdgeChanges(changes, get().edges) });
+    const structural = changes.some((c) => c.type === 'add' || c.type === 'remove');
+    if (structural) scheduleValidation();
   },
 
   onConnect: (connection) => {
@@ -95,6 +147,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     };
 
     set({ edges: addEdge(edge, get().edges) });
+    scheduleValidation();
   },
 
   setSelectedNodeId: (nodeId) => set({ selectedNodeId: nodeId }),
@@ -115,6 +168,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       },
     };
     set({ nodes: [...get().nodes, newNode] });
+    scheduleValidation();
   },
 
   removeSelected: () => {
@@ -127,6 +181,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       ),
       selectedNodeId: null,
     });
+    scheduleValidation();
   },
 
   updateNodeParams: (nodeId, params) => {
@@ -139,6 +194,16 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     });
   },
 
+  runValidation: () => {
+    const { nodes, edges } = get();
+    const oo = inferOwnerOnly(nodes, edges);
+    const graphNodes = toGraphNodes(nodes);
+    const graphEdges = toGraphEdges(edges);
+    const errors = validateGraph(graphNodes, graphEdges, !oo);
+    set({ validationErrors: errors, ownerOnly: oo });
+  },
+
   setLabel: (label) => set({ label }),
   setDescription: (description) => set({ description }),
-}));
+};
+});
