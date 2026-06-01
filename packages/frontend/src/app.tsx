@@ -6,6 +6,7 @@ import { ConnectPage } from '@/pages/connect';
 import { DashboardPage } from '@/pages/dashboard';
 import { CreateVaultPage } from '@/pages/vault/create';
 import { VaultDetailPage } from '@/pages/vault/detail';
+import { AutomationEditorPage } from '@/features/automation-editor/editor-page';
 
 export function App() {
   return (
@@ -35,6 +36,22 @@ export function App() {
               element={
                 <ProtectedRoute>
                   <VaultDetailPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/vault/:address/automation/new/edit"
+              element={
+                <ProtectedRoute>
+                  <AutomationEditorPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/vault/:address/automation/:id/edit"
+              element={
+                <ProtectedRoute>
+                  <AutomationEditorPage />
                 </ProtectedRoute>
               }
             />

@@ -14,6 +14,7 @@
     "@dagrejs/dagre": "^3.0.0",
     "@radix-ui/react-slot": "^1.2.3",
     "@tanstack/react-query": "^5.80.6",
+    "@xyflow/react": "^12.11.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^0.511.0",
@@ -23,7 +24,8 @@
     "siwe": "^3.0.0",
     "tailwind-merge": "^3.3.0",
     "viem": "^2.31.3",
-    "wagmi": "^2.15.4"
+    "wagmi": "^2.15.4",
+    "zustand": "^5.0.14"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.1.8",

@@ -139,17 +139,6 @@ describe('validateGraph', () => {
     // Simplest approach: node a2 is pointed to by nobody reachable.
     // We need it to NOT be a start node: give it an incoming edge from a3,
     // and a3 an incoming edge from a2 (cycle, but that's separate).
-    const nodes = [
-      makeNode('c1', 'CONDITION'),
-      makeNode('a1', 'ACTION'),
-      makeNode('a2', 'ACTION'),
-    ];
-    // c1 → a1, and a2 has an incoming edge from a1 via false
-    // but wait, c1 has only true edge. a2 is not in start nodes...
-    // Actually: a2 has 0 incoming edges → it IS a start node → multiple start error.
-    // The only way to have unreachable without multiple-start is if the orphan
-    // has at least one incoming edge (from another orphan or a cycle).
-    // Let's use a mini cycle for the orphan cluster.
     const nodesWithOrphans = [
       makeNode('c1', 'CONDITION'),
       makeNode('a1', 'ACTION'),
