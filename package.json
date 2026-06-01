@@ -22,7 +22,8 @@
     "db:up": "docker compose up -d db",
     "db:down": "docker compose down",
     "db:migrate": "pnpm --filter backend prisma:migrate",
-    "db:studio": "pnpm --filter backend prisma:studio"
+    "db:studio": "pnpm --filter backend prisma:studio",
+    "db:seed": "pnpm --filter backend prisma:seed"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

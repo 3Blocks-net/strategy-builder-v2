@@ -40,10 +40,12 @@ model Vault {
   label          String
   createdAtBlock Int
   txHash         String
+  contextSlots   Json         @default("{}")
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
   owner          User         @relation(fields: [ownerAddress], references: [walletAddress])
   events         VaultEvent[]
+  automations    Automation[]
 
   @@unique([ownerAddress, label])
 }
@@ -61,4 +63,42 @@ model VaultEvent {
   blockTimestamp  DateTime
   createdAt      DateTime @default(now())
   vault          Vault    @relation(fields: [vaultId], references: [id])
+}
+
+enum StepCategory {
+  CONDITION
+  ACTION
+}
+
+model Automation {
+  id          String   @id @default(uuid())
+  vaultId     String
+  onChainId   Int?
+  label       String?
+  description String?
+  ownerOnly   Boolean  @default(false)
+  editorState Json?
+  stepCount   Int      @default(0)
+  isDraft     Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  vault       Vault    @relation(fields: [vaultId], references: [id], onDelete: Cascade)
+
+  @@unique([vaultId, onChainId])
+}
+
+model StepType {
+  id                     String       @id @default(uuid())
+  name                   String
+  description            String
+  category               StepCategory
+  contractAddress        String
+  selector               String
+  afterExecutionSelector String?
+  abiFragment            Json
+  paramSchema            Json
+  createdAt              DateTime     @default(now())
+  updatedAt              DateTime     @updatedAt
+
+  @@unique([contractAddress, selector])
 }
