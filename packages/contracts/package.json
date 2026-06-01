@@ -5,7 +5,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "compile": "hardhat compile",
+    "compile": "hardhat compile && node scripts/extract-abis.js",
     "test": "hardhat test",
     "coverage": "hardhat coverage",
     "deploy:bsc-testnet": "hardhat ignition deploy --network bscTestnet",

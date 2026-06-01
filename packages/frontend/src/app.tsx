@@ -4,6 +4,7 @@ import { AuthProvider } from '@/providers/auth-context';
 import { ProtectedRoute } from '@/components/protected-route';
 import { ConnectPage } from '@/pages/connect';
 import { DashboardPage } from '@/pages/dashboard';
+import { CreateVaultPage } from '@/pages/vault/create';
 
 export function App() {
   return (
@@ -17,6 +18,14 @@ export function App() {
               element={
                 <ProtectedRoute>
                   <DashboardPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/vault/create"
+              element={
+                <ProtectedRoute>
+                  <CreateVaultPage />
                 </ProtectedRoute>
               }
             />
