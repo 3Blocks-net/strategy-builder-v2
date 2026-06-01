@@ -127,6 +127,33 @@ export class AutomationController {
     );
   }
 
+  @Post(':address/automations/:id/encode-update')
+  @UseGuards(VaultOwnerGuard)
+  async encodeUpdate(
+    @Param('address') address: string,
+    @Param('id') id: string,
+    @Request() req: any,
+    @Body() body: { contextOverrides?: Record<number, string> },
+  ) {
+    const automation = await this.automationService.findById(id);
+    if (automation.onChainId === null) {
+      throw new ConflictException('Cannot update a draft automation');
+    }
+    const editorState = automation.editorState as any;
+    const graph = editorState?.nodes
+      ? { nodes: editorState.nodes, edges: editorState.edges ?? [] }
+      : { nodes: [], edges: [] };
+
+    return this.encodingService.encodeUpdate(
+      req.vault.id,
+      address,
+      id,
+      automation.onChainId,
+      graph,
+      body.contextOverrides,
+    );
+  }
+
   @Post(':address/automations/:id/encode-toggle')
   @UseGuards(VaultOwnerGuard)
   async encodeToggle(

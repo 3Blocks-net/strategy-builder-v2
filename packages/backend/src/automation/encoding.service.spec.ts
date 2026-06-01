@@ -271,6 +271,51 @@ describe('EncodingService', () => {
     });
   });
 
+  describe('encodeUpdate', () => {
+    it('encodes updateAutomationSteps calldata', async () => {
+      const graph = {
+        nodes: [
+          {
+            id: 'a1',
+            type: 'ACTION' as const,
+            data: {
+              stepTypeId: 'st-transfer',
+              params: {
+                token: '0x55d398326f99059fF775485246999027B3197955',
+                recipient: '0x1234567890123456789012345678901234567890',
+                amount: '500',
+              },
+            },
+          },
+        ],
+        edges: [],
+      };
+
+      const result = await service.encodeUpdate('v1', '0xvault', 'a1', 3, graph);
+
+      expect(result.functionName).toBe('updateAutomationSteps');
+      expect(result.stepCount).toBe(1);
+      expect(result.automationCalldata).toBeTruthy();
+    });
+
+    it('does not require context TX when no new slots and no overrides', async () => {
+      const graph = {
+        nodes: [
+          {
+            id: 'a1',
+            type: 'ACTION' as const,
+            data: { stepTypeId: 'st-transfer', params: { token: '0x55d398326f99059fF775485246999027B3197955', recipient: '0x1234567890123456789012345678901234567890', amount: '100' } },
+          },
+        ],
+        edges: [],
+      };
+
+      const result = await service.encodeUpdate('v1', '0xvault', 'a1', 0, graph);
+      expect(result.requiresContextTx).toBe(false);
+      expect(result.contextCalldata).toBeUndefined();
+    });
+  });
+
   describe('encodeToggle', () => {
     it('encodes setAutomationActive calldata', () => {
       const calldata = service.encodeToggle(0, false);

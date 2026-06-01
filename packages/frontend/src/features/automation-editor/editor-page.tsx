@@ -30,6 +30,7 @@ export function AutomationEditorPage() {
   const [stepTypes, setStepTypes] = useState<StepTypeOption[]>([]);
   const [showDeploy, setShowDeploy] = useState(false);
   const [automationId, setAutomationId] = useState<string | null>(routeId === 'new' ? null : routeId ?? null);
+  const [isDeployed, setIsDeployed] = useState(false);
 
   const {
     nodes,
@@ -69,6 +70,9 @@ export function AutomationEditorPage() {
             label: data.label,
             description: data.description,
           });
+        }
+        if (data.onChainId !== null && data.onChainId !== undefined) {
+          setIsDeployed(true);
         }
       })
       .catch(() => {});
@@ -198,6 +202,7 @@ export function AutomationEditorPage() {
         <DeployDialog
           automationId={automationId}
           label={label}
+          isEdit={isDeployed}
           onClose={() => setShowDeploy(false)}
         />
       )}

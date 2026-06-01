@@ -12,6 +12,7 @@ const VAULT_ABI = [
   'function createOwnerAutomation((uint8 stepType, address target, bytes4 selector, uint32 nextOnTrue, uint32 nextOnFalse, bytes data)[] steps) external returns (uint32)',
   'function setContext(bytes[] ctx) external',
   'function setAutomationActive(uint32 automationId, bool active) external',
+  'function updateAutomationSteps(uint32 automationId, (uint8 stepType, address target, bytes4 selector, uint32 nextOnTrue, uint32 nextOnFalse, bytes data)[] steps) external',
 ];
 
 interface EditorNode {
@@ -306,6 +307,109 @@ export class EncodingService {
     // Slot names are identified during encoding via the schema's x-ui-widget: context-slot
     // For now, collect names referenced by context slot fields from step type schemas
     return Array.from(names);
+  }
+
+  async encodeUpdate(
+    vaultId: string,
+    vaultAddress: string,
+    automationId: string,
+    onChainId: number,
+    graph: EditorGraph,
+    contextOverrides?: Record<number, string>,
+  ): Promise<EncodeResult> {
+    this.validateServerSide(graph);
+
+    const ownerOnly = this.inferOwnerOnly(graph);
+    const slotNames = this.extractSlotNames(graph);
+    const slotMapping = slotNames.length > 0
+      ? await this.contextService.allocateSlots(vaultId, slotNames, automationId)
+      : {};
+
+    const stepTypes = await this.prisma.stepType.findMany();
+    const stepTypeMap = new Map(stepTypes.map((st) => [st.id, st]));
+
+    const order = this.bfs(graph);
+    const indexMap = new Map(order.map((id, i) => [id, i]));
+    const edgesBySource = new Map<string, EditorEdge[]>();
+    for (const edge of graph.edges) {
+      const list = edgesBySource.get(edge.source) ?? [];
+      list.push(edge);
+      edgesBySource.set(edge.source, list);
+    }
+    const nodeMap = new Map(graph.nodes.map((n) => [n.id, n]));
+
+    const steps: EncodedStep[] = order.map((nodeId) => {
+      const node = nodeMap.get(nodeId)!;
+      const stepType = stepTypeMap.get(node.data.stepTypeId);
+      if (!stepType) throw new BadRequestException(`Unknown step type: ${node.data.stepTypeId}`);
+
+      const outEdges = edgesBySource.get(nodeId) ?? [];
+      let nextOnTrue = DONE, nextOnFalse = DONE;
+      if (node.type === 'CONDITION') {
+        const trueEdge = outEdges.find((e) => e.sourceHandle === 'true');
+        const falseEdge = outEdges.find((e) => e.sourceHandle === 'false');
+        if (trueEdge) nextOnTrue = indexMap.get(trueEdge.target) ?? DONE;
+        if (falseEdge) nextOnFalse = indexMap.get(falseEdge.target) ?? DONE;
+      } else {
+        const outEdge = outEdges.find((e) => e.sourceHandle === 'out');
+        if (outEdge) nextOnTrue = indexMap.get(outEdge.target) ?? DONE;
+      }
+
+      return {
+        stepType: node.type === 'CONDITION' ? STEP_TYPE_CONDITION : STEP_TYPE_ACTION,
+        target: stepType.contractAddress,
+        selector: stepType.selector,
+        nextOnTrue,
+        nextOnFalse,
+        data: this.encodeParams(node.data.params, stepType.abiFragment as any, slotMapping),
+      };
+    });
+
+    const stepTuples = steps.map((s) => [s.stepType, s.target, s.selector, s.nextOnTrue, s.nextOnFalse, s.data]);
+    const automationCalldata = this.vaultInterface.encodeFunctionData('updateAutomationSteps', [onChainId, stepTuples]);
+
+    let contextCalldata: string | undefined;
+    let requiresContextTx = false;
+    const contextChanges: ContextChange[] = [];
+
+    const hasNewSlots = Object.keys(slotMapping).length > 0;
+    const hasOverrides = contextOverrides && Object.keys(contextOverrides).length > 0;
+
+    if (hasNewSlots || hasOverrides) {
+      let onChainCtx: string[] = [];
+      try { onChainCtx = await this.contextService.readOnChainContext(vaultAddress); } catch {}
+
+      const newSlotEntries = Object.entries(slotMapping).filter(([, idx]) => idx >= onChainCtx.length);
+      if (newSlotEntries.length > 0 || hasOverrides) {
+        requiresContextTx = true;
+        const newSlots = newSlotEntries.map(([, index]) => ({ index, initialValue: contextOverrides?.[index] ?? '0x' }));
+        const expanded = this.contextService.buildExpandedContext(onChainCtx, newSlots, contextOverrides);
+        contextCalldata = this.vaultInterface.encodeFunctionData('setContext', [expanded]);
+      }
+
+      for (const [name, index] of Object.entries(slotMapping)) {
+        const isNew = index >= onChainCtx.length;
+        contextChanges.push({
+          slotIndex: index,
+          slotName: name,
+          isNew,
+          currentValue: isNew ? undefined : onChainCtx[index],
+          newValue: contextOverrides?.[index] ?? (isNew ? '0x' : onChainCtx[index]),
+          usedByActiveAutomations: [],
+        });
+      }
+    }
+
+    return {
+      automationCalldata,
+      contextCalldata,
+      functionName: 'updateAutomationSteps',
+      steps,
+      ownerOnly,
+      stepCount: steps.length,
+      requiresContextTx,
+      contextChanges,
+    };
   }
 
   encodeToggle(onChainId: number, active: boolean): string {

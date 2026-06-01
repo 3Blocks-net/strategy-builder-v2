@@ -28,12 +28,13 @@ interface EncodeResponse {
 interface DeployDialogProps {
   automationId: string;
   label: string;
+  isEdit?: boolean;
   onClose: () => void;
 }
 
 type DeployPhase = 'preview' | 'encoding' | 'context-tx' | 'context-wait' | 'auto-tx' | 'auto-wait' | 'backend-confirm' | 'done' | 'error';
 
-export function DeployDialog({ automationId, label, onClose }: DeployDialogProps) {
+export function DeployDialog({ automationId, label, isEdit = false, onClose }: DeployDialogProps) {
   const { address: vaultAddress } = useParams<{ address: string }>();
   const navigate = useNavigate();
   const [phase, setPhase] = useState<DeployPhase>('preview');
@@ -51,8 +52,9 @@ export function DeployDialog({ automationId, label, onClose }: DeployDialogProps
       setError(null);
       const overrides = Object.keys(contextOverrides).length > 0 ? contextOverrides : undefined;
 
+      const encodePath = isEdit ? 'encode-update' : 'encode';
       const res = await apiFetch(
-        `/vaults/${vaultAddress}/automations/${automationId}/encode`,
+        `/vaults/${vaultAddress}/automations/${automationId}/${encodePath}`,
         { method: 'POST', body: JSON.stringify({ contextOverrides: overrides }) },
       );
       if (!res.ok) {
