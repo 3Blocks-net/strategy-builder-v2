@@ -5,6 +5,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Request,
   UseGuards,
 } from '@nestjs/common';
@@ -51,5 +52,17 @@ export class VaultController {
   @UseGuards(VaultOwnerGuard)
   async getEvents(@Param('address') address: string) {
     return this.vaultService.getEvents(address);
+  }
+
+  @Get(':address/history')
+  @UseGuards(VaultOwnerGuard)
+  async getHistory(
+    @Param('address') address: string,
+    @Query('page') pageStr?: string,
+    @Query('limit') limitStr?: string,
+  ) {
+    const page = Math.max(1, parseInt(pageStr ?? '1', 10) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(limitStr ?? '20', 10) || 20));
+    return this.vaultService.getHistory(address, page, limit);
   }
 }

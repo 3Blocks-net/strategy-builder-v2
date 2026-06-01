@@ -150,6 +150,33 @@ export class VaultService {
     });
   }
 
+  async getHistory(
+    vaultAddress: string,
+    page: number,
+    limit: number,
+  ): Promise<{ events: VaultEvent[]; total: number; page: number; limit: number }> {
+    const vault = await this.prisma.vault.findUnique({
+      where: { address: vaultAddress },
+    });
+    if (!vault) {
+      throw new BadRequestException('VAULT_NOT_FOUND');
+    }
+
+    const [events, total] = await Promise.all([
+      this.prisma.vaultEvent.findMany({
+        where: { vaultId: vault.id },
+        orderBy: { blockTimestamp: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      this.prisma.vaultEvent.count({
+        where: { vaultId: vault.id },
+      }),
+    ]);
+
+    return { events, total, page, limit };
+  }
+
   private async validateOnChain(
     vaultAddress: string,
     expectedOwner: string,

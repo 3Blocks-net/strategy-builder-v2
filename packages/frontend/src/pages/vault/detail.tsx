@@ -4,6 +4,7 @@ import { type Address } from 'viem';
 import { Button } from '@/components/ui/button';
 import { DepositForm } from '@/components/deposit-form';
 import { WithdrawForm } from '@/components/withdraw-form';
+import { HistoryTable } from '@/components/history-table';
 import { apiFetch } from '@/lib/api';
 
 interface Position {
@@ -270,6 +271,8 @@ export function VaultDetailPage() {
             />
           </div>
         )}
+
+        {address && <HistoryTable vaultAddress={address} />}
       </div>
     </div>
   );
