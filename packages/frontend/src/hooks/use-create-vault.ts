@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import { useWriteContract } from 'wagmi';
 import { keccak256, encodePacked, type Address, type Log } from 'viem';
 import { StrategyBuilderVaultFactoryAbi } from '@/lib/abis';
+import { config } from '@/lib/wagmi';
 import { apiFetch } from '@/lib/api';
 
 const FACTORY_ADDRESS = import.meta.env
@@ -31,18 +32,12 @@ function generateSalt(): `0x${string}` {
 }
 
 function parseVaultCreatedEvent(logs: Log[]): Address | null {
+  const topic = keccak256(
+    encodePacked(['string'], ['VaultCreated(address,address,uint256)']),
+  );
   for (const log of logs) {
-    if (
-      log.topics[0] ===
-      keccak256(
-        encodePacked(
-          ['string'],
-          ['VaultCreated(address,address,address)'],
-        ),
-      )
-    ) {
-      const vaultAddress = `0x${log.topics[1]?.slice(26)}` as Address;
-      return vaultAddress;
+    if (log.topics[0] === topic) {
+      return `0x${log.topics[1]?.slice(26)}` as Address;
     }
   }
   return null;
@@ -105,6 +100,7 @@ export function useCreateVault() {
           abi: StrategyBuilderVaultFactoryAbi,
           functionName: 'createVault',
           args: [userAddress, params.depositToken, salt],
+          gas: 500_000n,
         });
 
         setStep('waiting');
@@ -159,8 +155,8 @@ export function useCreateVault() {
 async function waitForReceipt(txHash: string, timeout = 60_000) {
   const start = Date.now();
   const { createPublicClient, http } = await import('viem');
-  const { bsc } = await import('viem/chains');
-  const client = createPublicClient({ chain: bsc, transport: http() });
+  const chain = config.chains[0];
+  const client = createPublicClient({ chain, transport: http() });
 
   while (Date.now() - start < timeout) {
     try {

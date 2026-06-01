@@ -1,12 +1,16 @@
 import { useEffect } from 'react';
-import { useConnect, useAccount } from 'wagmi';
+import { useConnect, useAccount, useSwitchChain } from 'wagmi';
 import { Navigate } from 'react-router';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/providers/auth-context';
+import { config } from '@/lib/wagmi';
+
+const targetChainId = config.chains[0].id;
 
 export function ConnectPage() {
   const { connect, connectors, error: connectError, isPending } = useConnect();
-  const { isConnected } = useAccount();
+  const { isConnected, chainId } = useAccount();
+  const { switchChain } = useSwitchChain();
   const { isAuthenticated, login, error: authError, isLoading } = useAuth();
 
   const injectedConnector = connectors.find((c) => c.type === 'injected');
@@ -14,10 +18,16 @@ export function ConnectPage() {
     typeof window !== 'undefined' && typeof window.ethereum !== 'undefined';
 
   useEffect(() => {
-    if (isConnected && !isAuthenticated && !isLoading) {
+    if (isConnected && chainId !== targetChainId) {
+      switchChain({ chainId: targetChainId });
+    }
+  }, [isConnected, chainId, switchChain]);
+
+  useEffect(() => {
+    if (isConnected && chainId === targetChainId && !isAuthenticated && !isLoading) {
       login();
     }
-  }, [isConnected, isAuthenticated, isLoading, login]);
+  }, [isConnected, chainId, isAuthenticated, isLoading, login]);
 
   if (isAuthenticated) return <Navigate to="/dashboard" replace />;
 

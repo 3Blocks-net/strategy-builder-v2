@@ -79,7 +79,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         statement: 'Sign in to Pecunity',
         uri: window.location.origin,
         version: '1',
-        chainId: chainId ?? 56,
+        chainId: chainId ?? (import.meta.env.MODE === 'production' ? 56 : 31337),
         nonce,
         issuedAt: now.toISOString(),
         expirationTime: new Date(now.getTime() + 5 * 60 * 1000).toISOString(),

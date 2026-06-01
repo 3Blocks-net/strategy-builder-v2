@@ -23,9 +23,15 @@ pnpm workspaces with packages in `packages/`:
 **Root (workspace scripts):**
 ```bash
 pnpm install                 # Install all workspace dependencies
-pnpm contracts:compile       # Compile contracts
+pnpm dev                     # Start DB + backend + frontend (unified dev)
+pnpm db:up                   # Start PostgreSQL via Docker
+pnpm db:down                 # Stop PostgreSQL
+pnpm db:migrate              # Run Prisma migrations
+pnpm contracts:compile       # Compile contracts + extract ABIs to frontend
 pnpm contracts:test          # Run contract tests
 pnpm contracts:clean         # Clean contract artifacts
+pnpm contracts:fork:bsc      # Start BSC mainnet fork on localhost:8545
+pnpm contracts:deploy:fork   # Deploy all contracts to fork
 pnpm backend:dev             # Start backend in watch mode
 pnpm backend:build           # Build backend
 pnpm backend:test            # Run backend unit tests
@@ -42,6 +48,8 @@ npx hardhat test             # Run all tests
 npx hardhat test test/StrategyBuilderVault.ts   # Run single test file
 npx hardhat clean            # Clean artifacts
 npx hardhat test --grep "pattern"  # Run tests matching pattern
+npx hardhat node --network bscFork  # Start BSC fork node (Chain ID 31337)
+npx hardhat run --build-profile production --network localhost scripts/deploy-fork.ts  # Deploy to running fork
 ```
 
 **Deploy** (Hardhat Ignition):
@@ -50,12 +58,32 @@ npx hardhat ignition deploy --network bscTestnet ignition/modules/StrategyBuilde
 npx hardhat ignition deploy --network bscMainnet ignition/modules/StrategyBuilderVault.ts
 ```
 
+**Local Development Workflow** (3 terminals):
+```bash
+# Terminal 1: pnpm dev                   (DB + backend + frontend)
+# Terminal 2: pnpm contracts:fork:bsc    (BSC fork node)
+# Terminal 3: pnpm contracts:deploy:fork (deploy contracts, copy addresses to .env files)
+```
+
 **Hardhat 3** (`hardhat ^3.2.0`) — uses `defineConfig`, `network.connect()`, and ESM (`"type": "module"` in package.json). Tests use top-level `await` for network connection:
 ```typescript
 const { ethers } = await network.connect();
 ```
 
 **Compiler**: Solidity 0.8.28, `viaIR: true` (required — stack-too-deep in `_executeAction`), 200 optimizer runs in production profile. Target chain: BSC.
+
+**BSC Fork** — `bscFork` network in hardhat config uses `forking: { url }` (NOT `fork`). Requires archive-capable RPC (BlastAPI, Alchemy — NOT `bsc-dataseed.binance.org`). Fork runs as `hardhat node --network bscFork` on Chain ID 31337. Deploy script targets `--network localhost` (HTTP to running node), NOT `--network bscFork` (which spawns its own in-process fork).
+
+**Deploy Script** — `scripts/deploy-fork.ts` deploys all contracts (FeeRegistry, Factory, Vault impl, 5 example contracts), configures FeeRegistry with USDT+WBNB, and seeds test wallet with tokens via whale impersonation. **Must compile with `--build-profile production`** (optimizer required — without it, vault proxy deployment fails with StackOverflow due to 21KB unoptimized bytecode). Output: console addresses + `deployments/fork-latest.json`.
+
+**ABI Extraction** — `scripts/extract-abis.js` runs after `hardhat compile`, writes typed `as const` ABI files to `packages/frontend/src/lib/abis/`.
+
+**Critical Dev Gotchas:**
+- `NODE_ENV=development` must be in `packages/backend/.env` — without it, portfolio service uses Alchemy API instead of local RPC balance reads
+- Frontend disables viem multicall on Hardhat chain (31337) to avoid StackOverflow from multicall3 simulation
+- Frontend `wagmi.ts` puts `hardhat` chain first in dev mode, `bsc` first in production — controls MetaMask auto-switch on connect
+- All vault proxy calls (`createVault`, `deposit`, `withdraw`) need explicit `gas` overrides in frontend hooks — Hardhat fork gas estimation is unreliable for proxy delegatecalls
+- `FeeService.getAcceptedTokens()` scans logs with `fromBlock: currentBlock - 10_000` (not 0) — `fromBlock: 0` on a fork triggers upstream RPC full-chain scan which gets rejected
 
 ## Architecture
 
@@ -336,6 +364,42 @@ await ethers.provider.send("evm_mine", []);
 | `MockERC20` | Standard ERC-20, mints on deploy |
 | `MockPriceOracle` | `setPrice(token, priceUSD18)` — reverts `OracleNotExist` if unset |
 | `ERC1967ProxyHelper` | Proxy helper for tests |
+
+## Backend Modules
+
+| Module | Path | Description |
+|--------|------|-------------|
+| `AuthModule` | `src/auth/` | SIWE nonce/verify/refresh, JWT strategy, WalletAuthGuard (global APP_GUARD) |
+| `VaultModule` | `src/vault/` | Vault CRUD, VaultOwnerGuard, event recording, paginated history |
+| `BlockchainModule` | `src/blockchain/` | FeeService (on-chain fees, 1h cache), ContractErrorService, accepted tokens |
+| `PortfolioModule` | `src/portfolio/` | AlchemyService, PriceService (DeFiLlama fallback), VaultPortfolioService (60s cache) |
+| `DatabaseModule` | `src/database/` | PrismaService (global) |
+| `HealthModule` | `src/health/` | GET /health |
+
+### Key Backend Patterns
+
+- **Auth**: SIWE + JWT. `WalletAuthGuard` is global APP_GUARD; use `@Public()` decorator for public endpoints.
+- **VaultOwnerGuard**: Per-vault auth. Loads vault by `:address` param, checks `ownerAddress == JWT wallet`. Attaches `req.vault`.
+- **PrismaService**: Global, extends PrismaClient. All modules inject it.
+- **DTOs**: Plain classes (no class-validator decorators yet).
+
+## Frontend Structure
+
+| Route | Component | Description |
+|-------|-----------|-------------|
+| `/connect` | `ConnectPage` | MetaMask connection + SIWE sign-in |
+| `/dashboard` | `DashboardPage` | Vault table with USD values, empty state, create CTA |
+| `/vault/create` | `CreateVaultPage` | Multi-step wizard (label → token → fees → TX → deposit) |
+| `/vault/:address` | `VaultDetailPage` | Portfolio, inline label edit, deposit/withdraw forms, history |
+
+### Key Frontend Patterns
+
+- **Auth**: `AuthProvider` context wraps app. `useAuth()` gives `address`, `isAuthenticated`, `login`, `logout`.
+- **API**: `apiFetch()` in `lib/api.ts` handles JWT headers, silent token refresh, auth failure callback.
+- **Contract ABIs**: Auto-generated in `lib/abis/` from Hardhat artifacts via `scripts/extract-abis.js` (runs on compile).
+- **wagmi**: Config in `lib/wagmi.ts`. Chain order: `[hardhat]` in dev, `[bsc, bscTestnet]` in production. Multicall disabled on Hardhat chain. `pollingInterval: 2000`. Hooks: `useCreateVault` (gas: 500k), `useApproveAndDeposit` (gas: 300k on deposit), `useWithdraw` (gas: 300k).
+- **Chain switching**: `ConnectPage` uses `useSwitchChain` to force MetaMask to `config.chains[0]` on connect. SIWE `chainId` defaults to 31337 in dev, 56 in production.
+- **Protected Routes**: `ProtectedRoute` component redirects to `/connect` if not authenticated.
 
 ## Security Notes
 

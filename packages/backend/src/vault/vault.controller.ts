@@ -9,28 +9,35 @@ import {
   Request,
   UseGuards,
 } from '@nestjs/common';
+import { ApiBearerAuth, ApiTags, ApiOperation, ApiParam, ApiQuery } from '@nestjs/swagger';
 import { VaultService } from './vault.service';
 import { VaultOwnerGuard } from './vault-owner.guard';
 import { CreateVaultDto } from './dto/create-vault.dto';
 import { UpdateVaultDto } from './dto/update-vault.dto';
 import { CreateVaultEventDto } from './dto/create-vault-event.dto';
 
+@ApiTags('Vaults')
+@ApiBearerAuth()
 @Controller('vaults')
 export class VaultController {
   constructor(private readonly vaultService: VaultService) {}
 
   @Post()
+  @ApiOperation({ summary: 'Register a vault after on-chain creation' })
   async create(@Request() req: any, @Body() dto: CreateVaultDto) {
     return this.vaultService.createVault(req.user.address, dto);
   }
 
   @Get()
+  @ApiOperation({ summary: 'List all vaults for the authenticated user' })
   async list(@Request() req: any) {
     return this.vaultService.listVaults(req.user.address);
   }
 
   @Patch(':address')
   @UseGuards(VaultOwnerGuard)
+  @ApiOperation({ summary: 'Update vault label' })
+  @ApiParam({ name: 'address', description: 'Vault address' })
   async updateLabel(
     @Param('address') address: string,
     @Request() req: any,
@@ -41,6 +48,8 @@ export class VaultController {
 
   @Post(':address/events')
   @UseGuards(VaultOwnerGuard)
+  @ApiOperation({ summary: 'Record a deposit/withdrawal event' })
+  @ApiParam({ name: 'address', description: 'Vault address' })
   async createEvent(
     @Param('address') address: string,
     @Body() dto: CreateVaultEventDto,
@@ -50,12 +59,18 @@ export class VaultController {
 
   @Get(':address/events')
   @UseGuards(VaultOwnerGuard)
+  @ApiOperation({ summary: 'Get all events for a vault' })
+  @ApiParam({ name: 'address', description: 'Vault address' })
   async getEvents(@Param('address') address: string) {
     return this.vaultService.getEvents(address);
   }
 
   @Get(':address/history')
   @UseGuards(VaultOwnerGuard)
+  @ApiOperation({ summary: 'Get paginated transaction history' })
+  @ApiParam({ name: 'address', description: 'Vault address' })
+  @ApiQuery({ name: 'page', required: false, type: Number, description: 'Page number (default: 1)' })
+  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Items per page (default: 20, max: 100)' })
   async getHistory(
     @Param('address') address: string,
     @Query('page') pageStr?: string,

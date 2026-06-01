@@ -7,6 +7,8 @@
     "contracts:compile": "pnpm --filter contracts compile",
     "contracts:test": "pnpm --filter contracts test",
     "contracts:clean": "pnpm --filter contracts clean",
+    "contracts:fork:bsc": "pnpm --filter contracts fork:bsc",
+    "contracts:deploy:fork": "pnpm --filter contracts deploy:fork",
     "contracts:deploy:testnet": "pnpm --filter contracts deploy:bsc-testnet",
     "contracts:deploy:mainnet": "pnpm --filter contracts deploy:bsc-mainnet",
     "backend:dev": "pnpm --filter backend dev",
@@ -19,7 +21,8 @@
     "dev": "node scripts/dev.mjs",
     "db:up": "docker compose up -d db",
     "db:down": "docker compose down",
-    "db:migrate": "pnpm --filter backend prisma:migrate"
+    "db:migrate": "pnpm --filter backend prisma:migrate",
+    "db:studio": "pnpm --filter backend prisma:studio"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

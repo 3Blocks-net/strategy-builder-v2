@@ -4,6 +4,7 @@ import { FeeService } from './fee.service';
 
 const mockProvider = {
   getLogs: jest.fn(),
+  getBlockNumber: jest.fn().mockResolvedValue(100_000),
   destroy: jest.fn(),
 };
 

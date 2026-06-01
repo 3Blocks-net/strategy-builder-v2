@@ -1,18 +1,18 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { Contract, JsonRpcProvider, Interface } from 'ethers';
+import { Injectable, Logger } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import { Contract, JsonRpcProvider, Interface } from "ethers";
 
 const FEE_REGISTRY_ABI = [
-  'function depositFeeBps() external view returns (uint16)',
-  'function withdrawFeeBps() external view returns (uint16)',
-  'event TokenAdded(address indexed token, uint8 decimals)',
-  'event TokenRemoved(address indexed token)',
+  "function depositFeeBps() external view returns (uint16)",
+  "function withdrawFeeBps() external view returns (uint16)",
+  "event TokenAdded(address indexed token, uint8 decimals)",
+  "event TokenRemoved(address indexed token)",
 ];
 
 const ERC20_ABI = [
-  'function name() external view returns (string)',
-  'function symbol() external view returns (string)',
-  'function decimals() external view returns (uint8)',
+  "function name() external view returns (string)",
+  "function symbol() external view returns (string)",
+  "function decimals() external view returns (uint8)",
 ];
 
 export interface FeeRates {
@@ -65,19 +65,24 @@ export class FeeService {
     }
 
     const { provider, feeRegistry } = this.getContracts();
-    const feeRegistryAddress = this.configService.get<string>('FEE_REGISTRY_ADDRESS')!;
+    const feeRegistryAddress = this.configService.get<string>(
+      "FEE_REGISTRY_ADDRESS",
+    )!;
     const iface = new Interface(FEE_REGISTRY_ABI);
+
+    const currentBlock = await provider.getBlockNumber();
+    const fromBlock = Math.max(0, currentBlock - 10_000);
 
     const addedLogs = await provider.getLogs({
       address: feeRegistryAddress,
-      topics: [iface.getEvent('TokenAdded')!.topicHash],
-      fromBlock: 0,
+      topics: [iface.getEvent("TokenAdded")!.topicHash],
+      fromBlock,
     });
 
     const removedLogs = await provider.getLogs({
       address: feeRegistryAddress,
-      topics: [iface.getEvent('TokenRemoved')!.topicHash],
-      fromBlock: 0,
+      topics: [iface.getEvent("TokenRemoved")!.topicHash],
+      fromBlock,
     });
 
     const removedSet = new Set(
@@ -95,7 +100,6 @@ export class FeeService {
         activeTokenAddresses.push(tokenAddr);
       }
     }
-
     const tokens: AcceptedToken[] = await Promise.all(
       activeTokenAddresses.map(async (addr) => {
         const token = new Contract(addr, ERC20_ABI, provider);
@@ -119,9 +123,10 @@ export class FeeService {
   }
 
   private getContracts() {
-    const rpcUrl = this.configService.get<string>('RPC_URL')!;
-    const feeRegistryAddress =
-      this.configService.get<string>('FEE_REGISTRY_ADDRESS')!;
+    const rpcUrl = this.configService.get<string>("RPC_URL")!;
+    const feeRegistryAddress = this.configService.get<string>(
+      "FEE_REGISTRY_ADDRESS",
+    )!;
 
     const provider = new JsonRpcProvider(rpcUrl);
     const feeRegistry = new Contract(

@@ -67,14 +67,14 @@ export function DepositForm({ vaultAddress, fees, onSuccess }: DepositFormProps)
     if (!selectedToken || !amount || !userAddress) return;
 
     const amountBig = parseUnits(amount, selectedToken.decimals);
-    await deposit.approveAndDeposit({
+    const success = await deposit.approveAndDeposit({
       vaultAddress,
       tokenAddress: selectedToken.address as Address,
       amount: amountBig,
       currentAllowance: currentAllowance ?? 0n,
     });
 
-    if (deposit.step === 'done') {
+    if (success) {
       recordEvent(vaultAddress, {
         eventType: 'DEPOSIT',
         token: selectedToken.address,

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { formatUnits } from 'viem';
 import { Button } from '@/components/ui/button';
 import { apiFetch } from '@/lib/api';
 
@@ -19,12 +20,18 @@ interface HistoryTableProps {
   chainId?: number;
 }
 
-function formatAmount(amount: string): string {
-  const num = parseFloat(amount);
-  if (isNaN(num)) return amount;
-  return new Intl.NumberFormat('en-US', {
-    maximumFractionDigits: 6,
-  }).format(num);
+function formatTokenAmount(rawAmount: string, decimals = 18): string {
+  try {
+    const formatted = formatUnits(BigInt(rawAmount), decimals);
+    const num = parseFloat(formatted);
+    if (num === 0) return '0';
+    return new Intl.NumberFormat('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 6,
+    }).format(num);
+  } catch {
+    return rawAmount;
+  }
 }
 
 function formatDate(iso: string): string {
@@ -149,10 +156,10 @@ export function HistoryTable({ vaultAddress, chainId }: HistoryTableProps) {
                       {truncateHash(evt.token)}
                     </td>
                     <td className="px-4 py-3 text-right font-mono">
-                      {formatAmount(evt.amount)}
+                      {formatTokenAmount(evt.amount)}
                     </td>
                     <td className="px-4 py-3 text-right text-muted-foreground">
-                      {formatAmount(evt.feeAmount)} ({(evt.feeBps / 100).toFixed(2)}%)
+                      {formatTokenAmount(evt.feeAmount)} ({(evt.feeBps / 100).toFixed(2)}%)
                     </td>
                     <td className="px-4 py-3">
                       <a

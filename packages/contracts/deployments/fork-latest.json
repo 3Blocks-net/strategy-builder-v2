@@ -1,0 +1,18 @@
+{
+  "FeeRegistry": "0x31ceCEb08B22F35924855A87457179663cC2Eced",
+  "StrategyBuilderVault": "0x2c6413711fCfF0a568E115814Ffda4486c453a32",
+  "StrategyBuilderVaultFactory": "0x279d71233c9C6B75f364C2a19ee187fB1092A163",
+  "TokenBalanceCondition": "0x3052cC9622a0c2Fab6D51D03463d7978e62EbC7F",
+  "IntervalCondition": "0x60C79446f00CB9ebD79c4e2d3d6a773314bdbfaa",
+  "TimerCondition": "0x31D952c4F664F40f47448EB7098367F34ec05a5F",
+  "ERC20TransferAction": "0x284849e6a60F716614Fb28279E2446FE995C5711",
+  "FeeDepositAction": "0x47BA9aF5F927724c2AF4019054EE3Ba760F47950",
+  "config": {
+    "depositFeeBps": 100,
+    "withdrawFeeBps": 50,
+    "acceptedTokens": {
+      "USDT": "0x55d398326f99059fF775485246999027B3197955",
+      "WBNB": "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c"
+    }
+  }
+}

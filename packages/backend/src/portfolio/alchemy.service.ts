@@ -1,5 +1,6 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { Injectable, Logger } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import { Contract, JsonRpcProvider } from "ethers";
 
 export interface AlchemyTokenPosition {
   address: string;
@@ -19,8 +20,8 @@ export class AlchemyService {
   async getTokenBalances(
     vaultAddress: string,
   ): Promise<AlchemyTokenPosition[]> {
-    const nodeEnv = this.configService.get<string>('NODE_ENV', 'production');
-    if (nodeEnv === 'development') {
+    const nodeEnv = this.configService.get<string>("NODE_ENV", "production");
+    if (nodeEnv === "development") {
       return this.getBalancesViaRpc(vaultAddress);
     }
     return this.getBalancesViaAlchemy([vaultAddress]).then(
@@ -31,8 +32,8 @@ export class AlchemyService {
   async getTokenBalancesBatch(
     vaultAddresses: string[],
   ): Promise<Map<string, AlchemyTokenPosition[]>> {
-    const nodeEnv = this.configService.get<string>('NODE_ENV', 'production');
-    if (nodeEnv === 'development') {
+    const nodeEnv = this.configService.get<string>("NODE_ENV", "production");
+    if (nodeEnv === "development") {
       const result = new Map<string, AlchemyTokenPosition[]>();
       for (const addr of vaultAddresses) {
         result.set(addr, await this.getBalancesViaRpc(addr));
@@ -54,9 +55,9 @@ export class AlchemyService {
   private async getBalancesViaAlchemy(
     addresses: string[],
   ): Promise<Map<string, AlchemyTokenPosition[]>> {
-    const apiKey = this.configService.get<string>('ALCHEMY_API_KEY');
+    const apiKey = this.configService.get<string>("ALCHEMY_API_KEY");
     if (!apiKey) {
-      this.logger.warn('ALCHEMY_API_KEY not configured');
+      this.logger.warn("ALCHEMY_API_KEY not configured");
       return new Map(addresses.map((a) => [a, []]));
     }
 
@@ -67,10 +68,10 @@ export class AlchemyService {
         const response = await fetch(
           `https://bnb-mainnet.g.alchemy.com/data/v1/${apiKey}/assets/tokens/by-address`,
           {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              addresses: [{ address, networks: ['bnb-mainnet'] }],
+              addresses: [{ address, networks: ["bnb-mainnet"] }],
               withMetadata: true,
               withPrices: true,
             }),
@@ -102,13 +103,13 @@ export class AlchemyService {
 
     const results = data?.tokens ?? data?.result?.tokens ?? [];
     for (const token of results) {
-      const balance = token.balance ?? token.tokenBalance ?? '0';
-      if (balance === '0' || balance === '0x0') continue;
+      const balance = token.balance ?? token.tokenBalance ?? "0";
+      if (balance === "0" || balance === "0x0") continue;
 
       tokens.push({
-        address: token.contractAddress ?? token.address ?? '',
-        symbol: token.symbol ?? token.metadata?.symbol ?? 'UNKNOWN',
-        name: token.name ?? token.metadata?.name ?? 'Unknown Token',
+        address: token.contractAddress ?? token.address ?? "",
+        symbol: token.symbol ?? token.metadata?.symbol ?? "UNKNOWN",
+        name: token.name ?? token.metadata?.name ?? "Unknown Token",
         decimals: token.decimals ?? token.metadata?.decimals ?? 18,
         balance,
         priceUsd: token.prices?.[0]?.value ?? token.priceUsd ?? null,
@@ -119,9 +120,52 @@ export class AlchemyService {
   }
 
   private async getBalancesViaRpc(
-    _vaultAddress: string,
+    vaultAddress: string,
   ): Promise<AlchemyTokenPosition[]> {
-    this.logger.debug('Dev mode: returning empty balances (no local RPC configured)');
-    return [];
+    const rpcUrl = this.configService.get<string>("RPC_URL");
+    if (!rpcUrl) return [];
+
+    const provider = new JsonRpcProvider(rpcUrl);
+    const erc20Abi = [
+      "function balanceOf(address) view returns (uint256)",
+      "function symbol() view returns (string)",
+      "function name() view returns (string)",
+      "function decimals() view returns (uint8)",
+    ];
+
+    const knownTokens = [
+      "0x55d398326f99059fF775485246999027B3197955", // USDT
+      "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c", // WBNB
+      "0xe9e7CEA3DedcA5984780Bafc599bD69ADd087D56", // BUSD
+    ];
+
+    const positions: AlchemyTokenPosition[] = [];
+    for (const addr of knownTokens) {
+      try {
+        const token = new Contract(addr, erc20Abi, provider);
+        const balance: bigint = await token.balanceOf(vaultAddress);
+        if (balance === 0n) continue;
+
+        const [symbol, name, decimals] = await Promise.all([
+          token.symbol(),
+          token.name(),
+          token.decimals(),
+        ]);
+
+        positions.push({
+          address: addr,
+          symbol,
+          name,
+          decimals: Number(decimals),
+          balance: balance.toString(),
+          priceUsd: null,
+        });
+      } catch {
+        // token might not exist on this fork
+      }
+    }
+
+    await provider.destroy();
+    return positions;
   }
 }

@@ -1,9 +1,9 @@
 import { useState, useCallback } from 'react';
-import { useWriteContract } from 'wagmi';
+import { usePublicClient, useWriteContract } from 'wagmi';
 import { type Address, erc20Abi, maxUint256 } from 'viem';
 import { StrategyBuilderVaultAbi } from '@/lib/abis';
 
-type DepositStep = 'idle' | 'checking' | 'approving' | 'depositing' | 'done' | 'error';
+type DepositStep = 'idle' | 'checking' | 'approving' | 'depositing' | 'confirming' | 'done' | 'error';
 
 const USDT_ADDRESSES = new Set([
   '0x55d398326f99059ff775485246999027b3197955', // BSC USDT
@@ -16,6 +16,7 @@ export function useApproveAndDeposit() {
   const [error, setError] = useState<string | null>(null);
 
   const { writeContractAsync } = useWriteContract();
+  const publicClient = usePublicClient();
 
   const approveAndDeposit = useCallback(
     async (params: {
@@ -42,42 +43,50 @@ export function useApproveAndDeposit() {
         if (needsResetToZero) {
           setStep('approving');
           setCurrentStep(stepIdx++);
-          await writeContractAsync({
+          const hash = await writeContractAsync({
             address: params.tokenAddress,
             abi: erc20Abi,
             functionName: 'approve',
             args: [params.vaultAddress, 0n],
           });
+          await publicClient!.waitForTransactionReceipt({ hash });
         }
 
         if (needsApproval) {
           setStep('approving');
           setCurrentStep(stepIdx++);
-          await writeContractAsync({
+          const hash = await writeContractAsync({
             address: params.tokenAddress,
             abi: erc20Abi,
             functionName: 'approve',
             args: [params.vaultAddress, maxUint256],
           });
+          await publicClient!.waitForTransactionReceipt({ hash });
         }
 
         setStep('depositing');
         setCurrentStep(stepIdx);
-        await writeContractAsync({
+        const depositHash = await writeContractAsync({
           address: params.vaultAddress,
           abi: StrategyBuilderVaultAbi,
           functionName: 'deposit',
           args: [params.tokenAddress, params.amount],
+          gas: 300_000n,
         });
 
+        setStep('confirming');
+        await publicClient!.waitForTransactionReceipt({ hash: depositHash });
+
         setStep('done');
+        return true;
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'Transaction failed';
         setError(msg);
         setStep('error');
+        return false;
       }
     },
-    [writeContractAsync],
+    [writeContractAsync, publicClient],
   );
 
   const reset = useCallback(() => {

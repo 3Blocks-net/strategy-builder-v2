@@ -12,7 +12,9 @@
     "deploy:bsc-mainnet": "hardhat ignition deploy --network bscMainnet",
     "verify:bsc-testnet": "hardhat verify --network bscTestnet",
     "verify:bsc-mainnet": "hardhat verify --network bscMainnet",
-    "clean": "hardhat clean"
+    "clean": "hardhat clean",
+    "fork:bsc": "hardhat node --network bscFork",
+    "deploy:fork": "hardhat compile --build-profile production && hardhat run --build-profile production --network localhost scripts/deploy-fork.ts"
   },
   "keywords": [],
   "author": "",
@@ -26,6 +28,7 @@
     "@types/mocha": "^10.0.10",
     "@types/node": "^25.5.0",
     "chai": "^6.2.2",
+    "dotenv": "^17.4.2",
     "ethers": "^6.16.0",
     "hardhat": "^3.2.0",
     "mocha": "^11.7.5",

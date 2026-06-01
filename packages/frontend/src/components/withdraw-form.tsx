@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useAccount } from 'wagmi';
 import { type Address, parseUnits, formatUnits } from 'viem';
 import { Button } from '@/components/ui/button';
@@ -51,28 +51,24 @@ export function WithdrawForm({
     if (!selectedToken || !amount || !userAddress) return;
 
     const amountBig = parseUnits(amount, selectedToken.decimals);
-    await withdraw.withdraw({
+    const success = await withdraw.withdraw({
       vaultAddress,
       tokenAddress: selectedToken.address as Address,
       amount: amountBig,
       recipient: userAddress,
     });
-  };
 
-  useEffect(() => {
-    if (withdraw.step === 'done') {
-      if (selectedToken) {
-        recordEvent(vaultAddress, {
-          eventType: 'WITHDRAWAL',
-          token: selectedToken.address,
-          amount: parseUnits(amount, selectedToken.decimals).toString(),
-          feeAmount: BigInt(Math.floor(feeAmount)).toString(),
-          feeBps,
-        });
-      }
+    if (success) {
+      recordEvent(vaultAddress, {
+        eventType: 'WITHDRAWAL',
+        token: selectedToken.address,
+        amount: amountBig.toString(),
+        feeAmount: BigInt(Math.floor(feeAmount)).toString(),
+        feeBps,
+      });
       onSuccess?.();
     }
-  }, [withdraw.step]);
+  };
 
   const decodeError = (msg: string): string => {
     for (const [name, description] of Object.entries(errorMap)) {

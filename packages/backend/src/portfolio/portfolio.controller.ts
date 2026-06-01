@@ -5,10 +5,13 @@ import {
   Request,
   UseGuards,
 } from '@nestjs/common';
+import { ApiBearerAuth, ApiTags, ApiOperation, ApiParam } from '@nestjs/swagger';
 import { VaultPortfolioService } from './vault-portfolio.service';
 import { VaultOwnerGuard } from '../vault/vault-owner.guard';
 import { VaultService } from '../vault/vault.service';
 
+@ApiTags('Portfolio')
+@ApiBearerAuth()
 @Controller('vaults')
 export class PortfolioController {
   constructor(
@@ -17,6 +20,7 @@ export class PortfolioController {
   ) {}
 
   @Get('overview')
+  @ApiOperation({ summary: 'Get all user vaults with total USD value' })
   async getOverview(@Request() req: any) {
     const vaults = await this.vaultService.listVaults(req.user.address);
     const overview = await this.portfolioService.getOverview(
@@ -33,6 +37,8 @@ export class PortfolioController {
 
   @Get(':address/portfolio')
   @UseGuards(VaultOwnerGuard)
+  @ApiOperation({ summary: 'Get vault token positions with USD values' })
+  @ApiParam({ name: 'address', description: 'Vault address' })
   async getPortfolio(@Param('address') address: string) {
     return this.portfolioService.getPortfolio(address);
   }
