@@ -8,6 +8,7 @@ interface EditorToolbarProps {
   onAddStep: (stepType: StepTypeOption) => void;
   label: string;
   onLabelChange: (label: string) => void;
+  onDeploy: () => void;
 }
 
 export function EditorToolbar({
@@ -15,6 +16,7 @@ export function EditorToolbar({
   onAddStep,
   label,
   onLabelChange,
+  onDeploy,
 }: EditorToolbarProps) {
   const navigate = useNavigate();
   const { address } = useParams<{ address: string }>();
@@ -50,6 +52,9 @@ export function EditorToolbar({
           </span>
         </div>
       )}
+      <Button size="sm" onClick={onDeploy} disabled={errorCount > 0}>
+        Deploy
+      </Button>
     </div>
   );
 }

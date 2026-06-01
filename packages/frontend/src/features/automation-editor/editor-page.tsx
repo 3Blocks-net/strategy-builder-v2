@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useParams } from 'react-router';
 import {
   ReactFlow,
   Background,
@@ -13,6 +14,7 @@ import { ActionNode } from './components/action-node';
 import { EditorToolbar } from './components/editor-toolbar';
 import { SidePanel } from './components/side-panel';
 import { ValidationPanel } from './components/validation-panel';
+import { DeployDialog } from './components/deploy-dialog';
 import { isValidConnection as checkCycle } from './lib/is-valid-connection';
 import type { GraphNode, GraphEdge } from './lib/types';
 import { apiFetch } from '@/lib/api';
@@ -24,6 +26,8 @@ const nodeTypes: NodeTypes = {
 
 export function AutomationEditorPage() {
   const [stepTypes, setStepTypes] = useState<StepTypeOption[]>([]);
+  const [showDeploy, setShowDeploy] = useState(false);
+  const [automationId, setAutomationId] = useState<string | null>(null);
 
   const {
     nodes,
@@ -94,6 +98,35 @@ export function AutomationEditorPage() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [removeSelected]);
 
+  const { address: vaultAddress } = useParams<{ address: string }>();
+
+  const handleDeploy = useCallback(async () => {
+    if (!vaultAddress) return;
+    try {
+      let id = automationId;
+      if (!id) {
+        const res = await apiFetch(`/vaults/${vaultAddress}/automations`, {
+          method: 'POST',
+          body: JSON.stringify({ label }),
+        });
+        const data = await res.json();
+        id = data.id;
+        setAutomationId(id);
+      }
+      // Save editor state before encoding
+      await apiFetch(`/vaults/${vaultAddress}/automations/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          editorState: { nodes, edges },
+          label,
+        }),
+      });
+      setShowDeploy(true);
+    } catch (err) {
+      console.error('Failed to prepare deploy:', err);
+    }
+  }, [vaultAddress, automationId, label, nodes, edges]);
+
   const defaultEdgeOptions = useMemo(
     () => ({ type: 'default' as const }),
     [],
@@ -106,6 +139,7 @@ export function AutomationEditorPage() {
         onAddStep={handleAddStep}
         label={label}
         onLabelChange={setLabel}
+        onDeploy={handleDeploy}
       />
       <div className="flex-1 flex">
         <div className="flex-1">
@@ -128,6 +162,13 @@ export function AutomationEditorPage() {
         <SidePanel />
       </div>
       <ValidationPanel />
+      {showDeploy && automationId && (
+        <DeployDialog
+          automationId={automationId}
+          label={label}
+          onClose={() => setShowDeploy(false)}
+        />
+      )}
     </div>
   );
 }
