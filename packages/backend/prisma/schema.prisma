@@ -12,6 +12,7 @@ model User {
   walletAddress String   @unique
   createdAt     DateTime @default(now())
   lastLoginAt   DateTime @default(now())
+  vaults        Vault[]
 }
 
 model Nonce {
@@ -28,4 +29,36 @@ model RefreshToken {
   walletAddress String
   expiresAt     DateTime
   createdAt     DateTime @default(now())
+}
+
+model Vault {
+  id             String       @id @default(uuid())
+  address        String       @unique
+  chainId        Int
+  ownerAddress   String
+  depositToken   String
+  label          String
+  createdAtBlock Int
+  txHash         String
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  owner          User         @relation(fields: [ownerAddress], references: [walletAddress])
+  events         VaultEvent[]
+
+  @@unique([ownerAddress, label])
+}
+
+model VaultEvent {
+  id             String   @id @default(uuid())
+  vaultId        String
+  eventType      String
+  token          String
+  amount         String
+  feeAmount      String
+  feeBps         Int
+  txHash         String
+  blockNumber    Int
+  blockTimestamp  DateTime
+  createdAt      DateTime @default(now())
+  vault          Vault    @relation(fields: [vaultId], references: [id])
 }
