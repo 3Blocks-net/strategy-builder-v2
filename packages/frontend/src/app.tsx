@@ -5,6 +5,7 @@ import { ProtectedRoute } from '@/components/protected-route';
 import { ConnectPage } from '@/pages/connect';
 import { DashboardPage } from '@/pages/dashboard';
 import { CreateVaultPage } from '@/pages/vault/create';
+import { VaultDetailPage } from '@/pages/vault/detail';
 
 export function App() {
   return (
@@ -26,6 +27,14 @@ export function App() {
               element={
                 <ProtectedRoute>
                   <CreateVaultPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/vault/:address"
+              element={
+                <ProtectedRoute>
+                  <VaultDetailPage />
                 </ProtectedRoute>
               }
             />
