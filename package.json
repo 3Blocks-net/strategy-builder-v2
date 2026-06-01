@@ -18,6 +18,7 @@
     "frontend:dev": "pnpm --filter frontend dev",
     "frontend:build": "pnpm --filter frontend build",
     "frontend:test": "pnpm --filter frontend test",
+    "frontend:test:e2e": "pnpm --filter frontend test:e2e",
     "dev": "node scripts/dev.mjs",
     "db:up": "docker compose up -d db",
     "db:down": "docker compose down",
