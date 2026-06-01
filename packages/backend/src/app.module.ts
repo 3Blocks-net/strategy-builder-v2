@@ -7,6 +7,7 @@ import { VaultModule } from './vault/vault.module';
 import { BlockchainModule } from './blockchain/blockchain.module';
 import { PortfolioModule } from './portfolio/portfolio.module';
 import { StepRegistryModule } from './step-registry/step-registry.module';
+import { AutomationModule } from './automation/automation.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { StepRegistryModule } from './step-registry/step-registry.module';
     BlockchainModule,
     PortfolioModule,
     StepRegistryModule,
+    AutomationModule,
   ],
 })
 export class AppModule {}
