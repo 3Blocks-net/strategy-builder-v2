@@ -11,6 +11,7 @@ const VAULT_ABI = [
   'function createAutomation((uint8 stepType, address target, bytes4 selector, uint32 nextOnTrue, uint32 nextOnFalse, bytes data)[] steps) external returns (uint32)',
   'function createOwnerAutomation((uint8 stepType, address target, bytes4 selector, uint32 nextOnTrue, uint32 nextOnFalse, bytes data)[] steps) external returns (uint32)',
   'function setContext(bytes[] ctx) external',
+  'function setAutomationActive(uint32 automationId, bool active) external',
 ];
 
 interface EditorNode {
@@ -305,6 +306,13 @@ export class EncodingService {
     // Slot names are identified during encoding via the schema's x-ui-widget: context-slot
     // For now, collect names referenced by context slot fields from step type schemas
     return Array.from(names);
+  }
+
+  encodeToggle(onChainId: number, active: boolean): string {
+    return this.vaultInterface.encodeFunctionData('setAutomationActive', [
+      onChainId,
+      active,
+    ]);
   }
 
   private isExistingSlot(_name: string, _vaultId: string): boolean {

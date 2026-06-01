@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
+import { useSendTransaction } from 'wagmi';
 import { Button } from '@/components/ui/button';
 import { apiFetch } from '@/lib/api';
 
@@ -27,6 +28,9 @@ export function AutomationList({ vaultAddress }: AutomationListProps) {
   const navigate = useNavigate();
   const [automations, setAutomations] = useState<AutomationListItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [pendingToggle, setPendingToggle] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const { sendTransactionAsync } = useSendTransaction();
 
   const fetchAutomations = () => {
     apiFetch(`/vaults/${vaultAddress}/automations`)
@@ -43,6 +47,57 @@ export function AutomationList({ vaultAddress }: AutomationListProps) {
     const interval = setInterval(fetchAutomations, 30_000);
     return () => clearInterval(interval);
   }, [vaultAddress]);
+
+  const handleToggle = async (a: AutomationListItem, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (a.isDraft || a.onChainId === null) return;
+
+    const targetActive = !a.active;
+    setPendingToggle(a.id);
+
+    setAutomations((prev) =>
+      prev.map((x) => (x.id === a.id ? { ...x, active: targetActive } : x)),
+    );
+
+    try {
+      const res = await apiFetch(
+        `/vaults/${vaultAddress}/automations/${a.id}/encode-toggle`,
+        { method: 'POST', body: JSON.stringify({ active: targetActive }) },
+      );
+      const { calldata } = await res.json();
+
+      await sendTransactionAsync({
+        to: vaultAddress as `0x${string}`,
+        data: calldata as `0x${string}`,
+        gas: 200_000n,
+      });
+
+      setTimeout(fetchAutomations, 3000);
+    } catch {
+      setAutomations((prev) =>
+        prev.map((x) => (x.id === a.id ? { ...x, active: a.active } : x)),
+      );
+    } finally {
+      setPendingToggle(null);
+    }
+  };
+
+  const handleDelete = async (a: AutomationListItem) => {
+    try {
+      const res = await apiFetch(
+        `/vaults/${vaultAddress}/automations/${a.id}`,
+        { method: 'DELETE' },
+      );
+      if (res.ok) {
+        setAutomations((prev) => prev.filter((x) => x.id !== a.id));
+      } else {
+        const body = await res.json().catch(() => ({}));
+        alert(body.message ?? 'Delete failed');
+      }
+    } finally {
+      setConfirmDelete(null);
+    }
+  };
 
   return (
     <div>
@@ -72,6 +127,7 @@ export function AutomationList({ vaultAddress }: AutomationListProps) {
                 <th className="text-left px-4 py-2 font-medium text-gray-600">Steps</th>
                 <th className="text-left px-4 py-2 font-medium text-gray-600">Status</th>
                 <th className="text-left px-4 py-2 font-medium text-gray-600">Trigger</th>
+                <th className="text-right px-4 py-2 font-medium text-gray-600">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -87,50 +143,90 @@ export function AutomationList({ vaultAddress }: AutomationListProps) {
                         {a.label || 'Untitled'}
                       </span>
                       {a.isDraft && (
-                        <span className="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">
-                          Draft
-                        </span>
+                        <span className="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">Draft</span>
                       )}
                       {a.ownerOnly && (
-                        <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">
-                          Owner-only
-                        </span>
+                        <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">Owner-only</span>
                       )}
                     </div>
                   </td>
                   <td className="px-4 py-3 text-gray-600">{a.stepCount}</td>
                   <td className="px-4 py-3">
                     {a.isDraft ? (
-                      <span className="text-xs text-gray-400">—</span>
-                    ) : a.active === true ? (
-                      <span className="inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-50 px-2 py-0.5 rounded-full">
-                        Active
-                      </span>
-                    ) : a.active === false ? (
-                      <span className="inline-flex items-center gap-1 text-xs font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
-                        Inactive
-                      </span>
-                    ) : null}
+                      <span className="text-xs text-gray-400">&mdash;</span>
+                    ) : a.active ? (
+                      <span className="text-xs font-medium text-green-700 bg-green-50 px-2 py-0.5 rounded-full">Active</span>
+                    ) : (
+                      <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">Inactive</span>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-gray-600">
                     {a.isDraft ? (
-                      <span className="text-xs text-gray-400">—</span>
+                      <span className="text-xs text-gray-400">&mdash;</span>
                     ) : a.triggerStatus ? (
-                      <span
-                        className={
-                          a.triggerStatus.met
-                            ? 'text-green-600 font-medium'
-                            : 'text-gray-600'
-                        }
-                      >
+                      <span className={a.triggerStatus.met ? 'text-green-600 font-medium' : ''}>
                         {a.triggerStatus.description}
                       </span>
                     ) : null}
+                  </td>
+                  <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center justify-end gap-2">
+                      {!a.isDraft && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          disabled={pendingToggle === a.id}
+                          onClick={(e) => handleToggle(a, e)}
+                        >
+                          {pendingToggle === a.id
+                            ? '...'
+                            : a.active
+                              ? 'Deactivate'
+                              : 'Activate'}
+                        </Button>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                        disabled={a.active === true}
+                        title={a.active ? 'Deactivate before deleting' : 'Delete automation'}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setConfirmDelete(a.id);
+                        }}
+                      >
+                        Delete
+                      </Button>
+                    </div>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {confirmDelete && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-sm w-full mx-4 p-6">
+            <h3 className="text-lg font-semibold mb-2">Delete Automation</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              This will remove the automation from your list. The on-chain automation data will remain until overwritten. Continue?
+            </p>
+            <div className="flex justify-end gap-3">
+              <Button variant="ghost" onClick={() => setConfirmDelete(null)}>Cancel</Button>
+              <Button
+                variant="destructive"
+                onClick={() => {
+                  const a = automations.find((x) => x.id === confirmDelete);
+                  if (a) handleDelete(a);
+                }}
+              >
+                Delete
+              </Button>
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -270,4 +270,18 @@ describe('EncodingService', () => {
       ).rejects.toThrow('Graph must have at least one node');
     });
   });
+
+  describe('encodeToggle', () => {
+    it('encodes setAutomationActive calldata', () => {
+      const calldata = service.encodeToggle(0, false);
+      expect(calldata).toBeTruthy();
+      expect(calldata.startsWith('0x')).toBe(true);
+    });
+
+    it('encodes activate and deactivate differently', () => {
+      const activate = service.encodeToggle(1, true);
+      const deactivate = service.encodeToggle(1, false);
+      expect(activate).not.toBe(deactivate);
+    });
+  });
 });

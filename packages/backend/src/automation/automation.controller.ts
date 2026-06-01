@@ -1,6 +1,8 @@
 import {
   Body,
+  ConflictException,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -123,5 +125,40 @@ export class AutomationController {
       { nodes: editorState.nodes, edges: editorState.edges },
       body.contextOverrides,
     );
+  }
+
+  @Post(':address/automations/:id/encode-toggle')
+  @UseGuards(VaultOwnerGuard)
+  async encodeToggle(
+    @Param('id') id: string,
+    @Body() body: { active: boolean },
+  ) {
+    const automation = await this.automationService.findById(id);
+    if (automation.onChainId === null) {
+      throw new ConflictException('Cannot toggle a draft automation');
+    }
+    const calldata = this.encodingService.encodeToggle(automation.onChainId, body.active);
+    return { calldata, functionName: 'setAutomationActive' };
+  }
+
+  @Delete(':address/automations/:id')
+  @UseGuards(VaultOwnerGuard)
+  async delete(
+    @Param('address') address: string,
+    @Param('id') id: string,
+  ) {
+    const automation = await this.automationService.findById(id);
+
+    if (automation.onChainId !== null) {
+      const statuses = await this.triggerStatusService.getStatuses(address);
+      const status = statuses.find((s) => s.onChainId === automation.onChainId);
+      if (status?.active) {
+        throw new ConflictException(
+          'Automation must be deactivated on-chain before deletion',
+        );
+      }
+    }
+
+    return this.automationService.delete(id);
   }
 }

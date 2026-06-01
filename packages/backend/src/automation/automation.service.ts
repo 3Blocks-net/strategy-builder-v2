@@ -67,4 +67,9 @@ export class AutomationService {
       },
     });
   }
+
+  async delete(id: string) {
+    await this.prisma.automation.delete({ where: { id } });
+    return { deleted: true };
+  }
 }
