@@ -6,6 +6,6 @@ import { VaultOwnerGuard } from './vault-owner.guard';
 @Module({
   controllers: [VaultController],
   providers: [VaultService, VaultOwnerGuard],
-  exports: [VaultService],
+  exports: [VaultService, VaultOwnerGuard],
 })
 export class VaultModule {}
