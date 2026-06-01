@@ -11,6 +11,7 @@ import { useEditorStore, type StepTypeOption } from './store/editor-store';
 import { ConditionNode } from './components/condition-node';
 import { ActionNode } from './components/action-node';
 import { EditorToolbar } from './components/editor-toolbar';
+import { SidePanel } from './components/side-panel';
 import { isValidConnection as checkCycle } from './lib/is-valid-connection';
 import type { GraphNode, GraphEdge } from './lib/types';
 import { apiFetch } from '@/lib/api';
@@ -105,22 +106,25 @@ export function AutomationEditorPage() {
         label={label}
         onLabelChange={setLabel}
       />
-      <div className="flex-1">
-        <ReactFlow
-          nodes={nodes}
-          edges={edges}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onConnect={onConnect}
-          nodeTypes={nodeTypes}
-          isValidConnection={handleIsValidConnection}
-          defaultEdgeOptions={defaultEdgeOptions}
-          fitView
-          deleteKeyCode={null}
-        >
-          <Background />
-          <Controls />
-        </ReactFlow>
+      <div className="flex-1 flex">
+        <div className="flex-1">
+          <ReactFlow
+            nodes={nodes}
+            edges={edges}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            onConnect={onConnect}
+            nodeTypes={nodeTypes}
+            isValidConnection={handleIsValidConnection}
+            defaultEdgeOptions={defaultEdgeOptions}
+            fitView
+            deleteKeyCode={null}
+          >
+            <Background />
+            <Controls />
+          </ReactFlow>
+        </div>
+        <SidePanel />
       </div>
     </div>
   );

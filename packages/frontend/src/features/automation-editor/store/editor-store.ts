@@ -43,6 +43,7 @@ export interface EditorState {
   setSelectedNodeId: (nodeId: string | null) => void;
   addNode: (stepType: StepTypeOption, position: { x: number; y: number }) => void;
   removeSelected: () => void;
+  updateNodeParams: (nodeId: string, params: Record<string, unknown>) => void;
   setLabel: (label: string) => void;
   setDescription: (description: string) => void;
 }
@@ -125,6 +126,16 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         (e) => e.source !== selectedNodeId && e.target !== selectedNodeId,
       ),
       selectedNodeId: null,
+    });
+  },
+
+  updateNodeParams: (nodeId, params) => {
+    set({
+      nodes: get().nodes.map((n) =>
+        n.id === nodeId
+          ? { ...n, data: { ...n.data, params: { ...n.data.params, ...params } } }
+          : n,
+      ),
     });
   },
 
