@@ -42,6 +42,10 @@ export function AutomationEditorPage() {
     label,
     setLabel,
     loadEditorState,
+    undo,
+    redo,
+    copySelected,
+    paste,
   } = useEditorStore();
 
   useAutoSave(vaultAddress, automationId);
@@ -110,15 +114,23 @@ export function AutomationEditorPage() {
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Delete' || e.key === 'Backspace') {
-        const active = document.activeElement;
-        if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) return;
+      const active = document.activeElement;
+      const inInput = active && ['INPUT', 'TEXTAREA', 'SELECT'].includes(active.tagName);
+      const mod = e.ctrlKey || e.metaKey;
+
+      if ((e.key === 'Delete' || e.key === 'Backspace') && !inInput) {
         removeSelected();
+        return;
       }
+      if (mod && e.key === 'z' && !e.shiftKey) { e.preventDefault(); undo(); return; }
+      if (mod && e.key === 'z' && e.shiftKey) { e.preventDefault(); redo(); return; }
+      if (mod && e.key === 'Z') { e.preventDefault(); redo(); return; }
+      if (mod && e.key === 'c' && !inInput) { e.preventDefault(); copySelected(); return; }
+      if (mod && e.key === 'v' && !inInput) { e.preventDefault(); paste(); return; }
     }
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [removeSelected]);
+  }, [removeSelected, undo, redo, copySelected, paste]);
 
   const handleDeploy = useCallback(async () => {
     if (!vaultAddress) return;

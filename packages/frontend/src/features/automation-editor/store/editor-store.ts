@@ -10,6 +10,7 @@ import {
   addEdge,
 } from '@xyflow/react';
 import { validateGraph } from '../lib/validate-graph';
+import { autoLayout } from '../lib/auto-layout';
 import type { ValidationError, GraphNode, GraphEdge } from '../lib/types';
 
 export interface StepTypeOption {
@@ -34,6 +35,13 @@ export interface EditorNodeData {
 
 export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 
+interface Snapshot {
+  nodes: Node<EditorNodeData>[];
+  edges: Edge[];
+}
+
+const MAX_HISTORY = 50;
+
 export interface EditorState {
   nodes: Node<EditorNodeData>[];
   edges: Edge[];
@@ -44,6 +52,9 @@ export interface EditorState {
   ownerOnly: boolean;
   isDirty: boolean;
   saveStatus: SaveStatus;
+  past: Snapshot[];
+  future: Snapshot[];
+  clipboard: Snapshot | null;
 
   onNodesChange: OnNodesChange<Node<EditorNodeData>>;
   onEdgesChange: OnEdgesChange;
@@ -58,6 +69,12 @@ export interface EditorState {
   markDirty: () => void;
   setSaveStatus: (status: SaveStatus) => void;
   loadEditorState: (state: { nodes: Node<EditorNodeData>[]; edges: Edge[]; label?: string; description?: string }) => void;
+  pushSnapshot: () => void;
+  undo: () => void;
+  redo: () => void;
+  copySelected: () => void;
+  paste: () => void;
+  applyAutoLayout: () => void;
 }
 
 let nodeCounter = 0;
@@ -103,6 +120,14 @@ export const useEditorStore = create<EditorState>((set, get) => {
     validationTimer = setTimeout(() => get().runValidation(), 300);
   }
 
+  function pushSnapshot() {
+    const { nodes, edges, past } = get();
+    const snap: Snapshot = { nodes: structuredClone(nodes), edges: structuredClone(edges) };
+    const newPast = [...past, snap];
+    if (newPast.length > MAX_HISTORY) newPast.shift();
+    set({ past: newPast, future: [] });
+  }
+
   return {
   nodes: [],
   edges: [],
@@ -113,6 +138,9 @@ export const useEditorStore = create<EditorState>((set, get) => {
   ownerOnly: false,
   isDirty: false,
   saveStatus: 'idle' as SaveStatus,
+  past: [] as Snapshot[],
+  future: [] as Snapshot[],
+  clipboard: null as Snapshot | null,
 
   onNodesChange: (changes) => {
     set({ nodes: applyNodeChanges(changes, get().nodes) });
@@ -124,7 +152,10 @@ export const useEditorStore = create<EditorState>((set, get) => {
     }
     const structural = changes.some((c) => c.type === 'add' || c.type === 'remove');
     if (structural) { set({ isDirty: true }); scheduleValidation(); }
-    if (changes.some((c) => c.type === 'position' && !c.dragging)) set({ isDirty: true });
+    if (changes.some((c) => c.type === 'position' && !c.dragging)) {
+      set({ isDirty: true });
+      pushSnapshot();
+    }
   },
 
   onEdgesChange: (changes) => {
@@ -134,6 +165,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
   },
 
   onConnect: (connection) => {
+    pushSnapshot();
     const sourceNode = get().nodes.find((n) => n.id === connection.source);
     let label = 'Next';
     let style = { stroke: '#9ca3af' };
@@ -163,6 +195,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
   setSelectedNodeId: (nodeId) => set({ selectedNodeId: nodeId }),
 
   addNode: (stepType, position) => {
+    pushSnapshot();
     const id = `node-${++nodeCounter}`;
     const newNode: Node<EditorNodeData> = {
       id,
@@ -184,6 +217,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
   removeSelected: () => {
     const { selectedNodeId, nodes, edges } = get();
     if (!selectedNodeId) return;
+    pushSnapshot();
     set({
       nodes: nodes.filter((n) => n.id !== selectedNodeId),
       edges: edges.filter(
@@ -196,6 +230,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
   },
 
   updateNodeParams: (nodeId, params) => {
+    pushSnapshot();
     set({
       nodes: get().nodes.map((n) =>
         n.id === nodeId
@@ -229,9 +264,102 @@ export const useEditorStore = create<EditorState>((set, get) => {
       description: state.description ?? '',
       isDirty: false,
       saveStatus: 'idle',
+      past: [],
+      future: [],
     });
-    // Run validation after loading
     setTimeout(() => get().runValidation(), 0);
+  },
+
+  pushSnapshot: () => pushSnapshot(),
+
+  undo: () => {
+    const { past, nodes, edges, future } = get();
+    if (past.length === 0) return;
+    const prev = past[past.length - 1];
+    set({
+      past: past.slice(0, -1),
+      future: [...future, { nodes: structuredClone(nodes), edges: structuredClone(edges) }],
+      nodes: prev.nodes,
+      edges: prev.edges,
+      isDirty: true,
+    });
+    scheduleValidation();
+  },
+
+  redo: () => {
+    const { past, nodes, edges, future } = get();
+    if (future.length === 0) return;
+    const next = future[future.length - 1];
+    set({
+      future: future.slice(0, -1),
+      past: [...past, { nodes: structuredClone(nodes), edges: structuredClone(edges) }],
+      nodes: next.nodes,
+      edges: next.edges,
+      isDirty: true,
+    });
+    scheduleValidation();
+  },
+
+  copySelected: () => {
+    const { nodes, edges } = get();
+    const selected = nodes.filter((n) => n.selected);
+    if (selected.length === 0) return;
+    const selectedIds = new Set(selected.map((n) => n.id));
+    const selectedEdges = edges.filter(
+      (e) => selectedIds.has(e.source) && selectedIds.has(e.target),
+    );
+    set({ clipboard: { nodes: structuredClone(selected), edges: structuredClone(selectedEdges) } });
+  },
+
+  paste: () => {
+    const { clipboard } = get();
+    if (!clipboard || clipboard.nodes.length === 0) return;
+    pushSnapshot();
+
+    const suffix = `-copy-${Date.now()}`;
+    const idMap = new Map<string, string>();
+    clipboard.nodes.forEach((n) => idMap.set(n.id, `${n.id}${suffix}`));
+
+    const newNodes: Node<EditorNodeData>[] = clipboard.nodes.map((n) => ({
+      ...n,
+      id: idMap.get(n.id)!,
+      position: { x: n.position.x + 50, y: n.position.y + 50 },
+      selected: true,
+    }));
+
+    const newEdges: Edge[] = clipboard.edges.map((e) => ({
+      ...e,
+      id: `${e.id}${suffix}`,
+      source: idMap.get(e.source) ?? e.source,
+      target: idMap.get(e.target) ?? e.target,
+    }));
+
+    const existingNodes = get().nodes.map((n) => ({ ...n, selected: false }));
+    const existingEdges = get().edges;
+
+    set({
+      nodes: [...existingNodes, ...newNodes],
+      edges: [...existingEdges, ...newEdges],
+      isDirty: true,
+    });
+    scheduleValidation();
+  },
+
+  applyAutoLayout: () => {
+    pushSnapshot();
+    const { nodes, edges } = get();
+    const graphNodes: GraphNode[] = toGraphNodes(nodes);
+    const graphEdges: GraphEdge[] = toGraphEdges(edges);
+    const { nodes: laid } = autoLayout(graphNodes, graphEdges, 'TB');
+
+    const posMap = new Map(laid.map((n) => [n.id, n.position]));
+    set({
+      nodes: nodes.map((n) => ({
+        ...n,
+        position: posMap.get(n.id) ?? n.position,
+      })),
+      isDirty: true,
+    });
   },
 };
 });

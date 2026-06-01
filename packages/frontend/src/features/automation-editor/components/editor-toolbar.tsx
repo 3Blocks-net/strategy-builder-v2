@@ -22,6 +22,11 @@ export function EditorToolbar({
   const { address } = useParams<{ address: string }>();
   const errorCount = useEditorStore((s) => s.validationErrors.length);
   const saveStatus = useEditorStore((s) => s.saveStatus);
+  const canUndo = useEditorStore((s) => s.past.length > 0);
+  const canRedo = useEditorStore((s) => s.future.length > 0);
+  const undo = useEditorStore((s) => s.undo);
+  const redo = useEditorStore((s) => s.redo);
+  const applyAutoLayout = useEditorStore((s) => s.applyAutoLayout);
 
   return (
     <div className="flex items-center gap-3 px-4 py-2 bg-white border-b border-gray-200">
@@ -42,6 +47,16 @@ export function EditorToolbar({
       />
       <div className="h-5 w-px bg-gray-200" />
       <AddStepDropdown stepTypes={stepTypes} onAdd={onAddStep} />
+      <div className="h-5 w-px bg-gray-200" />
+      <Button variant="ghost" size="sm" onClick={undo} disabled={!canUndo} title="Undo (Ctrl+Z)">
+        Undo
+      </Button>
+      <Button variant="ghost" size="sm" onClick={redo} disabled={!canRedo} title="Redo (Ctrl+Shift+Z)">
+        Redo
+      </Button>
+      <Button variant="ghost" size="sm" onClick={applyAutoLayout} title="Auto-Layout">
+        Layout
+      </Button>
       <div className="flex-1" />
       {saveStatus === 'saving' && (
         <span className="text-xs text-gray-400">Saving...</span>
