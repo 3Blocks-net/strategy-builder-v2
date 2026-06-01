@@ -1,6 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router';
+import { type Address } from 'viem';
 import { Button } from '@/components/ui/button';
+import { DepositForm } from '@/components/deposit-form';
+import { WithdrawForm } from '@/components/withdraw-form';
 import { apiFetch } from '@/lib/api';
 
 interface Position {
@@ -51,6 +54,19 @@ export function VaultDetailPage() {
   const [labelInput, setLabelInput] = useState('');
   const [labelError, setLabelError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [fees, setFees] = useState<{ depositFeeBps: number; withdrawFeeBps: number } | null>(null);
+  const [errorMap, setErrorMap] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    apiFetch('/fees')
+      .then((r) => r.json())
+      .then((d) => setFees(d))
+      .catch(() => {});
+    apiFetch('/errors/contract-errors')
+      .then((r) => r.json())
+      .then((d) => setErrorMap(d.errors ?? {}))
+      .catch(() => {});
+  }, []);
 
   const fetchPortfolio = useCallback(async () => {
     if (!address) return;
@@ -236,6 +252,23 @@ export function VaultDetailPage() {
 
         {!loading && !error && sortedPositions.length > 0 && (
           <PositionsTable positions={sortedPositions} />
+        )}
+
+        {address && (
+          <div className="grid gap-6 md:grid-cols-2">
+            <DepositForm
+              vaultAddress={address as Address}
+              fees={fees}
+              onSuccess={fetchPortfolio}
+            />
+            <WithdrawForm
+              vaultAddress={address as Address}
+              positions={sortedPositions}
+              fees={fees}
+              errorMap={errorMap}
+              onSuccess={fetchPortfolio}
+            />
+          </div>
         )}
       </div>
     </div>

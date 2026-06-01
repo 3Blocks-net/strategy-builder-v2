@@ -7,7 +7,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { Contract, JsonRpcProvider, getAddress, isAddress } from 'ethers';
 import { PrismaService } from '../database/prisma.service';
-import { Vault } from '@prisma/client';
+import { Vault, VaultEvent } from '@prisma/client';
 
 const FACTORY_ABI = [
   'function isRegisteredVault(address) external view returns (bool)',
@@ -98,6 +98,55 @@ export class VaultService {
     return this.prisma.vault.update({
       where: { address: vaultAddress },
       data: { label },
+    });
+  }
+
+  async createEvent(
+    vaultAddress: string,
+    dto: {
+      eventType: string;
+      token: string;
+      amount: string;
+      feeAmount: string;
+      feeBps: number;
+      txHash: string;
+      blockNumber: number;
+      blockTimestamp: string;
+    },
+  ): Promise<VaultEvent> {
+    const vault = await this.prisma.vault.findUnique({
+      where: { address: vaultAddress },
+    });
+    if (!vault) {
+      throw new BadRequestException('VAULT_NOT_FOUND');
+    }
+
+    return this.prisma.vaultEvent.create({
+      data: {
+        vaultId: vault.id,
+        eventType: dto.eventType,
+        token: dto.token,
+        amount: dto.amount,
+        feeAmount: dto.feeAmount,
+        feeBps: dto.feeBps,
+        txHash: dto.txHash,
+        blockNumber: dto.blockNumber,
+        blockTimestamp: new Date(dto.blockTimestamp),
+      },
+    });
+  }
+
+  async getEvents(vaultAddress: string): Promise<VaultEvent[]> {
+    const vault = await this.prisma.vault.findUnique({
+      where: { address: vaultAddress },
+    });
+    if (!vault) {
+      throw new BadRequestException('VAULT_NOT_FOUND');
+    }
+
+    return this.prisma.vaultEvent.findMany({
+      where: { vaultId: vault.id },
+      orderBy: { blockTimestamp: 'desc' },
     });
   }
 

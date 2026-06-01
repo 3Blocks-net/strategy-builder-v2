@@ -12,6 +12,7 @@ import { VaultService } from './vault.service';
 import { VaultOwnerGuard } from './vault-owner.guard';
 import { CreateVaultDto } from './dto/create-vault.dto';
 import { UpdateVaultDto } from './dto/update-vault.dto';
+import { CreateVaultEventDto } from './dto/create-vault-event.dto';
 
 @Controller('vaults')
 export class VaultController {
@@ -35,5 +36,20 @@ export class VaultController {
     @Body() dto: UpdateVaultDto,
   ) {
     return this.vaultService.updateLabel(address, req.user.address, dto.label);
+  }
+
+  @Post(':address/events')
+  @UseGuards(VaultOwnerGuard)
+  async createEvent(
+    @Param('address') address: string,
+    @Body() dto: CreateVaultEventDto,
+  ) {
+    return this.vaultService.createEvent(address, dto);
+  }
+
+  @Get(':address/events')
+  @UseGuards(VaultOwnerGuard)
+  async getEvents(@Param('address') address: string) {
+    return this.vaultService.getEvents(address);
   }
 }
