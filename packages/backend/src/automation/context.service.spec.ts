@@ -44,7 +44,7 @@ describe('ContextService', () => {
         where: { id: 'v1' },
         data: {
           contextSlots: {
-            '0': { name: 'my-slot', createdByAutomationId: 'auto-1' },
+            '0': { name: 'my-slot', type: 'uint256', description: '', createdByAutomationId: 'auto-1' },
           },
         },
       });

@@ -168,6 +168,17 @@ export class AutomationController {
     return { calldata, functionName: 'setAutomationActive' };
   }
 
+  @Post(':address/automations/:id/encode-execute')
+  @UseGuards(VaultOwnerGuard)
+  async encodeExecute(@Param('id') id: string) {
+    const automation = await this.automationService.findById(id);
+    if (automation.onChainId === null) {
+      throw new ConflictException('Cannot execute a draft automation');
+    }
+    const calldata = this.encodingService.encodeExecute(automation.onChainId);
+    return { calldata, functionName: 'executeAutomation' };
+  }
+
   @Delete(':address/automations/:id')
   @UseGuards(VaultOwnerGuard)
   async delete(
@@ -176,7 +187,11 @@ export class AutomationController {
   ) {
     const automation = await this.automationService.findById(id);
 
-    if (automation.onChainId !== null) {
+    // Owner-only automations have no public executor and are never surfaced with
+    // an activate/deactivate toggle in the UI, so deletion is a DB-only removal
+    // regardless of their on-chain active flag. Public automations still require
+    // on-chain deactivation first to avoid orphaning a live, executor-run graph.
+    if (automation.onChainId !== null && !automation.ownerOnly) {
       const statuses = await this.triggerStatusService.getStatuses(address);
       const status = statuses.find((s) => s.onChainId === automation.onChainId);
       if (status?.active) {

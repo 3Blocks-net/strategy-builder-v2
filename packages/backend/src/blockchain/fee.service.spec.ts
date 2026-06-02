@@ -13,6 +13,15 @@ const mockFeeRegistry = {
   withdrawFeeBps: jest.fn(),
 };
 
+const mockVault = {
+  depositToken: jest.fn(),
+  minFeeDeposit: jest.fn(),
+};
+
+const mockFeeRegistryDeposit = {
+  vaultDeposit: jest.fn(),
+};
+
 jest.mock('ethers', () => {
   const actual = jest.requireActual('ethers');
   return {
@@ -21,6 +30,8 @@ jest.mock('ethers', () => {
     Contract: jest.fn((addr: string, abi: any) => {
       const abiStr = JSON.stringify(abi);
       if (abiStr.includes('depositFeeBps')) return mockFeeRegistry;
+      if (abiStr.includes('depositToken')) return mockVault;
+      if (abiStr.includes('vaultDeposit')) return mockFeeRegistryDeposit;
       return {
         name: jest.fn().mockResolvedValue('Binance USD'),
         symbol: jest.fn().mockResolvedValue('BUSD'),
@@ -137,6 +148,42 @@ describe('FeeService', () => {
       await service.getAcceptedTokens();
 
       expect(mockProvider.getLogs).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('getVaultGasDeposit', () => {
+    const VAULT = '0x2Bcebfe1Bc05D517a07C7323cCBB425387Cc6f91';
+    const TOKEN = '0x55d398326f99059fF775485246999027B3197955';
+
+    it('returns the funded deposit info when a deposit token is set', async () => {
+      mockVault.depositToken.mockResolvedValue(TOKEN);
+      mockVault.minFeeDeposit.mockResolvedValue(2_000000000000000000n);
+      mockFeeRegistryDeposit.vaultDeposit.mockResolvedValue(1_000000000000000000n);
+
+      const result = await service.getVaultGasDeposit(VAULT);
+
+      expect(result).toEqual({
+        enabled: true,
+        token: { address: TOKEN, symbol: 'BUSD', decimals: 18 },
+        deposited: '1000000000000000000',
+        minFeeDeposit: '2000000000000000000',
+      });
+      expect(mockFeeRegistryDeposit.vaultDeposit).toHaveBeenCalledWith(VAULT, TOKEN);
+    });
+
+    it('reports disabled when the vault has no deposit token', async () => {
+      const { ZeroAddress } = jest.requireActual('ethers');
+      mockVault.depositToken.mockResolvedValue(ZeroAddress);
+
+      const result = await service.getVaultGasDeposit(VAULT);
+
+      expect(result).toEqual({
+        enabled: false,
+        token: null,
+        deposited: '0',
+        minFeeDeposit: '0',
+      });
+      expect(mockFeeRegistryDeposit.vaultDeposit).not.toHaveBeenCalled();
     });
   });
 });

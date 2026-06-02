@@ -31,7 +31,8 @@ pnpm contracts:compile       # Compile contracts + extract ABIs to frontend
 pnpm contracts:test          # Run contract tests
 pnpm contracts:clean         # Clean contract artifacts
 pnpm contracts:fork:bsc      # Start BSC mainnet fork on localhost:8545
-pnpm contracts:deploy:fork   # Deploy all contracts to fork
+pnpm contracts:deploy:fork   # Deploy all contracts to fork (incl. MockPriceOracle + gas config)
+pnpm contracts:execute:fork  # Keeper: execute all externally-runnable automations
 pnpm backend:dev             # Start backend in watch mode
 pnpm backend:build           # Build backend
 pnpm backend:test            # Run backend unit tests
@@ -58,12 +59,13 @@ npx hardhat ignition deploy --network bscTestnet ignition/modules/StrategyBuilde
 npx hardhat ignition deploy --network bscMainnet ignition/modules/StrategyBuilderVault.ts
 ```
 
-**Local Development Workflow** (3 terminals):
+**Local Development Workflow** (order matters — services need the deployed addresses in their `.env`):
 ```bash
-# Terminal 1: pnpm dev                   (DB + backend + frontend)
-# Terminal 2: pnpm contracts:fork:bsc    (BSC fork node)
-# Terminal 3: pnpm contracts:deploy:fork (deploy contracts, copy addresses to .env files)
+# Terminal 1: pnpm contracts:fork:bsc    (BSC fork node)
+# Terminal 2: pnpm contracts:deploy:fork (deploy contracts → copy addresses to .env files)
+# Terminal 3: pnpm dev                   (DB + backend + frontend, after .env is filled)
 ```
+**After a fresh redeploy, re-seed the backend StepType table** (`pnpm --filter backend prisma:seed`) — it reads condition/action addresses from `deployments/fork-latest.json`. Skipping this leaves stale addresses, so newly built automations encode dead contract addresses and revert (`ConditionCallFailed`). The seed upserts by `(contractAddress, selector)`, so delete old `StepType` rows first if addresses changed.
 
 **Hardhat 3** (`hardhat ^3.2.0`) — uses `defineConfig`, `network.connect()`, and ESM (`"type": "module"` in package.json). Tests use top-level `await` for network connection:
 ```typescript
@@ -74,7 +76,9 @@ const { ethers } = await network.connect();
 
 **BSC Fork** — `bscFork` network in hardhat config uses `forking: { url }` (NOT `fork`). Requires archive-capable RPC (BlastAPI, Alchemy — NOT `bsc-dataseed.binance.org`). Fork runs as `hardhat node --network bscFork` on Chain ID 31337. Deploy script targets `--network localhost` (HTTP to running node), NOT `--network bscFork` (which spawns its own in-process fork).
 
-**Deploy Script** — `scripts/deploy-fork.ts` deploys all contracts (FeeRegistry, Factory, Vault impl, 5 example contracts), configures FeeRegistry with USDT+WBNB, and seeds test wallet with tokens via whale impersonation. **Must compile with `--build-profile production`** (optimizer required — without it, vault proxy deployment fails with StackOverflow due to 21KB unoptimized bytecode). Output: console addresses + `deployments/fork-latest.json`.
+**Deploy Script** — `scripts/deploy-fork.ts` deploys all contracts (FeeRegistry, Factory, Vault impl, 5 example contracts), configures FeeRegistry with USDT+WBNB, deploys a **MockPriceOracle** and calls **`setGasConfig`** (oracle, nativeToken=WBNB, executorMarkupBps=1000, overhead=50k, maxGasPrice=0; prices WBNB=$600, USDT=$1) so gas compensation is active on the fork, and seeds test wallet with tokens via whale impersonation. **Must compile with `--build-profile production`** (optimizer required — without it, vault proxy deployment fails with StackOverflow due to 21KB unoptimized bytecode). Output: console addresses + `deployments/fork-latest.json` (incl. `PriceOracle` and `config.gasComp`).
+
+**Keeper Script** — `scripts/execute-automations.ts` (`pnpm contracts:execute:fork`) iterates all factory-registered vaults and executes every externally-runnable automation (active, public/non-owner-only, trigger met) from an external account, logging gas compensation. Before checking it mines a block at wall-clock time (`evm_setNextBlockTimestamp` + `evm_mine`) so the idle fork's `block.timestamp` matches real time — otherwise time-based triggers due in the UI are seen as not-met on-chain. Env: `EXECUTOR_PRIVATE_KEY`, `FACTORY_ADDRESS`, `SKIP_TIME_SYNC=1`.
 
 **ABI Extraction** — `scripts/extract-abis.js` runs after `hardhat compile`, writes typed `as const` ABI files to `packages/frontend/src/lib/abis/`.
 
@@ -84,6 +88,8 @@ const { ethers } = await network.connect();
 - Frontend `wagmi.ts` puts `hardhat` chain first in dev mode, `bsc` first in production — controls MetaMask auto-switch on connect
 - All vault proxy calls (`createVault`, `deposit`, `withdraw`) need explicit `gas` overrides in frontend hooks — Hardhat fork gas estimation is unreliable for proxy delegatecalls
 - `FeeService.getAcceptedTokens()` scans logs with `fromBlock: currentBlock - 10_000` (not 0) — `fromBlock: 0` on a fork triggers upstream RPC full-chain scan which gets rejected
+- **Fork clock lags wall-clock**: an idle Hardhat fork only advances `block.timestamp` when a block is mined. `TriggerStatusService` computes interval/timer status from the backend's `Date.now()`, while on-chain `isTriggerMet` uses `block.timestamp` — so a time-trigger can show "Ready to fire" in the UI but be not-met on-chain. The keeper script mines a wall-clock block to align them.
+- **Gas-comp bootstrap**: external (non-owner) execution settles gas comp from `FeeRegistry.vaultDeposits[vault][token]`; if empty it reverts `InsufficientFeeDeposit`. Fund via `vault.depositFees(token, amount)` (owner, from vault balance) or a `FeeDepositAction` step. The `FeeDepositAction` is a no-op when `vault.minFeeDeposit() == 0` (`FeeDepositAction.sol`), so a positive `minFeeDeposit` is required for auto-top-up.
 
 ## Architecture
 
@@ -197,10 +203,10 @@ function afterExecution(bytes calldata params, bytes[] calldata ctx)
 - `MAX_STEPS = 256` — per-execution step limit
 
 **Key functions:**
-- `createAutomation(steps[])` — public automation, step 0 must be CONDITION
-- `createOwnerAutomation(steps[])` — owner-only automation, step 0 can be ACTION
+- `createAutomation(steps[])` — public automation, step 0 must be CONDITION (created `active = true`)
+- `createOwnerAutomation(steps[])` — owner-only automation, step 0 can be ACTION (created `active = true`)
 - `updateAutomationSteps(id, steps[])` — replace all steps (context unaffected)
-- `setAutomationActive(id, bool)` — pause or resume
+- `setAutomationActive(id, bool)` — pause or resume (automations have no on-chain delete; deactivate is the only way to stop one)
 - `setContext(bytes[])` — replace entire shared context
 - `setContextSlot(slot, value)` — update a single context slot
 - `deposit(token, amount)` — owner deposits tokens, deducts depositFee to FeeRegistry
@@ -334,6 +340,8 @@ struct Params {
 }
 ```
 
+**No-op when `minFeeDeposit == 0`** — set a positive `minFeeDeposit` (vault `setMinFeeDeposit`) for auto-top-up to work.
+
 ## Test Helpers (TypeScript)
 
 ```typescript
@@ -371,10 +379,13 @@ await ethers.provider.send("evm_mine", []);
 |--------|------|-------------|
 | `AuthModule` | `src/auth/` | SIWE nonce/verify/refresh, JWT strategy, WalletAuthGuard (global APP_GUARD) |
 | `VaultModule` | `src/vault/` | Vault CRUD, VaultOwnerGuard, event recording, paginated history |
-| `BlockchainModule` | `src/blockchain/` | FeeService (on-chain fees, 1h cache), ContractErrorService, accepted tokens |
+| `AutomationModule` | `src/automation/` | Automation CRUD + draft reconciliation (AutomationService), graph→steps encoding incl. context-slot allocation (EncodingService), context slot read/allocate (ContextService), trigger status (TriggerStatusService) |
+| `BlockchainModule` | `src/blockchain/` | FeeService (on-chain fees + per-vault gas deposit, 1h cache), ContractErrorService, accepted tokens; `GET /vaults/:address/gas-deposit` |
 | `PortfolioModule` | `src/portfolio/` | AlchemyService, PriceService (DeFiLlama fallback), VaultPortfolioService (60s cache) |
 | `DatabaseModule` | `src/database/` | PrismaService (global) |
 | `HealthModule` | `src/health/` | GET /health |
+
+**AutomationModule endpoints** (all `VaultOwnerGuard`): `POST/GET/PATCH/DELETE :address/automations[/:id]`, `:id/encode` + `:id/encode-update` (build create/update calldata + context-setup tx), `:id/encode-toggle` (setAutomationActive), `:id/encode-execute` (executeAutomation); `GET :address/context-slots`; `GET :address/automations/trigger-statuses`. DELETE is DB-only and blocks active **public** automations until deactivated on-chain (owner-only are exempt).
 
 ### Key Backend Patterns
 
@@ -382,6 +393,8 @@ await ethers.provider.send("evm_mine", []);
 - **VaultOwnerGuard**: Per-vault auth. Loads vault by `:address` param, checks `ownerAddress == JWT wallet`. Attaches `req.vault`.
 - **PrismaService**: Global, extends PrismaClient. All modules inject it.
 - **DTOs**: Plain classes (no class-validator decorators yet).
+- **Context-slot encoding** (`EncodingService`): `extractSlotNames` collects variable names from params of fields marked `x-ui-widget: context-slot` (via `StepType.paramSchema`), `ContextService.allocateSlots` maps name→index in `vault.contextSlots`, and `encodeParams` resolves names→indices and applies the field's schema `default` (e.g. NO_SLOT `4294967295`) for unset slot fields — never 0, which would point at slot 0. `encode`/`encodeUpdate` emit a `setContext` calldata when new slots are needed (the deploy dialog sends it as a separate tx before create/update).
+- **StepType seed**: `prisma/seed.ts` loads contract addresses from `deployments/fork-latest.json`; re-seed after every fresh contract deploy.
 
 ## Frontend Structure
 
@@ -390,7 +403,10 @@ await ethers.provider.send("evm_mine", []);
 | `/connect` | `ConnectPage` | MetaMask connection + SIWE sign-in |
 | `/dashboard` | `DashboardPage` | Vault table with USD values, empty state, create CTA |
 | `/vault/create` | `CreateVaultPage` | Multi-step wizard (label → token → fees → TX → deposit) |
-| `/vault/:address` | `VaultDetailPage` | Portfolio, inline label edit, deposit/withdraw forms, history |
+| `/vault/:address` | `VaultDetailPage` | Portfolio, label edit, deposit/withdraw, automation list, **ContextView** (slots + on-chain values), **GasDepositCard** (gas reserve + deposit + minFeeDeposit config), history |
+| `/vault/:address/automation/:id/edit` | `AutomationEditorPage` | React-Flow graph editor (`features/automation-editor/`): nodes/edges, context variables, auto-save, deploy dialog (context tx → create/update tx) |
+
+**Automation editor** (`src/features/automation-editor/`): Zustand store (`editor-store.ts`), `useAutoSave` (5s debounce → PATCH editorState), context variables merged from both `/context-slots` (vault-wide) and the automation's saved `editorState.contextVariables` via commutative `mergeContextVariables` so concurrent loads don't clobber. Automation list shows **Execute** (owner-only) vs Activate/Deactivate toggle (public); deploy dialog reads the on-chain id from the `AutomationCreated` event receipt.
 
 ### Key Frontend Patterns
 
@@ -398,6 +414,8 @@ await ethers.provider.send("evm_mine", []);
 - **API**: `apiFetch()` in `lib/api.ts` handles JWT headers, silent token refresh, auth failure callback.
 - **Contract ABIs**: Auto-generated in `lib/abis/` from Hardhat artifacts via `scripts/extract-abis.js` (runs on compile).
 - **wagmi**: Config in `lib/wagmi.ts`. Chain order: `[hardhat]` in dev, `[bsc, bscTestnet]` in production. Multicall disabled on Hardhat chain. `pollingInterval: 2000`. Hooks: `useCreateVault` (gas: 500k), `useApproveAndDeposit` (gas: 300k on deposit), `useWithdraw` (gas: 300k).
+- **Receipt waiting**: `lib/wait-for-receipt.ts` polls `getTransactionReceipt` (used by `useCreateVault` + deploy dialog). Deposit/withdraw/gas-deposit hooks use viem's `usePublicClient().waitForTransactionReceipt`.
+- **StrictMode**: dev double-invokes effects — guard one-shot side effects (e.g. draft creation) with a `useRef` flag, not just state, since async state isn't set yet on the second invocation.
 - **Chain switching**: `ConnectPage` uses `useSwitchChain` to force MetaMask to `config.chains[0]` on connect. SIWE `chainId` defaults to 31337 in dev, 56 in production.
 - **Protected Routes**: `ProtectedRoute` component redirects to `/connect` if not authenticated.
 

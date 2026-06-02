@@ -52,6 +52,34 @@ async function main() {
   await (await feeRegistry.setWithdrawFeeBps(WITHDRAW_FEE_BPS)).wait();
   console.log(`  Withdraw fee: ${WITHDRAW_FEE_BPS} bps (${(WITHDRAW_FEE_BPS / 100).toFixed(2)}%)`);
 
+  // 2b. Configure gas compensation. BSC has no usable price oracle on a fork,
+  //     so deploy a MockPriceOracle and seed prices for the native token (WBNB,
+  //     used to price gas in USD via _fetchNativePrice) and the fee token (USDT,
+  //     used in _feeTokenAmount to convert the USD cost into fee tokens).
+  console.log("Configuring gas compensation...");
+  const priceOracle = await ethers.deployContract("MockPriceOracle");
+  const priceOracleAddr = await priceOracle.getAddress();
+  console.log(`  MockPriceOracle: ${priceOracleAddr}`);
+  await (await priceOracle.setPrice(WBNB, ethers.parseEther("600"))).wait(); // $600 / BNB
+  await (await priceOracle.setPrice(USDT, ethers.parseEther("1"))).wait();   // $1 / USDT
+  console.log(`  Prices: WBNB=$600, USDT=$1 (18-decimal USD)`);
+
+  const EXECUTOR_MARKUP_BPS = 1000; // +10% paid on top to the executor
+  const GAS_OVERHEAD = 50_000n;     // extra gas accounted for settlement overhead
+  const MAX_GAS_PRICE = 0n;         // 0 = no cap, reimburse at actual tx.gasprice
+  await (
+    await feeRegistry.setGasConfig(
+      priceOracleAddr,
+      WBNB, // native token used to price gas
+      EXECUTOR_MARKUP_BPS,
+      GAS_OVERHEAD,
+      MAX_GAS_PRICE,
+    )
+  ).wait();
+  console.log(
+    `  setGasConfig(oracle, WBNB native, markup ${EXECUTOR_MARKUP_BPS}bps, overhead ${GAS_OVERHEAD}, maxGasPrice ${MAX_GAS_PRICE})`,
+  );
+
   // 3. Deploy vault implementation
   console.log("Deploying StrategyBuilderVault (implementation)...");
   const vaultImpl = await ethers.deployContract("StrategyBuilderVault");
@@ -146,6 +174,7 @@ async function main() {
 
   const addresses = {
     FeeRegistry: feeRegistryAddr,
+    PriceOracle: priceOracleAddr,
     StrategyBuilderVault: vaultImplAddr,
     StrategyBuilderVaultFactory: factoryAddr,
     TokenBalanceCondition: tokenBalanceConditionAddr,
@@ -157,6 +186,14 @@ async function main() {
       depositFeeBps: DEPOSIT_FEE_BPS,
       withdrawFeeBps: WITHDRAW_FEE_BPS,
       acceptedTokens: { USDT, WBNB },
+      gasComp: {
+        priceOracle: priceOracleAddr,
+        nativeToken: WBNB,
+        executorMarkupBps: EXECUTOR_MARKUP_BPS,
+        gasOverhead: Number(GAS_OVERHEAD),
+        maxGasPrice: Number(MAX_GAS_PRICE),
+        prices: { WBNB: "600", USDT: "1" },
+      },
     },
   };
 
@@ -173,6 +210,7 @@ ${"═".repeat(55)}
 ${"═".repeat(55)}
 
 FeeRegistry:                 ${feeRegistryAddr}
+MockPriceOracle:             ${priceOracleAddr}
 StrategyBuilderVault (impl): ${vaultImplAddr}
 StrategyBuilderVaultFactory: ${factoryAddr}
 TokenBalanceCondition:       ${tokenBalanceConditionAddr}

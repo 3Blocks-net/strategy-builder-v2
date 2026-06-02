@@ -14,7 +14,8 @@
     "verify:bsc-mainnet": "hardhat verify --network bscMainnet",
     "clean": "hardhat clean",
     "fork:bsc": "hardhat node --network bscFork",
-    "deploy:fork": "hardhat compile --build-profile production && hardhat run --build-profile production --network localhost scripts/deploy-fork.ts"
+    "deploy:fork": "hardhat compile --build-profile production && hardhat run --build-profile production --network localhost scripts/deploy-fork.ts",
+    "execute:fork": "hardhat run --build-profile production --network localhost scripts/execute-automations.ts"
   },
   "keywords": [],
   "author": "",

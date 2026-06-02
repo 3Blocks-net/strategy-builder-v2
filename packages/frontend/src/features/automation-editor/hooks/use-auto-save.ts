@@ -11,6 +11,7 @@ export function useAutoSave(vaultAddress: string | undefined, automationId: stri
   const edges = useEditorStore((s) => s.edges);
   const label = useEditorStore((s) => s.label);
   const description = useEditorStore((s) => s.description);
+  const contextVariables = useEditorStore((s) => s.contextVariables);
   const setSaveStatus = useEditorStore((s) => s.setSaveStatus);
 
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -23,7 +24,7 @@ export function useAutoSave(vaultAddress: string | undefined, automationId: stri
       const res = await apiFetch(`/vaults/${vaultAddress}/automations/${automationId}`, {
         method: 'PATCH',
         body: JSON.stringify({
-          editorState: { nodes, edges },
+          editorState: { nodes, edges, contextVariables },
           label,
           description,
         }),
@@ -45,7 +46,7 @@ export function useAutoSave(vaultAddress: string | undefined, automationId: stri
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [isDirty, nodes, edges, label, description, automationId]);
+  }, [isDirty, nodes, edges, label, description, contextVariables, automationId]);
 
   // Save on unmount if dirty
   useEffect(() => {

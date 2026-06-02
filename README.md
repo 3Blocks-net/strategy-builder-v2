@@ -21,7 +21,55 @@ Full-stack monorepo: Solidity smart contracts, NestJS backend, React frontend.
 pnpm install
 ```
 
-### 2. Start Everything (Quick)
+> **Order matters.** The on-chain deployment produces the contract addresses that
+> the backend and frontend read from their `.env` files. So the flow is:
+> **fork → deploy → fill in the `.env`s → start the services.** Starting the
+> services before the addresses exist leaves them misconfigured.
+
+### 2. Start the BSC Fork
+
+On-chain features run against a local BSC mainnet fork. In a dedicated terminal:
+
+```bash
+pnpm contracts:fork:bsc
+```
+
+This runs a Hardhat node forked from BSC mainnet on `http://localhost:8545`
+(Chain ID 31337). Leave it running.
+
+> The fork requires an archive-capable RPC (BlastAPI, Alchemy, QuickNode) set as
+> `BSC_MAINNET_RPC_URL` in `packages/contracts/.env`. Public RPCs like
+> `bsc-dataseed.binance.org` fail with "missing trie node".
+
+### 3. Deploy Contracts to the Fork
+
+Once the fork node is up, deploy the full system:
+
+```bash
+pnpm contracts:deploy:fork
+```
+
+This deploys the FeeRegistry, vault factory + implementation, a MockPriceOracle,
+and the example conditions/actions; configures fees and gas compensation; and
+seeds the test wallet. It prints every address and also saves them to
+`packages/contracts/deployments/fork-latest.json`.
+
+Copy the printed addresses into your env files **before** starting the services:
+
+```bash
+# packages/backend/.env
+RPC_URL=http://localhost:8545
+FACTORY_ADDRESS=0x...        # from deploy output
+FEE_REGISTRY_ADDRESS=0x...   # from deploy output
+
+# packages/frontend/.env
+VITE_API_URL=http://localhost:3001
+VITE_FACTORY_ADDRESS=0x...   # from deploy output
+```
+
+### 4. Start the Services
+
+With the `.env` files filled in, start DB + backend + frontend:
 
 ```bash
 pnpm dev
@@ -33,36 +81,10 @@ This single command:
 - Starts the backend (http://localhost:3001)
 - Starts the frontend (http://localhost:5173)
 
-### 3. Start the BSC Fork (for on-chain features)
+> Start the services **after** the deploy so they pick up the contract addresses.
+> If you change the `.env` files later, restart `pnpm dev`.
 
-In a separate terminal:
-
-```bash
-pnpm contracts:fork:bsc
-```
-
-Then deploy all contracts to the fork:
-
-```bash
-pnpm contracts:deploy:fork
-```
-
-This outputs all contract addresses. Copy them into your env files:
-
-```bash
-# packages/backend/.env
-RPC_URL=http://localhost:8545
-FACTORY_ADDRESS=0x...    # from deploy output
-FEE_REGISTRY_ADDRESS=0x... # from deploy output
-
-# packages/frontend/.env
-VITE_API_URL=http://localhost:3001
-VITE_FACTORY_ADDRESS=0x...  # from deploy output
-```
-
-The deploy script also saves all addresses to `packages/contracts/deployments/fork-latest.json`.
-
-### 4. Connect MetaMask
+### 5. Connect MetaMask
 
 Add a custom network in MetaMask:
 - **RPC URL**: `http://localhost:8545`
@@ -110,13 +132,15 @@ pnpm dev                        # Start DB + backend + frontend
 pnpm db:up                      # Start PostgreSQL only
 pnpm db:down                    # Stop PostgreSQL
 pnpm db:migrate                 # Run Prisma migrations
+pnpm --filter backend prisma:seed  # (Re)seed StepTypes from fork-latest.json
 
 # Contracts
 pnpm contracts:compile          # Compile contracts + extract ABIs to frontend
 pnpm contracts:test             # Run contract tests
 pnpm contracts:clean            # Clean artifacts
 pnpm contracts:fork:bsc         # Start BSC mainnet fork on localhost:8545
-pnpm contracts:deploy:fork      # Deploy all contracts to the fork
+pnpm contracts:deploy:fork      # Deploy all contracts to the fork (+ MockPriceOracle + gas config)
+pnpm contracts:execute:fork     # Keeper: run all externally-executable automations
 pnpm contracts:deploy:testnet   # Deploy to BSC Testnet (Ignition)
 pnpm contracts:deploy:mainnet   # Deploy to BSC Mainnet (Ignition)
 
@@ -140,7 +164,8 @@ npx hardhat test                                   # Run all tests
 npx hardhat test test/StrategyBuilderVault.ts      # Single file
 npx hardhat test --grep "deposit"                  # Pattern match
 npx hardhat node --network bscFork                 # Start fork node (Chain ID 31337)
-npx hardhat run --network localhost scripts/deploy-fork.ts  # Deploy to running fork
+npx hardhat run --network localhost scripts/deploy-fork.ts        # Deploy to running fork
+npx hardhat run --network localhost scripts/execute-automations.ts  # Keeper: execute due automations
 ```
 
 ---
@@ -206,18 +231,22 @@ BSCSCAN_API_KEY=
 
 ### Full-stack with BSC Fork
 
-```bash
-# Terminal 1: Database + Backend + Frontend
-pnpm dev
+Run in order — the services need the addresses produced by the deploy:
 
-# Terminal 2: BSC Fork
+```bash
+# Terminal 1: BSC Fork
 pnpm contracts:fork:bsc
 
-# Terminal 3: Deploy contracts (once, after fork starts)
+# Terminal 2: Deploy contracts (once the fork is up)
 pnpm contracts:deploy:fork
-# → Copy addresses to packages/backend/.env and packages/frontend/.env
-# → Restart backend to pick up new env vars
+# → Copy addresses into packages/backend/.env and packages/frontend/.env
+
+# Terminal 3: Database + Backend + Frontend (after the .env files are filled)
+pnpm dev
 ```
+
+> If the fork is already running and you only changed env vars, restart `pnpm dev`
+> so the backend/frontend re-read them.
 
 ### Backend-only (no chain)
 
@@ -273,6 +302,12 @@ Vault automations are directed graphs of **Conditions** (staticcall, read-only) 
 | `GET /vaults/:address/portfolio` | JWT + Owner | Token positions + USD values |
 | `POST /vaults/:address/events` | JWT + Owner | Record deposit/withdraw event |
 | `GET /vaults/:address/history` | JWT + Owner | Paginated event history |
+| `GET /vaults/:address/gas-deposit` | JWT + Owner | Gas-comp reserve, depositToken, minFeeDeposit |
+| `GET /vaults/:address/context-slots` | JWT + Owner | Context slots + current on-chain values |
+| `GET/POST /vaults/:address/automations` | JWT + Owner | List / create draft automation |
+| `GET/PATCH/DELETE /vaults/:address/automations/:id` | JWT + Owner | Read / update / delete (DB-only) |
+| `POST /vaults/:address/automations/:id/encode*` | JWT + Owner | Build calldata: `encode`, `encode-update`, `encode-toggle`, `encode-execute` |
+| `GET /vaults/:address/automations/trigger-statuses` | JWT + Owner | Live trigger status per automation |
 | `GET /fees` | Public | depositFeeBps + withdrawFeeBps |
 | `GET /tokens/accepted` | Public | Accepted tokens with metadata |
 | `GET /errors/contract-errors` | Public | Solidity error → message map |
@@ -285,7 +320,8 @@ Vault automations are directed graphs of **Conditions** (staticcall, read-only) 
 | `/connect` | Wallet connection + SIWE sign-in |
 | `/dashboard` | Vault table with USD values, create vault CTA |
 | `/vault/create` | Multi-step wizard (label → token → fees → TX → deposit) |
-| `/vault/:address` | Portfolio, deposit/withdraw forms, transaction history |
+| `/vault/:address` | Portfolio, deposit/withdraw, automation list, context view, gas-reserve card (deposit + minFeeDeposit), history |
+| `/vault/:address/automation/:id/edit` | React-Flow automation editor: graph, context variables, auto-save, deploy dialog |
 
 ---
 
@@ -323,8 +359,18 @@ Accepted tokens configured on the fork:
 - **USDT**: `0x55d398326f99059fF775485246999027B3197955` (18 decimals)
 - **WBNB**: `0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c` (18 decimals)
 
+The script also deploys a **MockPriceOracle** and calls `setGasConfig` (oracle, native=WBNB, executorMarkupBps=1000, overhead=50k, maxGasPrice=0; prices WBNB=$600, USDT=$1), so executor gas compensation works on the fork. Oracle address + gas config are written to `deployments/fork-latest.json` (`PriceOracle`, `config.gasComp`).
+
+### Keeper (external execution)
+
+`pnpm contracts:execute:fork` runs every externally-executable automation (active, public, trigger met) from an external account and logs gas compensation. It first mines a block at wall-clock time so an idle fork's `block.timestamp` matches real time. Env: `EXECUTOR_PRIVATE_KEY`, `FACTORY_ADDRESS`, `SKIP_TIME_SYNC=1`.
+
+> For external execution to be compensated, the vault needs a gas reserve: set a positive `minFeeDeposit` (gas-reserve card on the detail page) and either deposit directly (`depositFees`) or include a `FeeDepositAction` step. With an empty reserve, execution reverts `InsufficientFeeDeposit`.
+
 ### Important Notes
 
 - **Production build profile required**: The deploy script compiles with `--build-profile production` (optimizer enabled). Without the optimizer, vault proxy deployment fails with StackOverflow.
+- **Re-seed StepTypes after a fresh deploy**: `pnpm --filter backend prisma:seed` — otherwise newly built automations encode the previous deploy's (now dead) condition/action addresses and revert.
 - **Multicall disabled on Hardhat**: The frontend disables viem's multicall batching on chain 31337 to avoid StackOverflow from multicall3 contract simulation.
 - **`NODE_ENV=development`**: Must be set in `packages/backend/.env` for the portfolio service to read balances via local RPC instead of Alchemy API.
+- **Fork clock**: an idle fork's `block.timestamp` lags real time; the keeper script syncs it. Trigger badges in the UI use wall-clock, so they can read "ready" before the chain agrees.

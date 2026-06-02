@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'react-router';
 import { useEditorStore } from '../store/editor-store';
 import { DynamicForm } from './dynamic-form';
+import { ContextPanel } from './context-panel';
 import { apiFetch } from '@/lib/api';
 
 interface StepTypeDetail {
@@ -11,37 +12,27 @@ interface StepTypeDetail {
   paramSchema: Record<string, unknown>;
 }
 
-interface ContextSlotInfo {
-  name: string;
-  createdByAutomationId: string;
-}
-
 export function SidePanel() {
   const { address: vaultAddress } = useParams<{ address: string }>();
   const selectedNodeId = useEditorStore((s) => s.selectedNodeId);
   const nodes = useEditorStore((s) => s.nodes);
   const updateNodeParams = useEditorStore((s) => s.updateNodeParams);
+  const contextVariables = useEditorStore((s) => s.contextVariables);
+  const addContextVariable = useEditorStore((s) => s.addContextVariable);
+  const activeTab = useEditorStore((s) => s.activeTab);
+  const setActiveTab = useEditorStore((s) => s.setActiveTab);
 
   const [stepTypeDetail, setStepTypeDetail] = useState<StepTypeDetail | null>(null);
-  const [contextSlots, setContextSlots] = useState<Record<string, ContextSlotInfo>>({});
   const [tokens, setTokens] = useState<{ address: string; symbol: string }[]>([]);
 
   const selectedNode = nodes.find((n) => n.id === selectedNodeId);
 
   useEffect(() => {
-    apiFetch('/blockchain/tokens/accepted')
+    apiFetch('/tokens/accepted')
       .then((r) => r.json())
-      .then(setTokens)
+      .then((data) => setTokens(data.tokens ?? []))
       .catch(() => {});
   }, []);
-
-  useEffect(() => {
-    if (!vaultAddress) return;
-    apiFetch(`/vaults/${vaultAddress}/context-slots`)
-      .then((r) => r.json())
-      .then((data) => setContextSlots(data.slots ?? {}))
-      .catch(() => {});
-  }, [vaultAddress]);
 
   useEffect(() => {
     if (!selectedNode) {
@@ -54,41 +45,84 @@ export function SidePanel() {
       .catch(() => setStepTypeDetail(null));
   }, [selectedNode?.data.stepTypeId]);
 
-  if (!selectedNode || !selectedNodeId) return null;
-
   return (
-    <div className="w-80 border-l border-gray-200 bg-white overflow-y-auto flex flex-col">
-      <div className="px-4 py-3 border-b border-gray-200">
-        <div className="flex items-center gap-2">
-          <span
-            className={`text-xs font-semibold uppercase px-2 py-0.5 rounded ${
-              selectedNode.data.category === 'CONDITION'
-                ? 'bg-blue-100 text-blue-700'
-                : 'bg-amber-100 text-amber-700'
-            }`}
-          >
-            {selectedNode.data.category}
-          </span>
-          <span className="text-sm font-medium text-gray-900">
-            {selectedNode.data.stepTypeName}
-          </span>
+    <div className="w-80 border-l border-gray-200 bg-white flex flex-col">
+      {/* Tab bar */}
+      <div className="flex border-b border-gray-200">
+        <button
+          className={`flex-1 px-4 py-2 text-xs font-medium ${
+            activeTab === 'config'
+              ? 'text-blue-600 border-b-2 border-blue-600'
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+          onClick={() => setActiveTab('config')}
+        >
+          Node Config
+        </button>
+        <button
+          className={`flex-1 px-4 py-2 text-xs font-medium ${
+            activeTab === 'context'
+              ? 'text-blue-600 border-b-2 border-blue-600'
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+          onClick={() => setActiveTab('context')}
+        >
+          Context
+          {contextVariables.length > 0 && (
+            <span className="ml-1.5 bg-gray-200 text-gray-600 text-[10px] font-bold rounded-full px-1.5 py-0.5">
+              {contextVariables.length}
+            </span>
+          )}
+        </button>
+      </div>
+
+      {/* Tab content */}
+      {activeTab === 'config' ? (
+        <div className="flex-1 overflow-y-auto">
+          {selectedNode && selectedNodeId ? (
+            <>
+              <div className="px-4 py-3 border-b border-gray-200">
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`text-xs font-semibold uppercase px-2 py-0.5 rounded ${
+                      selectedNode.data.category === 'CONDITION'
+                        ? 'bg-blue-100 text-blue-700'
+                        : 'bg-amber-100 text-amber-700'
+                    }`}
+                  >
+                    {selectedNode.data.category}
+                  </span>
+                  <span className="text-sm font-medium text-gray-900">
+                    {selectedNode.data.stepTypeName}
+                  </span>
+                </div>
+              </div>
+              <div className="px-4 py-3">
+                {stepTypeDetail?.paramSchema ? (
+                  <DynamicForm
+                    key={selectedNodeId}
+                    schema={stepTypeDetail.paramSchema as any}
+                    values={selectedNode.data.params}
+                    onChange={(params) => updateNodeParams(selectedNodeId, params)}
+                    tokens={tokens}
+                    contextVariables={contextVariables}
+                    onCreateVariable={addContextVariable}
+                    vaultAddress={vaultAddress ?? ''}
+                  />
+                ) : (
+                  <p className="text-sm text-gray-500">Loading configuration...</p>
+                )}
+              </div>
+            </>
+          ) : (
+            <div className="flex-1 flex items-center justify-center text-sm text-gray-400 p-8">
+              Wähle einen Node um seine Parameter zu konfigurieren
+            </div>
+          )}
         </div>
-      </div>
-      <div className="flex-1 px-4 py-3">
-        {stepTypeDetail?.paramSchema ? (
-          <DynamicForm
-            key={selectedNodeId}
-            schema={stepTypeDetail.paramSchema as any}
-            values={selectedNode.data.params}
-            onChange={(params) => updateNodeParams(selectedNodeId, params)}
-            tokens={tokens}
-            contextSlots={contextSlots}
-            vaultAddress={vaultAddress ?? ''}
-          />
-        ) : (
-          <p className="text-sm text-gray-500">Loading configuration...</p>
-        )}
-      </div>
+      ) : (
+        <ContextPanel />
+      )}
     </div>
   );
 }

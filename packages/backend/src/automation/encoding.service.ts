@@ -13,6 +13,7 @@ const VAULT_ABI = [
   'function setContext(bytes[] ctx) external',
   'function setAutomationActive(uint32 automationId, bool active) external',
   'function updateAutomationSteps(uint32 automationId, (uint8 stepType, address target, bytes4 selector, uint32 nextOnTrue, uint32 nextOnFalse, bytes data)[] steps) external',
+  'function executeAutomation(uint32 automationId) external',
 ];
 
 interface EditorNode {
@@ -85,13 +86,13 @@ export class EncodingService {
 
     const ownerOnly = this.inferOwnerOnly(graph);
 
-    const slotNames = this.extractSlotNames(graph);
+    const stepTypes = await this.prisma.stepType.findMany();
+    const stepTypeMap = new Map(stepTypes.map((st) => [st.id, st]));
+
+    const slotNames = this.extractSlotNames(graph, stepTypeMap);
     const slotMapping = slotNames.length > 0
       ? await this.contextService.allocateSlots(vaultId, slotNames, automationId)
       : {};
-
-    const stepTypes = await this.prisma.stepType.findMany();
-    const stepTypeMap = new Map(stepTypes.map((st) => [st.id, st]));
 
     const order = this.bfs(graph);
     const indexMap = new Map(order.map((id, i) => [id, i]));
@@ -131,6 +132,7 @@ export class EncodingService {
         node.data.params,
         stepType.abiFragment as any,
         slotMapping,
+        stepType.paramSchema as any,
       );
 
       return {
@@ -175,9 +177,13 @@ export class EncodingService {
         // fresh vault with no context
       }
 
+      const defaultTimestamp = this.abiCoder.encode(
+        ['uint256'],
+        [Math.floor(Date.now() / 1000)],
+      );
       const newSlots = newSlotEntries.map(([, index]) => ({
         index,
-        initialValue: contextOverrides?.[index] ?? '0x',
+        initialValue: contextOverrides?.[index] ?? defaultTimestamp,
       }));
 
       const expanded = this.contextService.buildExpandedContext(
@@ -195,7 +201,7 @@ export class EncodingService {
           slotName: name,
           isNew,
           currentValue: isNew ? undefined : onChainCtx[index],
-          newValue: contextOverrides?.[index] ?? (isNew ? '0x' : onChainCtx[index]),
+          newValue: contextOverrides?.[index] ?? (isNew ? defaultTimestamp : onChainCtx[index]),
           usedByActiveAutomations: [],
         });
       }
@@ -217,24 +223,45 @@ export class EncodingService {
     params: Record<string, unknown>,
     abiFragment: { type: string; components: { name: string; type: string }[] },
     slotMapping: Record<string, number>,
+    paramSchema?: { properties?: Record<string, { default?: unknown }> },
   ): string {
     const types = abiFragment.components.map((c) => c.type);
     const values = abiFragment.components.map((c) => {
       let val = params[c.name];
 
+      // Context-slot fields store the variable name; resolve it to its index.
       if (typeof val === 'string' && slotMapping[val] !== undefined && c.type === 'uint32') {
         val = slotMapping[val];
       }
 
+      // Unset values fall back to the schema default (e.g. NO_SLOT = uint32 max
+      // for optional slot fields) before the type default. Defaulting a slot
+      // field to 0 would make the action read/write context slot 0.
       if (val === undefined || val === null || val === '') {
-        if (c.type === 'address') return '0x0000000000000000000000000000000000000000';
-        if (c.type === 'uint256') return '0';
-        if (c.type === 'uint32') return 0;
-        if (c.type === 'bool') return false;
+        const schemaDefault = paramSchema?.properties?.[c.name]?.default;
+        if (schemaDefault !== undefined) {
+          val = schemaDefault;
+        } else if (c.type === 'address') {
+          return '0x0000000000000000000000000000000000000000';
+        } else if (c.type === 'uint256') {
+          return '0';
+        } else if (c.type === 'uint32') {
+          return 0;
+        } else if (c.type === 'bool') {
+          return false;
+        }
       }
 
       if (c.type === 'uint32' && typeof val === 'number') return val;
-      if (c.type === 'uint32') return parseInt(String(val), 10);
+      if (c.type === 'uint32') {
+        const n = parseInt(String(val), 10);
+        if (Number.isNaN(n)) {
+          throw new BadRequestException(
+            `Unknown context variable "${String(val)}" referenced by field "${c.name}". Define it as a context variable before deploying.`,
+          );
+        }
+        return n;
+      }
       if (c.type === 'bool' && typeof val === 'string') return val === 'true';
 
       return val;
@@ -295,18 +322,40 @@ export class EncodingService {
     return order;
   }
 
-  private extractSlotNames(graph: EditorGraph): string[] {
-    const names = new Set<string>();
+  private extractSlotNames(
+    graph: EditorGraph,
+    stepTypeMap: Map<string, { paramSchema?: unknown }>,
+  ): string[] {
+    const names: string[] = [];
+    const seen = new Set<string>();
+
     for (const node of graph.nodes) {
-      for (const val of Object.values(node.data.params)) {
-        if (typeof val === 'string' && val !== '' && !val.startsWith('0x')) {
-          // Could be a slot name - we check during encoding
+      const stepType = stepTypeMap.get(node.data.stepTypeId);
+      const properties =
+        (stepType?.paramSchema as { properties?: Record<string, any> })
+          ?.properties ?? {};
+
+      for (const [field, fieldSchema] of Object.entries(properties)) {
+        if (fieldSchema?.['x-ui-widget'] !== 'context-slot') continue;
+
+        const val = node.data.params[field];
+        // A context-slot field holds either a variable name (string) or a
+        // numeric sentinel (NO_SLOT) / undefined when no slot is selected.
+        if (
+          typeof val === 'string' &&
+          val !== '' &&
+          !val.startsWith('0x') &&
+          Number.isNaN(Number(val))
+        ) {
+          if (!seen.has(val)) {
+            seen.add(val);
+            names.push(val);
+          }
         }
       }
     }
-    // Slot names are identified during encoding via the schema's x-ui-widget: context-slot
-    // For now, collect names referenced by context slot fields from step type schemas
-    return Array.from(names);
+
+    return names;
   }
 
   async encodeUpdate(
@@ -320,13 +369,14 @@ export class EncodingService {
     this.validateServerSide(graph);
 
     const ownerOnly = this.inferOwnerOnly(graph);
-    const slotNames = this.extractSlotNames(graph);
-    const slotMapping = slotNames.length > 0
-      ? await this.contextService.allocateSlots(vaultId, slotNames, automationId)
-      : {};
 
     const stepTypes = await this.prisma.stepType.findMany();
     const stepTypeMap = new Map(stepTypes.map((st) => [st.id, st]));
+
+    const slotNames = this.extractSlotNames(graph, stepTypeMap);
+    const slotMapping = slotNames.length > 0
+      ? await this.contextService.allocateSlots(vaultId, slotNames, automationId)
+      : {};
 
     const order = this.bfs(graph);
     const indexMap = new Map(order.map((id, i) => [id, i]));
@@ -361,7 +411,7 @@ export class EncodingService {
         selector: stepType.selector,
         nextOnTrue,
         nextOnFalse,
-        data: this.encodeParams(node.data.params, stepType.abiFragment as any, slotMapping),
+        data: this.encodeParams(node.data.params, stepType.abiFragment as any, slotMapping, stepType.paramSchema as any),
       };
     });
 
@@ -382,7 +432,8 @@ export class EncodingService {
       const newSlotEntries = Object.entries(slotMapping).filter(([, idx]) => idx >= onChainCtx.length);
       if (newSlotEntries.length > 0 || hasOverrides) {
         requiresContextTx = true;
-        const newSlots = newSlotEntries.map(([, index]) => ({ index, initialValue: contextOverrides?.[index] ?? '0x' }));
+        const defaultTs = this.abiCoder.encode(['uint256'], [Math.floor(Date.now() / 1000)]);
+        const newSlots = newSlotEntries.map(([, index]) => ({ index, initialValue: contextOverrides?.[index] ?? defaultTs }));
         const expanded = this.contextService.buildExpandedContext(onChainCtx, newSlots, contextOverrides);
         contextCalldata = this.vaultInterface.encodeFunctionData('setContext', [expanded]);
       }
@@ -416,6 +467,12 @@ export class EncodingService {
     return this.vaultInterface.encodeFunctionData('setAutomationActive', [
       onChainId,
       active,
+    ]);
+  }
+
+  encodeExecute(onChainId: number): string {
+    return this.vaultInterface.encodeFunctionData('executeAutomation', [
+      onChainId,
     ]);
   }
 

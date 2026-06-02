@@ -1,4 +1,7 @@
-import { memo, useCallback, useState } from 'react';
+import { memo, useCallback } from 'react';
+import type { ContextVariable } from '../store/editor-store';
+import { ContextInputField } from './context-input-field';
+import { ContextOutputField } from './context-output-field';
 
 const NO_SLOT = 4294967295;
 
@@ -17,17 +20,13 @@ interface FormSchema {
   required?: string[];
 }
 
-interface ContextSlotInfo {
-  name: string;
-  createdByAutomationId: string;
-}
-
 interface DynamicFormProps {
   schema: FormSchema;
   values: Record<string, unknown>;
   onChange: (params: Record<string, unknown>) => void;
   tokens: { address: string; symbol: string }[];
-  contextSlots: Record<string, ContextSlotInfo>;
+  contextVariables: ContextVariable[];
+  onCreateVariable: (variable: { name: string; type: string; description: string }) => void;
   vaultAddress: string;
 }
 
@@ -36,7 +35,8 @@ export const DynamicForm = memo(function DynamicForm({
   values,
   onChange,
   tokens,
-  contextSlots,
+  contextVariables,
+  onCreateVariable,
   vaultAddress,
 }: DynamicFormProps) {
   const properties = schema.properties ?? {};
@@ -58,7 +58,8 @@ export const DynamicForm = memo(function DynamicForm({
           value={values[fieldName]}
           onChange={handleFieldChange}
           tokens={tokens}
-          contextSlots={contextSlots}
+          contextVariables={contextVariables}
+          onCreateVariable={onCreateVariable}
           vaultAddress={vaultAddress}
         />
       ))}
@@ -72,7 +73,8 @@ interface FormFieldProps {
   value: unknown;
   onChange: (name: string, value: unknown) => void;
   tokens: { address: string; symbol: string }[];
-  contextSlots: Record<string, ContextSlotInfo>;
+  contextVariables: ContextVariable[];
+  onCreateVariable: (variable: { name: string; type: string; description: string }) => void;
   vaultAddress: string;
 }
 
@@ -82,33 +84,39 @@ function FormField({
   value,
   onChange,
   tokens,
-  contextSlots,
+  contextVariables,
+  onCreateVariable,
   vaultAddress,
 }: FormFieldProps) {
+  const slotAccess = schema['x-ui-slot-access'];
   const widget = schema['x-ui-widget'];
-  const isSlotField = widget === 'context-slot';
-  const hasDefault = schema.default === NO_SLOT;
+  const isOptional = schema.default === NO_SLOT;
 
-  if (isSlotField && hasDefault) {
+  if (slotAccess === 'write') {
     return (
-      <SlotToggleField
+      <ContextOutputField
         fieldName={fieldName}
-        schema={schema}
+        title={schema.title}
+        description={schema.description}
         value={value}
         onChange={onChange}
-        contextSlots={contextSlots}
+        contextVariables={contextVariables}
+        onCreateVariable={onCreateVariable}
       />
     );
   }
 
-  if (isSlotField) {
+  if (slotAccess === 'read' || slotAccess === 'read-write') {
     return (
-      <ContextSlotField
+      <ContextInputField
         fieldName={fieldName}
-        schema={schema}
-        value={value as string | undefined}
+        title={schema.title}
+        description={schema.description}
+        value={value}
         onChange={onChange}
-        contextSlots={contextSlots}
+        contextVariables={contextVariables}
+        onCreateVariable={onCreateVariable}
+        isOptional={isOptional}
       />
     );
   }
@@ -173,9 +181,7 @@ function FormField({
 function FieldLabel({ schema }: { schema: FieldSchema }) {
   return (
     <div className="mb-1">
-      <label className="text-xs font-medium text-gray-700">
-        {schema.title}
-      </label>
+      <label className="text-xs font-medium text-gray-700">{schema.title}</label>
       {schema.description && (
         <p className="text-xs text-gray-400 mt-0.5">{schema.description}</p>
       )}
@@ -265,140 +271,6 @@ function TokenSelectorField({
           </option>
         ))}
       </select>
-    </div>
-  );
-}
-
-function ContextSlotField({
-  fieldName,
-  schema,
-  value,
-  onChange,
-  contextSlots,
-}: {
-  fieldName: string;
-  schema: FieldSchema;
-  value: string | undefined;
-  onChange: (name: string, value: unknown) => void;
-  contextSlots: Record<string, ContextSlotInfo>;
-}) {
-  const [creating, setCreating] = useState(false);
-  const [newName, setNewName] = useState('');
-
-  const slotEntries = Object.entries(contextSlots);
-
-  if (creating) {
-    return (
-      <div>
-        <FieldLabel schema={schema} />
-        <div className="flex gap-1">
-          <input
-            type="text"
-            className="nodrag flex-1 border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-            placeholder="Slot name..."
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            autoFocus
-          />
-          <button
-            className="px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600"
-            onClick={() => {
-              if (newName.trim()) {
-                onChange(fieldName, newName.trim());
-                setCreating(false);
-                setNewName('');
-              }
-            }}
-          >
-            Add
-          </button>
-          <button
-            className="px-2 py-1 text-xs bg-gray-200 rounded hover:bg-gray-300"
-            onClick={() => {
-              setCreating(false);
-              setNewName('');
-            }}
-          >
-            Cancel
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div>
-      <FieldLabel schema={schema} />
-      <select
-        className="nodrag w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-        defaultValue={value ?? ''}
-        onChange={(e) => {
-          if (e.target.value === '__create__') {
-            setCreating(true);
-          } else {
-            onChange(fieldName, e.target.value);
-          }
-        }}
-      >
-        <option value="">Select slot...</option>
-        {slotEntries.map(([idx, meta]) => (
-          <option key={idx} value={meta.name}>
-            {meta.name} (Slot {idx})
-          </option>
-        ))}
-        <option value="__create__">+ Create new slot</option>
-      </select>
-    </div>
-  );
-}
-
-function SlotToggleField({
-  fieldName,
-  schema,
-  value,
-  onChange,
-  contextSlots,
-}: {
-  fieldName: string;
-  schema: FieldSchema;
-  value: unknown;
-  onChange: (name: string, value: unknown) => void;
-  contextSlots: Record<string, ContextSlotInfo>;
-}) {
-  const isUsingSlot = typeof value === 'string' && value !== '';
-
-  return (
-    <div>
-      <FieldLabel schema={schema} />
-      <div className="flex items-center gap-2 mb-2">
-        <label className="nodrag flex items-center gap-1 cursor-pointer text-xs text-gray-600">
-          <input
-            type="radio"
-            name={`${fieldName}-mode`}
-            checked={!isUsingSlot}
-            onChange={() => onChange(fieldName, NO_SLOT)}
-          />
-          Use static value
-        </label>
-        <label className="nodrag flex items-center gap-1 cursor-pointer text-xs text-gray-600">
-          <input
-            type="radio"
-            name={`${fieldName}-mode`}
-            checked={isUsingSlot}
-            onChange={() => onChange(fieldName, '')}
-          />
-          From context slot
-        </label>
-      </div>
-      {isUsingSlot && (
-        <ContextSlotField
-          fieldName={fieldName}
-          schema={schema}
-          value={value}
-          onChange={onChange}
-          contextSlots={contextSlots}
-        />
-      )}
     </div>
   );
 }

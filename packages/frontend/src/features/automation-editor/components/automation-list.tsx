@@ -29,6 +29,7 @@ export function AutomationList({ vaultAddress }: AutomationListProps) {
   const [automations, setAutomations] = useState<AutomationListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [pendingToggle, setPendingToggle] = useState<string | null>(null);
+  const [pendingExecute, setPendingExecute] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const { sendTransactionAsync } = useSendTransaction();
 
@@ -79,6 +80,35 @@ export function AutomationList({ vaultAddress }: AutomationListProps) {
       );
     } finally {
       setPendingToggle(null);
+    }
+  };
+
+  const handleExecute = async (a: AutomationListItem, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (a.isDraft || a.onChainId === null) return;
+
+    setPendingExecute(a.id);
+    try {
+      const res = await apiFetch(
+        `/vaults/${vaultAddress}/automations/${a.id}/encode-execute`,
+        { method: 'POST' },
+      );
+      const { calldata } = await res.json();
+
+      await sendTransactionAsync({
+        to: vaultAddress as `0x${string}`,
+        data: calldata as `0x${string}`,
+        // executeAutomation walks the whole step graph via delegatecall; fork gas
+        // estimation is unreliable for proxy delegatecalls (see CLAUDE.md), so use
+        // a generous explicit override.
+        gas: 2_000_000n,
+      });
+
+      setTimeout(fetchAutomations, 3000);
+    } catch {
+      // swallow — user-rejected or failed tx leaves the list unchanged
+    } finally {
+      setPendingExecute(null);
     }
   };
 
@@ -154,6 +184,8 @@ export function AutomationList({ vaultAddress }: AutomationListProps) {
                   <td className="px-4 py-3">
                     {a.isDraft ? (
                       <span className="text-xs text-gray-400">&mdash;</span>
+                    ) : a.ownerOnly ? (
+                      <span className="text-xs font-medium text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full">Manual</span>
                     ) : a.active ? (
                       <span className="text-xs font-medium text-green-700 bg-green-50 px-2 py-0.5 rounded-full">Active</span>
                     ) : (
@@ -161,7 +193,7 @@ export function AutomationList({ vaultAddress }: AutomationListProps) {
                     )}
                   </td>
                   <td className="px-4 py-3 text-gray-600">
-                    {a.isDraft ? (
+                    {a.isDraft || a.ownerOnly ? (
                       <span className="text-xs text-gray-400">&mdash;</span>
                     ) : a.triggerStatus ? (
                       <span className={a.triggerStatus.met ? 'text-green-600 font-medium' : ''}>
@@ -171,7 +203,17 @@ export function AutomationList({ vaultAddress }: AutomationListProps) {
                   </td>
                   <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center justify-end gap-2">
-                      {!a.isDraft && (
+                      {!a.isDraft && a.ownerOnly && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          disabled={pendingExecute === a.id}
+                          onClick={(e) => handleExecute(a, e)}
+                        >
+                          {pendingExecute === a.id ? '...' : 'Execute'}
+                        </Button>
+                      )}
+                      {!a.isDraft && !a.ownerOnly && (
                         <Button
                           variant="ghost"
                           size="sm"
@@ -189,8 +231,12 @@ export function AutomationList({ vaultAddress }: AutomationListProps) {
                         variant="ghost"
                         size="sm"
                         className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                        disabled={a.active === true}
-                        title={a.active ? 'Deactivate before deleting' : 'Delete automation'}
+                        disabled={!a.ownerOnly && a.active === true}
+                        title={
+                          !a.ownerOnly && a.active
+                            ? 'Deactivate before deleting'
+                            : 'Delete automation'
+                        }
                         onClick={(e) => {
                           e.stopPropagation();
                           setConfirmDelete(a.id);

@@ -9,6 +9,7 @@
     "contracts:clean": "pnpm --filter contracts clean",
     "contracts:fork:bsc": "pnpm --filter contracts fork:bsc",
     "contracts:deploy:fork": "pnpm --filter contracts deploy:fork",
+    "contracts:execute:fork": "pnpm --filter contracts execute:fork",
     "contracts:deploy:testnet": "pnpm --filter contracts deploy:bsc-testnet",
     "contracts:deploy:mainnet": "pnpm --filter contracts deploy:bsc-mainnet",
     "backend:dev": "pnpm --filter backend dev",

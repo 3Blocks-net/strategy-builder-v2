@@ -5,8 +5,10 @@ import { PrismaService } from '../database/prisma.service';
 
 const VAULT_ABI = ['function getContext() external view returns (bytes[])'];
 
-interface SlotMeta {
+export interface SlotMeta {
   name: string;
+  type: string;
+  description: string;
   createdByAutomationId: string;
 }
 
@@ -25,6 +27,7 @@ export class ContextService {
     vaultId: string,
     slotNames: string[],
     automationId: string,
+    slotMeta?: Record<string, { type?: string; description?: string }>,
   ): Promise<Record<string, number>> {
     const vault = await this.prisma.vault.findUniqueOrThrow({
       where: { id: vaultId },
@@ -48,7 +51,13 @@ export class ContextService {
         mapping[name] = existing;
       } else {
         const idx = nextIndex++;
-        slots[String(idx)] = { name, createdByAutomationId: automationId };
+        const meta = slotMeta?.[name];
+        slots[String(idx)] = {
+          name,
+          type: meta?.type ?? 'uint256',
+          description: meta?.description ?? '',
+          createdByAutomationId: automationId,
+        };
         existingByName.set(name, idx);
         mapping[name] = idx;
       }

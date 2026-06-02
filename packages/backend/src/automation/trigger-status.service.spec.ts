@@ -43,7 +43,7 @@ describe('TriggerStatusService', () => {
     it('returns "Not initialized" when slot is empty', () => {
       const data = coder.encode(['uint256', 'uint32'], [86400, 0]);
       const result = (service as any).interpretInterval(data, []);
-      expect(result.description).toBe('Not initialized');
+      expect(result.description).toMatch(/Not initialized/);
     });
 
     it('returns "Ready to fire" when time has passed', () => {

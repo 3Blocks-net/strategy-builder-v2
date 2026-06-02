@@ -1,12 +1,21 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { Contract, JsonRpcProvider, Interface } from "ethers";
+import { Contract, JsonRpcProvider, Interface, ZeroAddress } from "ethers";
 
 const FEE_REGISTRY_ABI = [
   "function depositFeeBps() external view returns (uint16)",
   "function withdrawFeeBps() external view returns (uint16)",
   "event TokenAdded(address indexed token, uint8 decimals)",
   "event TokenRemoved(address indexed token)",
+];
+
+const VAULT_GAS_DEPOSIT_ABI = [
+  "function depositToken() external view returns (address)",
+  "function minFeeDeposit() external view returns (uint256)",
+];
+
+const FEE_REGISTRY_DEPOSIT_ABI = [
+  "function vaultDeposit(address vault, address token) external view returns (uint256)",
 ];
 
 const ERC20_ABI = [
@@ -25,6 +34,13 @@ export interface AcceptedToken {
   symbol: string;
   name: string;
   decimals: number;
+}
+
+export interface VaultGasDeposit {
+  enabled: boolean;
+  token: { address: string; symbol: string; decimals: number } | null;
+  deposited: string;
+  minFeeDeposit: string;
 }
 
 const CACHE_TTL_MS = 60 * 60 * 1000;
@@ -120,6 +136,54 @@ export class FeeService {
     this.tokensCache = { data: tokens, expiresAt: Date.now() + CACHE_TTL_MS };
     await provider.destroy();
     return tokens;
+  }
+
+  /**
+   * Read a vault's gas-compensation deposit held in the FeeRegistry, alongside
+   * the vault's deposit token and minFeeDeposit target. `enabled` is false when
+   * the vault was created without a deposit token (gas comp disabled).
+   */
+  async getVaultGasDeposit(vaultAddress: string): Promise<VaultGasDeposit> {
+    const rpcUrl = this.configService.get<string>("RPC_URL")!;
+    const feeRegistryAddress = this.configService.get<string>(
+      "FEE_REGISTRY_ADDRESS",
+    )!;
+    const provider = new JsonRpcProvider(rpcUrl);
+    try {
+      const vault = new Contract(vaultAddress, VAULT_GAS_DEPOSIT_ABI, provider);
+      const depositToken: string = await vault.depositToken();
+
+      if (depositToken === ZeroAddress) {
+        return { enabled: false, token: null, deposited: "0", minFeeDeposit: "0" };
+      }
+
+      const feeRegistry = new Contract(
+        feeRegistryAddress,
+        FEE_REGISTRY_DEPOSIT_ABI,
+        provider,
+      );
+      const token = new Contract(depositToken, ERC20_ABI, provider);
+
+      const [deposited, minFeeDeposit, symbol, decimals] = await Promise.all([
+        feeRegistry.vaultDeposit(vaultAddress, depositToken),
+        vault.minFeeDeposit(),
+        token.symbol(),
+        token.decimals(),
+      ]);
+
+      return {
+        enabled: true,
+        token: {
+          address: depositToken,
+          symbol: symbol as string,
+          decimals: Number(decimals),
+        },
+        deposited: deposited.toString(),
+        minFeeDeposit: minFeeDeposit.toString(),
+      };
+    } finally {
+      await provider.destroy();
+    }
   }
 
   private getContracts() {

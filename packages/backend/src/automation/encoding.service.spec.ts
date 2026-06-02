@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { AbiCoder } from 'ethers';
+import { AbiCoder, Interface } from 'ethers';
 import { EncodingService } from './encoding.service';
 import { ContextService } from './context.service';
 import { PrismaService } from '../database/prisma.service';
@@ -23,6 +23,18 @@ const mockStepTypes = [
         { name: 'timeSlot', type: 'uint32' },
       ],
     },
+    paramSchema: {
+      type: 'object',
+      properties: {
+        interval: { type: 'string', title: 'Interval' },
+        timeSlot: {
+          type: 'integer',
+          title: 'Time Slot',
+          'x-ui-widget': 'context-slot',
+          'x-ui-slot-access': 'read-write',
+        },
+      },
+    },
   },
   {
     id: 'st-transfer',
@@ -41,6 +53,27 @@ const mockStepTypes = [
         { name: 'feeRegistry', type: 'address' },
       ],
     },
+    paramSchema: {
+      type: 'object',
+      properties: {
+        token: { type: 'string', 'x-ui-widget': 'token-selector' },
+        recipient: { type: 'string', 'x-ui-widget': 'account-selector' },
+        amount: { type: 'string', 'x-ui-widget': 'amount' },
+        amountFromSlot: {
+          type: 'integer',
+          'x-ui-widget': 'context-slot',
+          'x-ui-slot-access': 'read',
+          default: 4294967295,
+        },
+        amountToSlot: {
+          type: 'integer',
+          'x-ui-widget': 'context-slot',
+          'x-ui-slot-access': 'write',
+          default: 4294967295,
+        },
+        feeRegistry: { type: 'string', 'x-ui-widget': 'account-selector' },
+      },
+    },
   },
   {
     id: 'st-balance',
@@ -57,6 +90,21 @@ const mockStepTypes = [
         { name: 'aboveOrEqual', type: 'bool' },
         { name: 'minBalanceFromSlot', type: 'uint32' },
       ],
+    },
+    paramSchema: {
+      type: 'object',
+      properties: {
+        token: { type: 'string', 'x-ui-widget': 'token-selector' },
+        account: { type: 'string', 'x-ui-widget': 'account-selector' },
+        minBalance: { type: 'string', 'x-ui-widget': 'amount' },
+        aboveOrEqual: { type: 'boolean', default: true },
+        minBalanceFromSlot: {
+          type: 'integer',
+          'x-ui-widget': 'context-slot',
+          'x-ui-slot-access': 'read',
+          default: 4294967295,
+        },
+      },
     },
   },
 ];
@@ -170,6 +218,38 @@ describe('EncodingService', () => {
       expect(decoded[0]).toBe(0n);
       expect(decoded[1]).toBe(0n);
     });
+
+    it('applies the schema default (NO_SLOT) for an unset optional slot field', () => {
+      // amountFromSlot/amountToSlot left unset must encode to NO_SLOT
+      // (4294967295), NOT 0 — otherwise the action reads/writes slot 0.
+      const result = service.encodeParams(
+        {
+          token: '0x55d398326f99059fF775485246999027B3197955',
+          recipient: '0x1234567890123456789012345678901234567890',
+          amount: '1000',
+        },
+        mockStepTypes[1].abiFragment as any,
+        {},
+        mockStepTypes[1].paramSchema as any,
+      );
+      const decoded = abiCoder.decode(
+        ['address', 'address', 'uint256', 'uint32', 'uint32', 'address'],
+        result,
+      );
+      expect(decoded[3]).toBe(4294967295n); // amountFromSlot
+      expect(decoded[4]).toBe(4294967295n); // amountToSlot
+    });
+
+    it('throws on an unresolved context variable name', () => {
+      expect(() =>
+        service.encodeParams(
+          { interval: '86400', timeSlot: 'doesNotExist' },
+          mockStepTypes[0].abiFragment as any,
+          {},
+          mockStepTypes[0].paramSchema as any,
+        ),
+      ).toThrow(/context variable/i);
+    });
   });
 
   describe('encode', () => {
@@ -269,6 +349,77 @@ describe('EncodingService', () => {
         service.encode('v1', '0xvault', 'a1', { nodes: [], edges: [] }),
       ).rejects.toThrow('Graph must have at least one node');
     });
+
+    it('allocates context slots referenced by name and resolves them in step data', async () => {
+      const allocateSlots = jest
+        .fn()
+        .mockResolvedValue({ dailyTimer: 1 });
+      (service as any).contextService.allocateSlots = allocateSlots;
+      (service as any).contextService.buildExpandedContext = jest
+        .fn()
+        .mockReturnValue(['0x', '0x00']);
+
+      const graph = {
+        nodes: [
+          {
+            id: 'c1',
+            type: 'CONDITION' as const,
+            data: {
+              stepTypeId: 'st-interval',
+              params: { interval: '86400', timeSlot: 'dailyTimer' },
+            },
+          },
+        ],
+        edges: [],
+      };
+
+      const result = await service.encode('v1', '0xvault', 'a1', graph);
+
+      // slot name extracted and allocated
+      expect(allocateSlots).toHaveBeenCalledWith(
+        'v1',
+        ['dailyTimer'],
+        'a1',
+      );
+      // a setContext tx is required to create the slot on-chain
+      expect(result.requiresContextTx).toBe(true);
+      expect(result.contextCalldata).toBeTruthy();
+      expect(result.contextChanges.some((c) => c.slotName === 'dailyTimer')).toBe(true);
+      // the timeSlot field encodes the resolved index (1), not 0/default
+      const decoded = abiCoder.decode(['uint256', 'uint32'], result.steps[0].data);
+      expect(decoded[1]).toBe(1n);
+    });
+
+    it('leaves an unset optional slot field as NO_SLOT (regression: no slot 0)', async () => {
+      const graph = {
+        nodes: [
+          {
+            id: 'a1',
+            type: 'ACTION' as const,
+            data: {
+              stepTypeId: 'st-transfer',
+              params: {
+                token: '0x55d398326f99059fF775485246999027B3197955',
+                recipient: '0x1234567890123456789012345678901234567890',
+                amount: '1000',
+                // amountFromSlot / amountToSlot intentionally unset
+              },
+            },
+          },
+        ],
+        edges: [],
+      };
+
+      const result = await service.encode('v1', '0xvault', 'a1', graph);
+
+      expect(result.requiresContextTx).toBe(false);
+      const decoded = abiCoder.decode(
+        ['address', 'address', 'uint256', 'uint32', 'uint32', 'address'],
+        result.steps[0].data,
+      );
+      expect(decoded[3]).toBe(4294967295n); // amountFromSlot
+      expect(decoded[4]).toBe(4294967295n); // amountToSlot
+    });
   });
 
   describe('encodeUpdate', () => {
@@ -327,6 +478,22 @@ describe('EncodingService', () => {
       const activate = service.encodeToggle(1, true);
       const deactivate = service.encodeToggle(1, false);
       expect(activate).not.toBe(deactivate);
+    });
+  });
+
+  describe('encodeExecute', () => {
+    const iface = new Interface([
+      'function executeAutomation(uint32 automationId) external',
+    ]);
+
+    it('encodes executeAutomation calldata for the given onChainId', () => {
+      const calldata = service.encodeExecute(3);
+      const decoded = iface.decodeFunctionData('executeAutomation', calldata);
+      expect(decoded[0]).toBe(3n);
+    });
+
+    it('encodes different onChainIds differently', () => {
+      expect(service.encodeExecute(0)).not.toBe(service.encodeExecute(1));
     });
   });
 });

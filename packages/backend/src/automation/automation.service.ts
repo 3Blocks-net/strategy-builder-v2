@@ -5,7 +5,7 @@ import { PrismaService } from '../database/prisma.service';
 
 const VAULT_ABI = [
   'function automationCount() external view returns (uint32)',
-  'function getAutomation(uint32 id) external view returns (tuple(bool active, bool ownerOnly, tuple(uint8 stepType, address target, bytes4 selector, uint32 nextOnTrue, uint32 nextOnFalse, bytes data)[] steps))',
+  'function getAutomation(uint32 id) external view returns (bool active, bool ownerOnly, (uint8 stepType, address target, bytes4 selector, uint32 nextOnTrue, uint32 nextOnFalse, bytes data)[] steps)',
 ];
 
 @Injectable()

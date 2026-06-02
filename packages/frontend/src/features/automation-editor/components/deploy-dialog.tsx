@@ -5,6 +5,7 @@ import { decodeEventLog } from 'viem';
 import { Button } from '@/components/ui/button';
 import { apiFetch } from '@/lib/api';
 import { StrategyBuilderVaultAbi } from '@/lib/abis';
+import { waitForReceipt } from '@/lib/wait-for-receipt';
 
 interface ContextChange {
   slotIndex: number;
@@ -83,24 +84,31 @@ export function DeployDialog({ automationId, label, isEdit = false, onClose }: D
       });
       setPhase('auto-wait');
       const receipt = await waitForReceipt(autoHash);
+      if (!receipt) {
+        throw new Error('Timed out waiting for the deployment transaction');
+      }
 
-      let onChainId = 0;
-      if (receipt?.logs) {
-        for (const log of receipt.logs) {
-          try {
-            const event = decodeEventLog({
-              abi: StrategyBuilderVaultAbi,
-              data: log.data,
-              topics: log.topics,
-            });
-            if (event.eventName === 'AutomationCreated') {
-              onChainId = Number((event.args as any).automationId);
-              break;
-            }
-          } catch {
-            // not our event
+      let onChainId: number | null = null;
+      for (const log of receipt.logs) {
+        try {
+          const event = decodeEventLog({
+            abi: StrategyBuilderVaultAbi,
+            data: log.data,
+            topics: log.topics,
+          });
+          if (event.eventName === 'AutomationCreated') {
+            onChainId = Number((event.args as any).automationId);
+            break;
           }
+        } catch {
+          // not our event
         }
+      }
+
+      if (onChainId === null) {
+        throw new Error(
+          'Could not read the on-chain automation ID from the transaction',
+        );
       }
 
       setPhase('backend-confirm');
@@ -247,10 +255,4 @@ function TxStep({ label, active, done, confirming }: { label: string; active: bo
       <span>{label}</span>
     </div>
   );
-}
-
-async function waitForReceipt(_hash: string): Promise<any> {
-  // Simple polling fallback — in production wagmi hooks handle this
-  await new Promise((r) => setTimeout(r, 3000));
-  return { logs: [] };
 }

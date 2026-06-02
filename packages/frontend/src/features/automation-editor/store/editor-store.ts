@@ -42,6 +42,36 @@ interface Snapshot {
 
 const MAX_HISTORY = 50;
 
+export interface ContextVariable {
+  slotIndex: number;
+  name: string;
+  type: string;
+  description: string;
+  createdByAutomationId?: string;
+}
+
+/**
+ * Merge two sets of context variables by slotIndex. `overlay` entries win on
+ * conflict; slots present in only one source are kept. Result is sorted by
+ * slotIndex.
+ *
+ * Used to combine the vault-wide context slots (from /context-slots, populated
+ * at deploy time) with the automation's draft variables (from
+ * editorState.contextVariables, auto-saved while editing). Both load paths run
+ * concurrently on mount, so the merge must be commutative — see the two store
+ * actions below, which pick precedence such that the outcome is independent of
+ * which fetch resolves first.
+ */
+export function mergeContextVariables(
+  base: ContextVariable[],
+  overlay: ContextVariable[],
+): ContextVariable[] {
+  const bySlot = new Map<number, ContextVariable>();
+  for (const v of base) bySlot.set(v.slotIndex, v);
+  for (const v of overlay) bySlot.set(v.slotIndex, v);
+  return [...bySlot.values()].sort((a, b) => a.slotIndex - b.slotIndex);
+}
+
 export interface EditorState {
   nodes: Node<EditorNodeData>[];
   edges: Edge[];
@@ -55,6 +85,8 @@ export interface EditorState {
   past: Snapshot[];
   future: Snapshot[];
   clipboard: Snapshot | null;
+  contextVariables: ContextVariable[];
+  activeTab: 'config' | 'context';
 
   onNodesChange: OnNodesChange<Node<EditorNodeData>>;
   onEdgesChange: OnEdgesChange;
@@ -75,6 +107,12 @@ export interface EditorState {
   copySelected: () => void;
   paste: () => void;
   applyAutoLayout: () => void;
+  setActiveTab: (tab: 'config' | 'context') => void;
+  addContextVariable: (variable: Omit<ContextVariable, 'slotIndex'>) => void;
+  updateContextVariable: (slotIndex: number, updates: Partial<ContextVariable>) => void;
+  setContextVariables: (variables: ContextVariable[]) => void;
+  mergeEditorContextVariables: (variables: ContextVariable[]) => void;
+  mergeVaultContextSlots: (slots: ContextVariable[]) => void;
 }
 
 let nodeCounter = 0;
@@ -141,6 +179,8 @@ export const useEditorStore = create<EditorState>((set, get) => {
   past: [] as Snapshot[],
   future: [] as Snapshot[],
   clipboard: null as Snapshot | null,
+  contextVariables: [] as ContextVariable[],
+  activeTab: 'config' as 'config' | 'context',
 
   onNodesChange: (changes) => {
     set({ nodes: applyNodeChanges(changes, get().nodes) });
@@ -148,7 +188,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
       (c) => c.type === 'select' && c.selected,
     );
     if (selectionChange && 'id' in selectionChange) {
-      set({ selectedNodeId: selectionChange.id });
+      set({ selectedNodeId: selectionChange.id, activeTab: 'config' });
     }
     const structural = changes.some((c) => c.type === 'add' || c.type === 'remove');
     if (structural) { set({ isDirty: true }); scheduleValidation(); }
@@ -215,13 +255,19 @@ export const useEditorStore = create<EditorState>((set, get) => {
   },
 
   removeSelected: () => {
-    const { selectedNodeId, nodes, edges } = get();
-    if (!selectedNodeId) return;
+    const { nodes, edges } = get();
+    const selectedNodeIds = new Set(nodes.filter((n) => n.selected).map((n) => n.id));
+    const selectedEdgeIds = new Set(edges.filter((e) => e.selected).map((e) => e.id));
+
+    if (selectedNodeIds.size === 0 && selectedEdgeIds.size === 0) return;
     pushSnapshot();
     set({
-      nodes: nodes.filter((n) => n.id !== selectedNodeId),
+      nodes: nodes.filter((n) => !selectedNodeIds.has(n.id)),
       edges: edges.filter(
-        (e) => e.source !== selectedNodeId && e.target !== selectedNodeId,
+        (e) =>
+          !selectedEdgeIds.has(e.id) &&
+          !selectedNodeIds.has(e.source) &&
+          !selectedNodeIds.has(e.target),
       ),
       selectedNodeId: null,
       isDirty: true,
@@ -358,6 +404,41 @@ export const useEditorStore = create<EditorState>((set, get) => {
         ...n,
         position: posMap.get(n.id) ?? n.position,
       })),
+      isDirty: true,
+    });
+  },
+
+  setActiveTab: (tab) => set({ activeTab: tab }),
+
+  setContextVariables: (variables) => set({ contextVariables: variables }),
+
+  // Auto-saved draft variables are the source of truth for editing, so they
+  // win on slotIndex conflicts (overlay = incoming).
+  mergeEditorContextVariables: (variables) =>
+    set({ contextVariables: mergeContextVariables(get().contextVariables, variables) }),
+
+  // Vault-wide slots only fill gaps — never clobber draft edits already in the
+  // store (overlay = current). This keeps both load paths commutative, so a
+  // slow /context-slots response can no longer wipe freshly-loaded draft vars.
+  mergeVaultContextSlots: (slots) =>
+    set({ contextVariables: mergeContextVariables(slots, get().contextVariables) }),
+
+  addContextVariable: (variable) => {
+    const { contextVariables } = get();
+    const nextIndex = contextVariables.length > 0
+      ? Math.max(...contextVariables.map((v) => v.slotIndex)) + 1
+      : 0;
+    set({
+      contextVariables: [...contextVariables, { ...variable, slotIndex: nextIndex }],
+      isDirty: true,
+    });
+  },
+
+  updateContextVariable: (slotIndex, updates) => {
+    set({
+      contextVariables: get().contextVariables.map((v) =>
+        v.slotIndex === slotIndex ? { ...v, ...updates } : v,
+      ),
       isDirty: true,
     });
   },

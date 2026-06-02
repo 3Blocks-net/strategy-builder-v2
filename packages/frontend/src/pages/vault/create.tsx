@@ -80,14 +80,16 @@ export function CreateVaultPage() {
     const amount = parseUnits(depositAmount, selectedToken.decimals);
     const allowance = currentAllowance ?? 0n;
 
-    await deposit.approveAndDeposit({
+    // Use the returned success flag, not deposit.step — the latter is captured
+    // from this render's closure and won't reflect the hook's post-await state.
+    const ok = await deposit.approveAndDeposit({
       vaultAddress: createVault.result.vaultAddress,
       tokenAddress: selectedToken.address as Address,
       amount,
       currentAllowance: allowance,
     });
 
-    if (deposit.step === 'done') {
+    if (ok) {
       setWizardStep('done');
     }
   };

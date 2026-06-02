@@ -5,7 +5,7 @@ import { PrismaService } from '../database/prisma.service';
 
 const VAULT_ABI = [
   'function automationCount() external view returns (uint32)',
-  'function getAutomation(uint32 id) external view returns (tuple(bool active, bool ownerOnly, tuple(uint8 stepType, address target, bytes4 selector, uint32 nextOnTrue, uint32 nextOnFalse, bytes data)[] steps))',
+  'function getAutomation(uint32 id) external view returns (bool active, bool ownerOnly, (uint8 stepType, address target, bytes4 selector, uint32 nextOnTrue, uint32 nextOnFalse, bytes data)[] steps)',
   'function getContext() external view returns (bytes[])',
   'function isTriggerMet(uint32 automationId) external view returns (bool)',
 ];
@@ -154,9 +154,12 @@ export class TriggerStatusService {
       const [, timeSlot] = abiCoder.decode(['uint256', 'uint32'], data);
       const slotIdx = Number(timeSlot);
       if (slotIdx >= ctx.length || !ctx[slotIdx] || ctx[slotIdx] === '0x') {
-        return { type: 'interval', met: false, description: 'Not initialized' };
+        return { type: 'interval', met: false, description: 'Not initialized — set context slot with initial timestamp' };
       }
       const nextTime = Number(abiCoder.decode(['uint256'], ctx[slotIdx])[0]);
+      if (nextTime === 0) {
+        return { type: 'interval', met: false, description: 'Not initialized — context slot is 0' };
+      }
       const now = Math.floor(Date.now() / 1000);
       if (now >= nextTime) {
         return { type: 'interval', met: true, description: 'Ready to fire' };

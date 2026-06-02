@@ -1,18 +1,30 @@
 {
-  "FeeRegistry": "0x31ceCEb08B22F35924855A87457179663cC2Eced",
-  "StrategyBuilderVault": "0x2c6413711fCfF0a568E115814Ffda4486c453a32",
-  "StrategyBuilderVaultFactory": "0x279d71233c9C6B75f364C2a19ee187fB1092A163",
-  "TokenBalanceCondition": "0x3052cC9622a0c2Fab6D51D03463d7978e62EbC7F",
-  "IntervalCondition": "0x60C79446f00CB9ebD79c4e2d3d6a773314bdbfaa",
-  "TimerCondition": "0x31D952c4F664F40f47448EB7098367F34ec05a5F",
-  "ERC20TransferAction": "0x284849e6a60F716614Fb28279E2446FE995C5711",
-  "FeeDepositAction": "0x47BA9aF5F927724c2AF4019054EE3Ba760F47950",
+  "FeeRegistry": "0x968a0C4532E2c1f3079C8544812c193eb98Cb8E4",
+  "PriceOracle": "0xf5B9b3191adcFFFE8067227597d3B2a501E58a20",
+  "StrategyBuilderVault": "0x31aeC604138D7e95c9863978328562e6938912C8",
+  "StrategyBuilderVaultFactory": "0x35e9c14Ea5838277502Bd9dCb4E13b87BF646285",
+  "TokenBalanceCondition": "0x34078556425F9011F893C3dEd3e824C56cA5cEEe",
+  "IntervalCondition": "0x1cA15541653e1aaF77fCAAEF3Cf5eF169308cA4b",
+  "TimerCondition": "0xF377d6cBfa43af4F026FD0731d7599968cCa9Bf8",
+  "ERC20TransferAction": "0xE6899f5b67696333530de0c75419AdF569f62E7b",
+  "FeeDepositAction": "0xc07845e16ffAc2536B7887794aa2C8254d48c221",
   "config": {
     "depositFeeBps": 100,
     "withdrawFeeBps": 50,
     "acceptedTokens": {
       "USDT": "0x55d398326f99059fF775485246999027B3197955",
       "WBNB": "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c"
+    },
+    "gasComp": {
+      "priceOracle": "0xf5B9b3191adcFFFE8067227597d3B2a501E58a20",
+      "nativeToken": "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
+      "executorMarkupBps": 1000,
+      "gasOverhead": 50000,
+      "maxGasPrice": 0,
+      "prices": {
+        "WBNB": "600",
+        "USDT": "1"
+      }
     }
   }
 }

@@ -2,8 +2,8 @@ import { useState, useCallback } from 'react';
 import { useWriteContract } from 'wagmi';
 import { keccak256, encodePacked, type Address, type Log } from 'viem';
 import { StrategyBuilderVaultFactoryAbi } from '@/lib/abis';
-import { config } from '@/lib/wagmi';
 import { apiFetch } from '@/lib/api';
+import { waitForReceipt } from '@/lib/wait-for-receipt';
 
 const FACTORY_ADDRESS = import.meta.env
   .VITE_FACTORY_ADDRESS as Address | undefined;
@@ -150,24 +150,4 @@ export function useCreateVault() {
   }, []);
 
   return { createVault, step, error, result, reset };
-}
-
-async function waitForReceipt(txHash: string, timeout = 60_000) {
-  const start = Date.now();
-  const { createPublicClient, http } = await import('viem');
-  const chain = config.chains[0];
-  const client = createPublicClient({ chain, transport: http() });
-
-  while (Date.now() - start < timeout) {
-    try {
-      const receipt = await client.getTransactionReceipt({
-        hash: txHash as `0x${string}`,
-      });
-      if (receipt) return receipt;
-    } catch {
-      // not yet mined
-    }
-    await new Promise((r) => setTimeout(r, 2_000));
-  }
-  return null;
 }
