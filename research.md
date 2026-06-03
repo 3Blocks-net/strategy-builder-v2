@@ -1,0 +1,2917 @@
+# Research: Strategy Builder V2 -- Full-Stack Architecture
+
+> **Expiry:** Delete after initial MVP sprint is complete (~Q3 2026). APIs change. Do not let this file survive longer than one sprint.
+> **Docs source:** Context7 (Prisma, NestJS, Vite, Account Kit), Aave GitHub, BscScan, PancakeSwap docs, Goldsky docs, TheGraph docs, web research May 2026.
+
+---
+
+## Table of Contents
+
+1. [Architecture Overview](#1-architecture-overview)
+2. [Backend: NestJS + Prisma + PostgreSQL](#2-backend-nestjs--prisma--postgresql)
+3. [Frontend: Vite + React](#3-frontend-vite--react)
+4. [Authentication: Alchemy Account Kit](#4-authentication-alchemy-account-kit)
+5. [Blockchain Indexing: TheGraph Subgraph + Goldsky](#5-blockchain-indexing-thegraph-subgraph--goldsky)
+6. [DeFi Protocols: AaveV3 + PancakeSwap V3 on BSC](#6-defi-protocols-aavev3--pancakeswap-v3-on-bsc)
+7. [CI/CD: GitHub Actions + Docker + Hetzner](#7-cicd-github-actions--docker--hetzner)
+8. [Project Structure: pnpm Monorepo](#8-project-structure-pnpm-monorepo)
+9. [Version Summary](#9-version-summary)
+10. [Wagmi v2 + Viem v2 Contract Interactions (PEC-215)](#10-wagmi-v2--viem-v2-contract-interactions-pec-215)
+11. [Token Balances & Prices: Alchemy API + DeFiLlama (Backend)](#11-token-balances--prices-alchemy-api--defillama-backend)
+
+---
+
+## 1. Architecture Overview
+
+```
+                          +------------------+
+                          |   Vite + React   |
+                          |   (Frontend)     |
+                          |   Account Kit    |
+                          +--------+---------+
+                                   |
+                          REST API + WebSocket
+                                   |
+                          +--------+---------+
+                          |    NestJS        |
+                          |    (Backend)     |
+                          |    Prisma ORM    |
+                          +---+----+----+----+
+                              |    |    |
+                   +----------+    |    +----------+
+                   |               |               |
+            +------+------+  +----+----+  +-------+--------+
+            | PostgreSQL  |  | Goldsky |  | BSC Blockchain |
+            | (Database)  |  | Subgraph|  | (Smart Contracts)|
+            +-------------+  +---------+  +----------------+
+```
+
+**Data flow:**
+- Frontend connects wallet via Account Kit (social login or MetaMask)
+- Backend verifies wallet ownership via SIWE (Sign-In with Ethereum)
+- User creates strategies via REST API -> stored in PostgreSQL
+- Backend constructs on-chain transactions -> sent to BSC via user's wallet
+- Subgraph indexes on-chain events (vault creation, executions, fees)
+- Frontend queries Subgraph for historical data + backend for user-specific data
+
+---
+
+## 2. Backend: NestJS + Prisma + PostgreSQL
+
+### Why NestJS (over Express/Fastify)
+
+- Opinionated module/controller/service structure prevents monolithic sprawl
+- Built-in WebSocket gateways (decorator-driven) for real-time automation status
+- Guards pattern is ideal for wallet signature auth (`WalletAuthGuard`)
+- Official Prisma recipe with injectable `PrismaService`
+- `nest g resource` scaffolds full CRUD in one command
+- Swagger/OpenAPI generation via decorators
+- Can switch to Fastify HTTP adapter later if needed (`@nestjs/platform-fastify`)
+
+### Prisma Schema
+
+```prisma
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
+}
+
+// ── Users ──────────────────────────────────────
+
+model User {
+  id            String   @id @default(cuid())
+  walletAddress String   @unique @db.VarChar(42)
+  nonce         String   @default(cuid())
+  displayName   String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  vaults Vault[]
+
+  @@index([walletAddress])
+}
+
+// ── Vaults ─────────────────────────────────────
+
+model Vault {
+  id              String   @id @default(cuid())
+  address         String   @unique @db.VarChar(42)
+  chainId         Int      @default(56)
+  ownerAddress    String   @db.VarChar(42)
+  depositToken    String?  @db.VarChar(42)
+  label           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  createdAtBlock  BigInt
+  txHash          String   @db.VarChar(66)
+
+  owner       User         @relation(fields: [ownerAddress], references: [walletAddress])
+  automations Automation[]
+  executions  Execution[]
+  feeEvents   FeeEvent[]
+
+  @@index([ownerAddress])
+  @@index([chainId])
+}
+
+// ── Automations ────────────────────────────────
+
+enum StepType {
+  CONDITION
+  ACTION
+}
+
+model Automation {
+  id           String  @id @default(cuid())
+  onChainId    Int
+  vaultId      String
+  active       Boolean @default(true)
+  ownerOnly    Boolean @default(false)
+  label        String?
+  description  String?
+  steps        Json    @db.JsonB
+  context      Json?   @db.JsonB
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  vault      Vault       @relation(fields: [vaultId], references: [id], onDelete: Cascade)
+  executions Execution[]
+
+  @@unique([vaultId, onChainId])
+  @@index([vaultId])
+  @@index([active])
+  @@index([steps], type: Gin)
+}
+
+// ── Executions ─────────────────────────────────
+
+enum ExecutionStatus {
+  SUCCESS
+  REVERTED
+  TRIGGER_NOT_MET
+}
+
+model Execution {
+  id              String          @id @default(cuid())
+  automationId    String
+  vaultId         String
+  executorAddress String          @db.VarChar(42)
+  txHash          String          @db.VarChar(66)
+  blockNumber     BigInt
+  blockTimestamp   DateTime
+  gasUsed         BigInt
+  gasCompAmount   String?
+  gasCompToken    String?         @db.VarChar(42)
+  status          ExecutionStatus
+  errorMessage    String?
+
+  createdAt DateTime @default(now())
+
+  automation Automation @relation(fields: [automationId], references: [id], onDelete: Cascade)
+  vault      Vault      @relation(fields: [vaultId], references: [id], onDelete: Cascade)
+
+  @@index([automationId])
+  @@index([vaultId])
+  @@index([executorAddress])
+  @@index([blockTimestamp])
+  @@index([txHash])
+}
+
+// ── Fee Events ─────────────────────────────────
+
+enum FeeEventType {
+  DEPOSIT_FEE
+  WITHDRAW_FEE
+  GAS_COMPENSATION
+  FEE_DEPOSIT
+  FEE_WITHDRAWAL
+}
+
+model FeeEvent {
+  id             String       @id @default(cuid())
+  vaultId        String
+  eventType      FeeEventType
+  token          String       @db.VarChar(42)
+  amount         String
+  feeBps         Int?
+  txHash         String       @db.VarChar(66)
+  blockNumber    BigInt
+  blockTimestamp  DateTime
+
+  createdAt DateTime @default(now())
+
+  vault Vault @relation(fields: [vaultId], references: [id], onDelete: Cascade)
+
+  @@index([vaultId])
+  @@index([eventType])
+  @@index([token])
+  @@index([blockTimestamp])
+}
+```
+
+### Key Design Decisions
+
+| Decision | Choice | Reason |
+|---|---|---|
+| Blockchain addresses | `String @db.VarChar(42)` | Human-readable, directly usable in ethers.js, always checksum on write via `ethers.getAddress()` |
+| uint256 values | `String` (decimal) | PostgreSQL `bigint` max ~9.2x10^18, Solidity uint256 max ~1.15x10^77. Token amounts with 18 decimals overflow `bigint` |
+| Block numbers, gas | `BigInt` | Fits in 8 bytes, Prisma BigInt maps to PostgreSQL `bigint` |
+| Strategy steps | `Json @db.JsonB` | Always read/written as unit, JSONB supports GIN indexes, avoids polymorphic table complexity |
+
+### Connection Pooling (Production)
+
+```bash
+# .env
+DATABASE_URL="postgres://USER:PASSWORD@HOST:6432/strategy_builder?pgbouncer=true"
+DIRECT_URL="postgres://USER:PASSWORD@HOST:5432/strategy_builder"
+```
+
+`DIRECT_URL` for Prisma CLI migrations; pooled `DATABASE_URL` for runtime.
+
+### Migration Workflow
+
+```bash
+npx prisma migrate dev --name init    # Dev: create + apply
+npx prisma migrate deploy             # Prod: apply pending
+npx prisma generate                   # Regenerate client
+```
+
+---
+
+## 3. Frontend: Vite + React
+
+### Why Vite (over Next.js)
+
+- **DeFi dApps are inherently client-side.** Wallet connection, transaction signing, chain state all live in the browser. Every Next.js component touching wallet state needs `'use client'`, negating SSR benefits.
+- **SEO irrelevant.** App is behind wallet authentication.
+- **Hetzner deployment is trivial.** `npm run build` -> `dist/` folder -> nginx serves static files. No Node.js process needed.
+- **Simpler mental model.** No server/client component confusion, no hydration mismatches.
+
+### Vite Configuration
+
+```typescript
+// vite.config.ts
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+
+export default defineConfig({
+  plugins: [react()],
+  server: {
+    proxy: {
+      '/api': { target: 'http://localhost:3000', changeOrigin: true },
+      '/ws': { target: 'ws://localhost:3000', ws: true },
+    },
+  },
+});
+```
+
+### Environment Variables
+
+```typescript
+// vite-env.d.ts
+interface ImportMetaEnv {
+  readonly VITE_API_URL: string;
+  readonly VITE_WS_URL: string;
+  readonly VITE_CHAIN_ID: string;
+  readonly VITE_SUBGRAPH_URL: string;
+  readonly VITE_ALCHEMY_API_KEY: string;
+}
+```
+
+### Key Frontend Libraries
+
+| Library | Version | Purpose |
+|---|---|---|
+| `vite` | ^7.0 | Build tool |
+| `react` / `react-dom` | ^19.1 | UI library |
+| `react-router` | ^7.x | Client-side routing |
+| `@tanstack/react-query` | ^5.x | Data fetching / caching |
+| `@account-kit/react` | v4 | Wallet connection + auth |
+| `@account-kit/infra` | v4 | Chain config + transport |
+| `@xyflow/react` | ^12.x | Visual automation graph builder |
+| `tailwindcss` | ^4.x | Styling |
+| `zod` | ^3.x | Shared validation schemas |
+
+---
+
+## 4. Authentication: Alchemy Account Kit
+
+### Overview
+
+Account Kit v4 provides ERC-4337 smart accounts + embedded wallets. Users can log in via social login (creates smart account) or connect external wallets like MetaMask (EOA). **BSC is officially supported** (`bsc` chain constant from `@account-kit/infra`).
+
+### Setup
+
+```typescript
+// config.ts
+import { bsc, alchemy } from "@account-kit/infra";
+import { AlchemyAccountsUIConfig, createConfig } from "@account-kit/react";
+import { QueryClient } from "@tanstack/react-query";
+
+const uiConfig: AlchemyAccountsUIConfig = {
+  illustrationStyle: "linear",
+  auth: {
+    sections: [
+      [{ type: "email" }],
+      [
+        { type: "social", authProviderId: "google", mode: "popup" },
+        { type: "social", authProviderId: "apple", mode: "popup" },
+      ],
+      [{ type: "passkey" }],
+      [{ type: "external_wallets" }],
+    ],
+    addPasskeyOnSignup: false,
+  },
+};
+
+export const config = createConfig(
+  {
+    transport: alchemy({ apiKey: import.meta.env.VITE_ALCHEMY_API_KEY }),
+    chain: bsc,
+    ssr: false,
+    sessionConfig: { expirationTimeMs: 1000 * 60 * 60 },
+  },
+  uiConfig
+);
+
+export const queryClient = new QueryClient();
+```
+
+### Provider Wrapper
+
+```tsx
+import { AlchemyAccountProvider } from "@account-kit/react";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { config, queryClient } from "./config";
+
+export default function App({ children }) {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <AlchemyAccountProvider config={config} queryClient={queryClient}>
+        {children}
+      </AlchemyAccountProvider>
+    </QueryClientProvider>
+  );
+}
+```
+
+### Authentication Flows
+
+| Method | Account Type | User Experience |
+|---|---|---|
+| Email OTP | Smart Account (SCA) | Enter email -> verify OTP -> wallet auto-created |
+| Google/Apple | Smart Account (SCA) | OAuth popup -> wallet auto-created |
+| Passkey | Smart Account (SCA) | Biometric prompt -> wallet auto-created |
+| MetaMask | EOA | Standard wallet connection |
+
+### Key React Hooks
+
+| Hook | Purpose |
+|---|---|
+| `useAuthenticate()` | Trigger email/passkey/social auth |
+| `useConnectedUser()` | Get connected user (EOA or SCA), address, type |
+| `useAccount()` | Get smart account address + loading state |
+| `useSmartWalletClient()` | Send transactions (SCA only, `undefined` for EOA) |
+| `useSignMessage()` | Sign arbitrary messages |
+
+### Smart Account vs EOA
+
+| Aspect | Smart Account (SCA) | EOA (MetaMask) |
+|---|---|---|
+| `useConnectedUser().type` | `"sca"` | `"eoa"` |
+| Gas sponsorship | Yes (via Paymaster) | No |
+| Batch transactions | Yes (native) | No |
+| `useSmartWalletClient()` | Returns client | Returns `undefined` |
+
+### Backend Verification (SIWE Pattern)
+
+No server-side Account Kit SDK exists. Verify wallet ownership via signatures:
+
+- **EOA:** Standard `ethers.verifyMessage(message, signature)` / `ecrecover`
+- **Smart Account:** ERC-1271 `isValidSignature(messageHash, signature)` on-chain check
+
+```typescript
+// Backend: verify SIWE signature
+const MAGIC_VALUE = "0x1626ba7e";
+const contract = new Contract(smartAccountAddress, ERC1271_ABI, provider);
+const result = await contract.isValidSignature(messageHash, signature);
+const isValid = result === MAGIC_VALUE;
+```
+
+### BSC Limitations to Verify
+
+1. Confirm LightAccount/ModularAccountV2 factory contracts deployed on BSC
+2. Verify Alchemy Bundler availability on BSC in Dashboard
+3. Test Gas Manager policy creation for BSC
+4. Use `LightAccount` (not ModularAccountV2) -- EIP-7702 may not be supported on BSC
+
+---
+
+## 5. Blockchain Indexing: TheGraph Subgraph + Goldsky
+
+### Schema Design
+
+```graphql
+type Factory @entity {
+  id: Bytes!
+  vaultCount: BigInt!
+  vaults: [Vault!]! @derivedFrom(field: "factory")
+}
+
+type Vault @entity {
+  id: Bytes!
+  factory: Factory!
+  owner: Bytes!
+  index: BigInt!
+  createdAtBlock: BigInt!
+  createdAtTimestamp: BigInt!
+  automationCount: BigInt!
+  automations: [Automation!]! @derivedFrom(field: "vault")
+  deposits: [DepositEvent!]! @derivedFrom(field: "vault")
+  withdrawals: [WithdrawalEvent!]! @derivedFrom(field: "vault")
+  executions: [ExecutionEvent!]! @derivedFrom(field: "vault")
+  feeEvents: [FeeEvent!]! @derivedFrom(field: "vault")
+  gasCompEvents: [GasCompEvent!]! @derivedFrom(field: "vault")
+}
+
+type Automation @entity {
+  id: String!
+  vault: Vault!
+  automationId: BigInt!
+  stepCount: BigInt!
+  active: Boolean!
+  createdAtBlock: BigInt!
+  createdAtTimestamp: BigInt!
+  executions: [ExecutionEvent!]! @derivedFrom(field: "automation")
+}
+
+type ExecutionEvent @entity(immutable: true) {
+  id: String!
+  vault: Vault!
+  automation: Automation!
+  executor: Bytes!
+  blockNumber: BigInt!
+  timestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type DepositEvent @entity(immutable: true) {
+  id: String!
+  vault: Vault!
+  token: Bytes!
+  amount: BigInt!
+  blockNumber: BigInt!
+  timestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type WithdrawalEvent @entity(immutable: true) {
+  id: String!
+  vault: Vault!
+  token: Bytes!
+  amount: BigInt!
+  fee: BigInt!
+  recipient: Bytes!
+  blockNumber: BigInt!
+  timestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type FeeEvent @entity(immutable: true) {
+  id: String!
+  vault: Vault!
+  token: Bytes!
+  amount: BigInt!
+  eventType: String!
+  blockNumber: BigInt!
+  timestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type GasCompEvent @entity(immutable: true) {
+  id: String!
+  vault: Vault!
+  executor: Bytes!
+  token: Bytes!
+  amount: BigInt!
+  blockNumber: BigInt!
+  timestamp: BigInt!
+  transactionHash: Bytes!
+}
+```
+
+### Subgraph Manifest (subgraph.yaml)
+
+Uses **dynamic data source templates** for the factory pattern:
+
+- **Static data sources:** `StrategyBuilderVaultFactory` + `FeeRegistry` (known addresses)
+- **Template:** `StrategyBuilderVault` (spawned dynamically per vault via `VaultTemplate.create(proxyAddress)`)
+
+ERC1967 proxies: index the **proxy address** (events emit from proxy), use the **implementation ABI** (has the event definitions).
+
+```yaml
+specVersion: 1.3.0
+schema:
+  file: ./schema.graphql
+indexerHints:
+  prune: auto
+
+dataSources:
+  - kind: ethereum/contract
+    name: StrategyBuilderVaultFactory
+    network: bsc
+    source:
+      address: "0xFACTORY_ADDRESS"
+      abi: StrategyBuilderVaultFactory
+      startBlock: DEPLOY_BLOCK
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.9
+      language: wasm/assemblyscript
+      file: ./src/mappings/factory.ts
+      entities: [Factory, Vault]
+      abis:
+        - name: StrategyBuilderVaultFactory
+          file: ./abis/StrategyBuilderVaultFactory.json
+      eventHandlers:
+        - event: VaultCreated(indexed address,indexed address,uint256)
+          handler: handleVaultCreated
+
+  - kind: ethereum/contract
+    name: FeeRegistry
+    network: bsc
+    source:
+      address: "0xFEE_REGISTRY_ADDRESS"
+      abi: FeeRegistry
+      startBlock: DEPLOY_BLOCK
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.9
+      language: wasm/assemblyscript
+      file: ./src/mappings/feeRegistry.ts
+      entities: [FeeEvent, GasCompEvent]
+      abis:
+        - name: FeeRegistry
+          file: ./abis/FeeRegistry.json
+      eventHandlers:
+        - event: FeeCollected(indexed address,indexed address,uint256)
+          handler: handleFeeCollected
+        - event: GasCompDeducted(indexed address,indexed address,indexed address,uint256)
+          handler: handleGasCompDeducted
+
+templates:
+  - kind: ethereum/contract
+    name: StrategyBuilderVault
+    network: bsc
+    source:
+      abi: StrategyBuilderVault
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.9
+      language: wasm/assemblyscript
+      file: ./src/mappings/vault.ts
+      entities: [Automation, ExecutionEvent, DepositEvent, WithdrawalEvent]
+      abis:
+        - name: StrategyBuilderVault
+          file: ./abis/StrategyBuilderVault.json
+      eventHandlers:
+        - event: AutomationCreated(indexed uint32,uint256)
+          handler: handleAutomationCreated
+        - event: AutomationActiveChanged(indexed uint32,bool)
+          handler: handleAutomationActiveChanged
+        - event: AutomationExecuted(indexed uint32,indexed address)
+          handler: handleAutomationExecuted
+        - event: Deposited(indexed address,uint256)
+          handler: handleDeposited
+        - event: Withdrawn(indexed address,uint256,uint256,indexed address)
+          handler: handleWithdrawn
+```
+
+### Factory Mapping (Key Pattern)
+
+```typescript
+import { StrategyBuilderVault as VaultTemplate } from "../../generated/templates";
+
+export function handleVaultCreated(event: VaultCreated): void {
+  // ... create Factory + Vault entities ...
+
+  // Spawn dynamic data source for this vault proxy
+  VaultTemplate.create(event.params.vault);
+}
+```
+
+### Goldsky Deployment
+
+```bash
+# Install
+npm install -g @graphprotocol/graph-cli
+curl https://goldsky.com | sh
+
+# Build + Deploy
+graph codegen && graph build
+goldsky login
+goldsky subgraph deploy strategy-builder-v2/1.0.0 --path .
+goldsky subgraph tag create strategy-builder-v2/1.0.0 --tag prod
+```
+
+**Endpoint format:**
+```
+https://api.goldsky.com/api/public/<PROJECT_ID>/subgraphs/strategy-builder-v2/prod/gn
+```
+
+### Querying
+
+```graphql
+query VaultsByOwner($owner: Bytes!) {
+  vaults(where: { owner: $owner }, orderBy: createdAtTimestamp, orderDirection: desc) {
+    id
+    index
+    automationCount
+    createdAtTimestamp
+  }
+}
+
+query RecentExecutions($vaultId: Bytes!, $first: Int!, $skip: Int!) {
+  executionEvents(where: { vault: $vaultId }, first: $first, skip: $skip,
+    orderBy: timestamp, orderDirection: desc) {
+    automation { automationId active }
+    executor
+    timestamp
+    transactionHash
+  }
+}
+```
+
+**No GraphQL subscriptions** on Goldsky. Use polling (50 req/10s limit) or Goldsky webhooks/mirror pipelines for real-time.
+
+### Package Versions
+
+| Package | Version |
+|---|---|
+| `@graphprotocol/graph-cli` | `0.98.1` |
+| `@graphprotocol/graph-ts` | `0.38.2` |
+| `specVersion` | `1.3.0` |
+| `apiVersion` | `0.0.9` |
+
+---
+
+## 6. DeFi Protocols: AaveV3 + PancakeSwap V3 on BSC
+
+### CRITICAL: Delegatecall Pattern -- CONFIRMED WORKING
+
+Actions are called via `delegatecall` from the vault. During delegatecall, `address(this)` = vault. When action code makes regular `call` to Aave/PancakeSwap, the vault is `msg.sender`. Tokens live at the vault, approvals are set on the vault's behalf.
+
+**Rule:** Action contracts must call external protocols via regular `call`, never `delegatecall`. Delegatecalling Aave Pool or PancakeSwap Router would corrupt the vault's storage.
+
+### Contract Addresses (BSC Mainnet)
+
+#### AaveV3
+
+| Contract | Address |
+|---|---|
+| Pool (proxy) | `0x6807dc923806fE8Fd134338EABCA509979a7e0cB` |
+| PoolAddressesProvider | `0xff75B6da14FfbbfD355Daf7a2731456b3562Ba6D` |
+| PriceOracle | `0x39bc1bfDa2130d6Bb6DBEfd366939b4c7aa7C697` |
+| PoolDataProvider | `0xc90Df74A7c16245c5F5C5870327Ceb38Fe5d5328` |
+
+**Supported reserves:** WBNB, USDT, USDC, BTCB, ETH, CAKE, FDUSD, wstETH (all 18 decimals on BSC).
+
+**Stable borrow rate is DEPRECATED.** Always use `interestRateMode = 2` (Variable).
+
+#### PancakeSwap V3
+
+| Contract | Address |
+|---|---|
+| SmartRouter | `0x13f4EA83D0bd40E75C8222255bc855a974568Dd4` |
+| NonfungiblePositionManager | `0x46A15B0b27311cedF172AB29E4f4766fbE7F4364` |
+| QuoterV2 | `0xB048Bbc1Ee6b733FFfCFb9e9CeF7375518e25997` |
+| Factory | `0x0BFbCF9fa4f9C56B0F40a671Ad40E0805A091865` |
+| WBNB | `0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c` |
+
+**Fee tiers:** 100 (0.01%), 500 (0.05%), 2500 (0.25%), 10000 (1%).
+
+### Key Operations
+
+#### AaveV3
+
+| Operation | Function | Approval Needed |
+|---|---|---|
+| Supply | `Pool.supply(asset, amount, address(this), 0)` | Yes |
+| Withdraw | `Pool.withdraw(asset, amount, address(this))` | No |
+| Borrow | `Pool.borrow(asset, amount, 2, 0, address(this))` | No |
+| Repay | `Pool.repay(asset, amount, 2, address(this))` | Yes |
+| Health check | `Pool.getUserAccountData(address(this))` | N/A (view) |
+
+#### PancakeSwap V3
+
+| Operation | Function | Notes |
+|---|---|---|
+| Single swap | `SmartRouter.exactInputSingle(params)` | No deadline in struct; use `amountOutMinimum` for slippage |
+| Multi-hop swap | `SmartRouter.exactInput(params)` | Path: `encodePacked(tokenA, fee, tokenB, fee, tokenC)` |
+| Mint LP | `NftPositionManager.mint(params)` | token0 < token1 required; store NFT tokenId in context |
+| Add liquidity | `NftPositionManager.increaseLiquidity(params)` | Need tokenId |
+| Remove liquidity | `NftPositionManager.decreaseLiquidity(params)` | Must call `collect()` after |
+| Collect fees | `NftPositionManager.collect(params)` | `amount0Max/amount1Max = type(uint128).max` for all |
+
+### Skeleton Action Contracts
+
+#### AaveV3SupplyAction
+
+```solidity
+contract AaveV3SupplyAction {
+    using SafeERC20 for IERC20;
+    uint32 private constant NO_SLOT = type(uint32).max;
+
+    struct Params {
+        address pool;
+        address asset;
+        uint256 amount;            // 0 = full balance
+        uint32 amountFromSlot;     // NO_SLOT = use static
+        uint32 amountToSlot;       // NO_SLOT = no context write
+    }
+
+    function execute(bytes calldata params, bytes[] calldata ctx)
+        external returns (uint32[] memory, bytes[] memory)
+    {
+        Params memory p = abi.decode(params, (Params));
+        uint256 supplyAmount = p.amountFromSlot != NO_SLOT
+            ? abi.decode(ctx[p.amountFromSlot], (uint256))
+            : p.amount == 0 ? IERC20(p.asset).balanceOf(address(this)) : p.amount;
+
+        IERC20(p.asset).forceApprove(p.pool, supplyAmount);
+        IPool(p.pool).supply(p.asset, supplyAmount, address(this), 0);
+
+        // Context diff
+        if (p.amountToSlot != NO_SLOT) { /* write supplyAmount to slot */ }
+    }
+}
+```
+
+#### PancakeSwapV3SwapAction
+
+```solidity
+contract PancakeSwapV3SwapAction {
+    using SafeERC20 for IERC20;
+    uint32 private constant NO_SLOT = type(uint32).max;
+
+    struct Params {
+        address router;
+        address tokenIn;
+        address tokenOut;
+        uint24 fee;
+        uint256 amountIn;           // 0 = full balance
+        uint256 amountOutMinimum;
+        uint32 amountInFromSlot;    // NO_SLOT = use static
+        uint32 amountOutToSlot;     // NO_SLOT = no write
+        uint32 minOutFromSlot;      // NO_SLOT = use static
+    }
+
+    function execute(bytes calldata params, bytes[] calldata ctx)
+        external returns (uint32[] memory, bytes[] memory)
+    {
+        // Resolve amounts from context or params
+        // forceApprove router
+        // exactInputSingle with recipient = address(this)
+        // Write amountOut to context slot
+    }
+}
+```
+
+### BSC-Specific Gotchas
+
+- **All major tokens use 18 decimals** (USDT, USDC are 18, NOT 6 like on Ethereum!)
+- Gas for typical automation: $0.10-0.20 USD
+- Block time: 3 seconds
+- aTokens are rebasing -- never cache balances, always read live
+- `decreaseLiquidity` does NOT transfer tokens -- must call `collect()` after
+- QuoterV2 is off-chain only (eth_call) -- never use on-chain
+- `amountOutMinimum = 0` is dangerous -- always compute with slippage tolerance
+
+### Gas Costs (BSC Estimates)
+
+| Operation | Gas | USD (~1 gwei) |
+|---|---|---|
+| AaveV3 supply | 250k-350k | $0.05-0.08 |
+| AaveV3 borrow | 300k-400k | $0.06-0.09 |
+| PCS V3 swap (single) | 150k-250k | $0.03-0.06 |
+| PCS V3 mint LP | 400k-600k | $0.09-0.13 |
+| Full automation overhead | ~50k | $0.01 |
+
+---
+
+## 7. CI/CD: GitHub Actions + Docker + Hetzner
+
+### Pipeline
+
+```yaml
+# .github/workflows/ci.yml
+name: CI
+on:
+  push: { branches: [main, develop] }
+  pull_request: { branches: [main] }
+
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: 'pnpm' }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter contracts compile
+      - run: pnpm --filter contracts test
+
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env: { POSTGRES_USER: test, POSTGRES_PASSWORD: test, POSTGRES_DB: strategy_builder_test }
+        ports: ['5432:5432']
+        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: 'pnpm' }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter backend lint
+      - run: pnpm --filter backend prisma:migrate:deploy
+        env: { DATABASE_URL: 'postgres://test:test@localhost:5432/strategy_builder_test' }
+      - run: pnpm --filter backend test
+        env: { DATABASE_URL: 'postgres://test:test@localhost:5432/strategy_builder_test' }
+      - run: pnpm --filter backend build
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: 'pnpm' }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter frontend lint
+      - run: pnpm --filter frontend test
+      - run: pnpm --filter frontend build
+
+  deploy:
+    needs: [contracts, backend, frontend]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build + push Docker images to GHCR
+        run: |
+          docker build -t ghcr.io/${{ github.repository }}/backend:${{ github.sha }} -f packages/backend/Dockerfile .
+          docker build -t ghcr.io/${{ github.repository }}/frontend:${{ github.sha }} -f packages/frontend/Dockerfile .
+      - name: Deploy to Hetzner via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.HETZNER_HOST }}
+          username: ${{ secrets.HETZNER_USER }}
+          key: ${{ secrets.HETZNER_SSH_KEY }}
+          script: |
+            cd /opt/strategy-builder
+            echo "IMAGE_TAG=${{ github.sha }}" > .env.deploy
+            docker compose pull
+            docker compose up -d --remove-orphans
+            docker compose exec backend pnpm prisma migrate deploy
+```
+
+### Docker Compose (on Hetzner)
+
+```yaml
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    volumes: [pgdata:/var/lib/postgresql/data]
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: strategy_builder
+    ports: ["127.0.0.1:5432:5432"]
+
+  backend:
+    image: ghcr.io/your-org/strategy-builder-v2/backend:${IMAGE_TAG}
+    restart: unless-stopped
+    depends_on: [postgres]
+    ports: ["127.0.0.1:3000:3000"]
+    environment:
+      DATABASE_URL: postgres://${DB_USER}:${DB_PASSWORD}@postgres:5432/strategy_builder
+      NODE_ENV: production
+    env_file: .env
+
+  frontend:
+    image: ghcr.io/your-org/strategy-builder-v2/frontend:${IMAGE_TAG}
+    restart: unless-stopped
+    ports: ["127.0.0.1:8080:80"]
+
+  nginx:
+    image: nginx:alpine
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./certs:/etc/letsencrypt:ro
+    depends_on: [backend, frontend]
+
+volumes:
+  pgdata:
+```
+
+### Secrets (GitHub)
+
+| Secret | Purpose |
+|---|---|
+| `HETZNER_HOST` | Server IP |
+| `HETZNER_USER` | SSH user |
+| `HETZNER_SSH_KEY` | SSH private key |
+
+---
+
+## 8. Project Structure: pnpm Monorepo
+
+### Why pnpm
+
+- Native workspace support
+- Strict dependency isolation (no phantom deps)
+- Content-addressable store (disk-efficient, fast)
+
+### Directory Layout
+
+```
+strategy-builder-v2/
+├── .github/workflows/ci.yml
+├── packages/
+│   ├── contracts/                # Smart contracts (move existing root files)
+│   │   ├── contracts/
+│   │   ├── test/
+│   │   ├── ignition/
+│   │   ├── hardhat.config.ts
+│   │   └── package.json
+│   │
+│   ├── backend/                  # NestJS API
+│   │   ├── src/
+│   │   │   ├── main.ts
+│   │   │   ├── app.module.ts
+│   │   │   ├── prisma/           # PrismaService
+│   │   │   ├── auth/             # SIWE wallet verification
+│   │   │   ├── vaults/           # CRUD
+│   │   │   ├── automations/      # CRUD
+│   │   │   ├── executions/       # History
+│   │   │   ├── fees/             # Fee tracking
+│   │   │   └── ws/               # WebSocket gateway
+│   │   ├── prisma/
+│   │   │   ├── schema.prisma
+│   │   │   └── migrations/
+│   │   ├── Dockerfile
+│   │   └── package.json
+│   │
+│   ├── frontend/                 # Vite + React
+│   │   ├── src/
+│   │   │   ├── main.tsx
+│   │   │   ├── App.tsx
+│   │   │   ├── components/
+│   │   │   ├── pages/
+│   │   │   ├── hooks/
+│   │   │   ├── lib/              # wagmi config, API client
+│   │   │   └── types/
+│   │   ├── vite.config.ts
+│   │   ├── Dockerfile
+│   │   └── package.json
+│   │
+│   ├── subgraph/                 # TheGraph subgraph
+│   │   ├── schema.graphql
+│   │   ├── subgraph.yaml
+│   │   ├── src/mappings/
+│   │   ├── abis/
+│   │   └── package.json
+│   │
+│   └── shared/                   # Shared types + utils
+│       ├── src/
+│       │   ├── types/            # Vault, Automation, Step types
+│       │   ├── constants/        # Contract addresses, ABIs, chains
+│       │   └── validation/       # Zod schemas
+│       └── package.json
+│
+├── pnpm-workspace.yaml
+├── package.json                  # Root: scripts, linting
+├── tsconfig.base.json
+├── CLAUDE.md
+└── research.md                   # <-- this file (delete after MVP)
+```
+
+### Workspace Configuration
+
+```yaml
+# pnpm-workspace.yaml
+packages:
+  - 'packages/*'
+```
+
+### Cross-package imports
+
+```typescript
+// In backend or frontend:
+import { VaultDTO, AutomationStep } from '@strategy-builder/shared';
+```
+
+### Migration from current repo
+
+1. `npm install -g pnpm`
+2. `pnpm import` (converts package-lock.json)
+3. Create `pnpm-workspace.yaml`
+4. Move existing contract files to `packages/contracts/`
+5. `nest new backend` inside packages/
+6. `pnpm create vite frontend --template react-ts`
+7. Create `packages/shared/` and `packages/subgraph/`
+8. Delete `package-lock.json`, run `pnpm install`
+
+---
+
+## 9. Version Summary
+
+| Technology | Version | Purpose |
+|---|---|---|
+| **Runtime** | | |
+| Node.js | 22 LTS | Runtime |
+| pnpm | ^10.x | Package manager |
+| TypeScript | ^5.8 (^6.0 for contracts) | Language |
+| **Backend** | | |
+| NestJS | ^11.1 | REST API framework |
+| Prisma | ^7.5 | ORM + migrations |
+| PostgreSQL | 16 | Database |
+| **Frontend** | | |
+| Vite | ^7.0 | Build tool |
+| React | ^19.1 | UI library |
+| react-router | ^7.x | Routing |
+| @account-kit/react | v4 | Auth + wallet |
+| @account-kit/infra | v4 | Chain config |
+| @tanstack/react-query | ^5.x | Data fetching |
+| @xyflow/react | ^12.x | Graph editor |
+| TailwindCSS | ^4.x | Styling |
+| zod | ^3.x | Validation |
+| **Subgraph** | | |
+| @graphprotocol/graph-cli | 0.98.1 | Build tool |
+| @graphprotocol/graph-ts | 0.38.2 | Runtime |
+| Goldsky CLI | latest | Deployment |
+| **Smart Contracts** | | |
+| Solidity | 0.8.28 | Language |
+| Hardhat | ^3.2.0 | Build + test |
+| OpenZeppelin | ^5.6.1 | Libraries |
+| **Infrastructure** | | |
+| Docker | latest | Containerization |
+| nginx | alpine | Reverse proxy |
+| GitHub Actions | v4 | CI/CD |
+
+---
+
+---
+
+## 10. Wagmi v2 + Viem v2 Contract Interactions (PEC-215)
+
+> **Docs source:** Context7 (wagmi.sh, viem.sh) + GitHub issues research, May 2026.
+> **Scope:** Everything needed for vault creation, deposit, withdraw, and balance reads from the React frontend.
+
+### Version Decision
+
+- **Chosen versions:** wagmi ^2.15.4 (resolves to 2.19.5), viem ^2.31.3 (resolves to 2.51.3)
+- **Why:** All peer deps satisfied — React 19, TanStack Query 5, TypeScript 5.9.3 all compatible
+- **wagmi 2.x is EOL:** Last release Nov 2025. Plan migration to wagmi 3.x after MVP
+- **wagmi 3.x requires:** TypeScript >=5.9.3 (already met), uses same viem 2.x + react >=18
+- **DO NOT USE:** wagmi <2.15.4 (lacks React 19 fixes), viem <2.21 (BSC chain definition bugs), @tanstack/react-query 4.x (wagmi 2.x requires 5.x)
+
+### ABI Setup
+
+All hooks get full TypeScript inference when ABIs use `as const`.
+
+**Recommended pattern — extract from Hardhat artifacts:**
+```typescript
+// packages/frontend/src/lib/abis/strategyBuilderVaultFactory.ts
+export const strategyBuilderVaultFactoryAbi = [
+  {
+    type: 'function', name: 'createVault', stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'vaultOwner', type: 'address' },
+      { name: 'depositToken_', type: 'address' },
+      { name: 'salt', type: 'bytes32' },
+    ],
+    outputs: [{ name: 'vault', type: 'address' }],
+  },
+  // ... more functions + custom errors
+] as const;
+```
+
+**Alternative — human-readable ABI with `parseAbi` (viem):**
+```typescript
+import { parseAbi } from 'viem';
+const erc20Abi = parseAbi([
+  'function balanceOf(address owner) view returns (uint256)',
+  'function approve(address spender, uint256 amount) returns (bool)',
+  'function allowance(address owner, address spender) view returns (uint256)',
+]);
+```
+
+**Critical:** Include custom `error` definitions (CallerNotOwner, TriggerNotMet, FeeTokenNotAccepted) in ABIs — without them viem returns "Execution reverted for an unknown reason" instead of decoded error names.
+
+### Key Hooks Reference
+
+#### useReadContract — single contract read
+```typescript
+const { data: depositFeeBps } = useReadContract({
+  abi: feeRegistryAbi,
+  address: FEE_REGISTRY_ADDRESS,
+  functionName: 'depositFeeBps',
+  query: { enabled: !!address }, // gate on dependency
+});
+```
+Returns: `{ data, error, isLoading, isSuccess, refetch }`. `data` type inferred from ABI.
+
+#### useReadContracts — multicall batch reads
+```typescript
+const { data: balances } = useReadContracts({
+  contracts: tokenAddresses.map((token) => ({
+    abi: erc20Abi, address: token,
+    functionName: 'balanceOf', args: [vaultAddress],
+  })),
+  query: { enabled: !!vaultAddress },
+});
+// balances?.[0].result => bigint (with allowFailure=true, default)
+```
+Each result is `{ result, status: 'success'|'failure', error? }` — NOT the raw value.
+
+**Shared contract pattern:**
+```typescript
+const feeRegistryContract = { abi: feeRegistryAbi, address: FEE_REGISTRY_ADDRESS } as const;
+// spread: { ...feeRegistryContract, functionName: 'depositFeeBps' }
+```
+
+#### useSimulateContract — dry-run before write
+```typescript
+const { data: sim, error: simError } = useSimulateContract({
+  abi: factoryAbi, address: FACTORY_ADDRESS,
+  functionName: 'createVault',
+  args: [ownerAddress, depositTokenAddress, salt],
+  query: { enabled: !!ownerAddress },
+});
+// sim.request => pass to writeContract
+// sim.result => simulated return value
+```
+
+#### useWriteContract — send transactions
+```typescript
+const { data: hash, error, isPending, writeContract, writeContractAsync } = useWriteContract();
+
+// Fire-and-forget (updates React state):
+writeContract({ abi, address, functionName, args });
+
+// Async (for sequential flows like approve+deposit):
+const hash = await writeContractAsync({ abi, address, functionName, args });
+```
+
+**Note:** `writeContract` internally calls `simulateContract` before submitting. If simulation fails, wallet popup never appears.
+
+#### useWaitForTransactionReceipt — track confirmation
+```typescript
+const { isLoading: isConfirming, isSuccess: isConfirmed } =
+  useWaitForTransactionReceipt({ hash });
+```
+
+### ERC-20 Approve + Deposit Pattern
+
+```typescript
+async function approveAndDeposit(amount: bigint) {
+  // 1. Check current allowance
+  const allowance = await readContract(config, {
+    abi: erc20Abi, address: tokenAddress,
+    functionName: 'allowance', args: [owner, vaultAddress],
+  });
+
+  // 2. Approve if needed (handle USDT-style tokens)
+  if (allowance < amount) {
+    if (allowance > 0n) {
+      // USDT-style: reset to 0 first
+      const resetTx = await writeContractAsync({
+        abi: erc20Abi, address: tokenAddress,
+        functionName: 'approve', args: [vaultAddress, 0n],
+      });
+      await waitForTransactionReceipt(config, { hash: resetTx });
+    }
+    const approveTx = await writeContractAsync({
+      abi: erc20Abi, address: tokenAddress,
+      functionName: 'approve', args: [vaultAddress, amount],
+    });
+    await waitForTransactionReceipt(config, { hash: approveTx });
+  }
+
+  // 3. Deposit
+  return await writeContractAsync({
+    abi: vaultAbi, address: vaultAddress,
+    functionName: 'deposit', args: [tokenAddress, amount],
+  });
+}
+```
+
+**MaxUint256 vs exact approval:** For repeated deposits, approve MaxUint256 with explicit user consent UI. Skip re-approval on subsequent deposits when allowance is sufficient.
+
+### Extracting Return Values from Receipts
+
+After `createVault`, parse logs to get the new vault address:
+```typescript
+import { decodeEventLog } from 'viem';
+
+const receipt = await waitForTransactionReceipt(config, { hash });
+const log = receipt.logs.find(/* match VaultCreated topic */);
+const decoded = decodeEventLog({ abi: factoryAbi, data: log.data, topics: log.topics });
+const newVaultAddress = decoded.args.vault;
+```
+
+### Viem Utility Functions
+
+```typescript
+import { parseUnits, formatUnits, parseEther, formatEther } from 'viem';
+
+parseUnits('100.5', 18)  // => 100500000000000000000n
+parseUnits('100', 6)     // => 100000000n (USDT 6 decimals)
+formatUnits(200n, 0)     // fee BPS display: "200" (= 2%)
+```
+
+### Error Handling
+
+```typescript
+import { BaseError, ContractFunctionRevertedError } from 'viem';
+
+if (error instanceof BaseError) {
+  const shortMsg = error.shortMessage; // "execution reverted: CallerNotOwner()"
+
+  const revertError = error.walk(
+    (err) => err instanceof ContractFunctionRevertedError
+  );
+  if (revertError instanceof ContractFunctionRevertedError) {
+    const errorName = revertError.data?.errorName; // "CallerNotOwner"
+  }
+}
+```
+
+### Wagmi Config Update Required
+
+Current config uses bare `transports` — multicall batching is NOT enabled. Update to use `client` factory:
+
+```typescript
+import { createConfig, http, createClient } from 'wagmi';
+import { bsc, bscTestnet } from 'wagmi/chains';
+import { injected } from 'wagmi/connectors';
+
+export const config = createConfig({
+  chains: [bsc, bscTestnet],
+  connectors: [injected()],
+  pollingInterval: 2_000, // BSC has ~0.75s blocks now
+  client({ chain }) {
+    return createClient({
+      chain,
+      transport: http(),
+      batch: {
+        multicall: {
+          batchSize: 512,
+          wait: 50,
+        },
+      },
+    });
+  },
+});
+```
+
+### Gotchas & Pitfalls
+
+1. **`useReadContract` does NOT auto-refetch after writes.** Manually invalidate with `queryClient.invalidateQueries({ queryKey: ['readContract'] })` in a `useEffect` watching `isSuccess` from `useWaitForTransactionReceipt`.
+
+2. **`onSuccess`/`onError` callbacks removed from query hooks in wagmi v2** (aligned with TanStack Query v5). Use `useEffect` on `isSuccess`/`isError` instead. Mutation hooks (`useWriteContract`) still have them.
+
+3. **Multiple `useReadContract` hooks cause re-render waterfalls.** Batch with `useReadContracts` (one hook, one render cycle).
+
+4. **`useReadContracts` default `allowFailure: true`** — results are `{ result, status, error }` objects, not raw values. Access `.result`.
+
+5. **USDT `approve` returns void, not bool** — standard ERC-20 ABI decode fails. Use custom ABI or skip `simulateContract` for known non-standard tokens.
+
+6. **BSC gas estimation bugs** — `eth_estimateGas` on BSC public nodes returns incorrect results. Always add 20% buffer or use `simulateContract` first for better error messages.
+
+7. **`useWaitForTransactionReceipt` silent failure on OOG** — `isLoading` stays `true` forever. Check `failureCount > 0` as fallback.
+
+8. **BSC public RPCs have aggressive rate limits.** Use a dedicated RPC provider (QuickNode, Ankr, dRPC) for production.
+
+9. **`eth_getLogs` block range limited to 5000 blocks** on BSC public RPCs.
+
+10. **`as const` is mandatory on ABIs** for type inference. Without it, `functionName` and `args` become `string` / `unknown[]`.
+
+### Testing Strategy
+
+**Unit tests (mock wagmi hooks):**
+```typescript
+vi.mock('wagmi', async () => {
+  const actual = await vi.importActual('wagmi');
+  return {
+    ...actual,
+    useReadContract: vi.fn().mockReturnValue({
+      data: 1000n, isLoading: false, isSuccess: true, error: null,
+    }),
+  };
+});
+```
+
+**Integration tests (recommended — Anvil fork):**
+```typescript
+import { mock } from 'wagmi/connectors';
+
+const testConfig = createConfig({
+  chains: [bsc],
+  connectors: [mock({ accounts: ['0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'] })],
+  transports: { [bsc.id]: http('http://127.0.0.1:8545') }, // anvil --fork-url <BSC_RPC>
+});
+```
+
+No official `@wagmi/test` package exists. Use `@testing-library/react` with `renderHook` wrapped in `WagmiProvider` + `QueryClientProvider`.
+
+### Hook-to-Feature Mapping (PEC-215)
+
+| Feature | Primary Hook | Notes |
+|---------|-------------|-------|
+| Create vault | `useSimulateContract` + `useWriteContract` + `useWaitForTransactionReceipt` | Parse VaultCreated event from receipt |
+| ERC-20 approve | `useReadContract` (allowance) + `writeContractAsync` | Handle USDT zero-reset |
+| Deposit tokens | `writeContractAsync` + `useWaitForTransactionReceipt` | Sequential after approve |
+| Withdraw tokens | `useSimulateContract` + `useWriteContract` + `useWaitForTransactionReceipt` | Simulate first to catch errors |
+| Vault balances (multi-token) | Backend API (`VaultPortfolioService`) | Alchemy `getTokenBalances` + DeFiLlama prices (see Section 11) |
+| Fee rates | `useReadContracts` | `depositFeeBps` + `withdrawFeeBps` from FeeRegistry |
+| USD values | Backend API (`PriceService`) | DeFiLlama API, no on-chain reads needed (see Section 11) |
+| Vault list | Backend API + `useReadContracts` | DB for metadata, backend for balances/prices |
+
+### Recommended File Structure
+
+```
+packages/frontend/src/lib/
+  abis/
+    erc20.ts                         # balanceOf, approve, allowance, transfer, decimals, symbol
+    strategyBuilderVault.ts          # deposit, withdraw, createAutomation, getContext, etc.
+    strategyBuilderVaultFactory.ts   # createVault, getVault, vaultCount, isRegisteredVault
+    feeRegistry.ts                   # depositFeeBps, withdrawFeeBps, vaultDeposit, isAcceptedToken
+  contracts.ts                       # Contract addresses per chain (BSC mainnet/testnet)
+  wagmi.ts                           # Config (update with client factory)
+
+packages/frontend/src/hooks/
+  useCreateVault.ts                  # simulate + write + wait + parse event
+  useApproveAndDeposit.ts            # allowance check + approve + deposit sequence
+  useWithdraw.ts                     # simulate + write + wait
+  useFeeRates.ts                     # useReadContracts for fee BPS (on-chain)
+  useVaultPortfolio.ts               # TanStack Query wrapper for backend portfolio API
+```
+
+---
+
+## 11. Token Balances & Prices: Alchemy API + DeFiLlama (Backend)
+
+> **Docs source:** Alchemy docs, DeFiLlama API, CoinGecko docs, npm registry, GitHub issues, web research May 2026.
+> **Scope:** Fetching ERC-20 token balances and USD prices for vault addresses on BSC from the NestJS backend.
+
+### Critical Finding: Do NOT Use `alchemy-sdk` npm Package
+
+The `alchemy-sdk` npm package is **archived** (March 11, 2026) and **stuck on ethers v5**. Our backend uses ethers v6. There is no migration path.
+
+| Issue | Details |
+|-------|---------|
+| ethers v5 lock-in | Bundles ethers 5.x internally, conflicts with our ethers 6.16.0 |
+| Archived | Repository archived March 11, 2026 — no further updates |
+| Deprecation | Announced deprecation with "minimal support until January 2026" |
+| Replacement | Alchemy recommends **direct REST API calls** or **viem** (frontend only) |
+
+**Recommendation:** Use Alchemy's REST API directly via `fetch` (native in Node.js 18+). No SDK dependency needed.
+
+### Alchemy BSC Support Status
+
+Alchemy supports BSC with the following RPC endpoints:
+
+| Network | Endpoint |
+|---------|----------|
+| BSC Mainnet | `https://bnb-mainnet.g.alchemy.com/v2/{apiKey}` |
+| BSC Testnet | `https://bnb-testnet.g.alchemy.com/v2/{apiKey}` |
+
+#### Token API on BSC
+
+`alchemy_getTokenBalances` is available on all EVM chains including BSC. However:
+
+- **DEFAULT_TOKENS** param (top 100 tokens auto-discovery) is **NOT available on BSC** — only Ethereum, Polygon, Arbitrum
+- You must pass explicit contract addresses when querying BSC
+- `alchemy_getTokenMetadata` also available on BSC
+
+#### Portfolio API (Newer, Multi-Chain)
+
+The Portfolio API endpoint `assets/tokens/by-address` returns balances + metadata + prices in a **single call**. Supports "30+ EVM chains." BSC is likely included but not explicitly confirmed in docs — must verify in Alchemy dashboard.
+
+### API Endpoints & Costs
+
+#### Option A: Token API (JSON-RPC, per-chain endpoint)
+
+```
+POST https://bnb-mainnet.g.alchemy.com/v2/{apiKey}
+```
+
+| Method | CU Cost | Description |
+|--------|---------|-------------|
+| `alchemy_getTokenBalances` | 20 CU | Get ERC-20 balances for an address |
+| `alchemy_getTokenMetadata` | 10 CU | Get token name, symbol, decimals, logo |
+
+**Request format (getTokenBalances):**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "alchemy_getTokenBalances",
+  "params": [
+    "0xVAULT_ADDRESS",
+    ["0xTOKEN1", "0xTOKEN2", "0xTOKEN3"]
+  ]
+}
+```
+
+**Response format:**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "address": "0xVAULT_ADDRESS",
+    "tokenBalances": [
+      {
+        "contractAddress": "0xTOKEN1",
+        "tokenBalance": "0x000000000000000000000000000000000000000000000056bc75e2d63100000"
+      }
+    ]
+  }
+}
+```
+
+**Limitation:** Balances returned as hex strings. No prices. Requires separate `getTokenMetadata` calls for decimals. Requires separate price source.
+
+#### Option B: Portfolio API (REST, multi-chain in one call)
+
+```
+POST https://api.g.alchemy.com/data/v1/{apiKey}/assets/tokens/by-address
+```
+
+| Method | CU Cost | Description |
+|--------|---------|-------------|
+| `assets/tokens/by-address` | 360 CU | Balances + metadata + prices in one call |
+| `assets/tokens/balances/by-address` | 200 CU | Balances only (cheaper) |
+
+**Request format:**
+```json
+{
+  "addresses": [
+    {
+      "address": "0xVAULT_ADDRESS",
+      "networks": ["bnb-mainnet"]
+    }
+  ],
+  "withMetadata": true,
+  "withPrices": true,
+  "includeNativeTokens": true,
+  "includeErc20Tokens": true
+}
+```
+
+**Response format:**
+```json
+{
+  "data": {
+    "pageKey": "",
+    "tokens": [
+      {
+        "tokenAddress": "0xTOKEN1",
+        "network": "bnb-mainnet",
+        "tokenBalance": "100500000000000000000",
+        "tokenMetadata": {
+          "decimals": 18,
+          "logo": "https://...",
+          "name": "USD Tether",
+          "symbol": "USDT"
+        },
+        "tokenPrices": [
+          {
+            "currency": "usd",
+            "value": "0.9997",
+            "lastUpdatedAt": "2026-05-31T12:00:00Z"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+**Constraints:** Max 2 wallet addresses, max 5 networks per request.
+
+#### Option C: Prices API (Standalone)
+
+```
+POST https://api.g.alchemy.com/prices/v1/{apiKey}/tokens/by-address
+GET  https://api.g.alchemy.com/prices/v1/tokens/by-symbol?symbols=ETH,BNB&Authorization=Bearer {apiKey}
+```
+
+| Method | CU Cost | Description |
+|--------|---------|-------------|
+| `tokens/by-address` | 40 CU | Price by contract address + network |
+| `tokens/by-symbol` | 40 CU | Price by ticker symbol |
+| `tokens/historical` | 40 CU | Historical price |
+
+**Request (by-address):**
+```json
+{
+  "addresses": [
+    { "network": "bnb-mainnet", "address": "0xTOKEN1" },
+    { "network": "bnb-mainnet", "address": "0xTOKEN2" }
+  ]
+}
+```
+
+**Constraint:** Max 25 addresses, max 3 networks per request.
+
+### Alchemy Rate Limits & Pricing
+
+| Plan | CU/month | CU/second | Price |
+|------|----------|-----------|-------|
+| Free | 30,000,000 | 500 | $0 |
+| Pay-as-you-go | Unlimited | Higher | $0.45/M CU (first 300M), $0.40/M CU after |
+
+**Budget estimation for vault balance polling (Free tier):**
+- 1 vault, 5 tokens, every 60s: ~20 CU/call * 1440 calls/day = 28,800 CU/day
+- 100 vaults, 5 tokens each, every 5 min: 20 CU * 100 * 288 = 576,000 CU/day = ~17.3M CU/month
+- Leaves headroom for other API calls on Free tier
+
+### DeFiLlama Prices API (Recommended for Prices)
+
+DeFiLlama provides a **free, no-auth-required** price API that is ideal for BSC token prices.
+
+**Base URL:** `https://coins.llama.fi`
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/prices/current/{coins}` | GET | Current prices for multiple tokens |
+| `/prices/historical/{timestamp}/{coins}` | GET | Historical prices at timestamp |
+| `/batchHistorical` | POST | Batch historical price queries |
+| `/chart/{coins}` | GET | Price chart data |
+| `/percentage/{coins}` | GET | Percentage price changes |
+
+**Coin identifier format:** `{chain}:{contractAddress}` — for BSC: `bsc:0x...`
+
+**Example request:**
+```
+GET https://coins.llama.fi/prices/current/bsc:0x55d398326f99059fF775485246999027B3197955,bsc:0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d
+```
+
+**Verified response (live test):**
+```json
+{
+  "coins": {
+    "bsc:0x55d398326f99059fF775485246999027B3197955": {
+      "decimals": 18,
+      "symbol": "USDT",
+      "price": 0.9986860112054028,
+      "timestamp": 1780254168,
+      "confidence": 0.99
+    },
+    "bsc:0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d": {
+      "decimals": 18,
+      "symbol": "USDC",
+      "price": 0.9997318195568737,
+      "timestamp": 1780254168,
+      "confidence": 0.99
+    }
+  }
+}
+```
+
+**Advantages over Alchemy Prices API:**
+- Completely free, no API key required
+- Proven BSC support (tested above)
+- Returns decimals + symbol alongside price
+- Batch multiple tokens in one GET request (comma-separated)
+- Confidence score indicates price reliability
+- DEX-sourced pricing (accurate for DeFi tokens)
+
+**Rate limits:** Standard rate limiting (not documented precisely). Pro tier available for higher limits at `pro-api.llama.fi/{apiKey}/coins/...`.
+
+### Alternative Price Sources Comparison
+
+| Provider | BSC Support | Free Tier | Auth Required | Batch | Notes |
+|----------|-------------|-----------|---------------|-------|-------|
+| **DeFiLlama** | Yes (verified) | Unlimited | No | Yes (URL) | Best for backend; DEX-sourced |
+| **Alchemy Prices** | Likely (unconfirmed) | 30M CU | Yes (API key) | Yes (25 max) | CEX+DEX aggregated |
+| **CoinGecko** | Yes | 10K calls/mo | Optional | Yes (515 max) | Broader coverage; aggressive rate limits |
+| **On-chain IPriceOracle** | Yes | Gas cost only | No | Via multicall | Already deployed in contracts |
+| **PancakeSwap Subgraph** | Yes | Free | No | GraphQL | Pool-specific; stale if low volume |
+
+### Recommended Architecture
+
+Use **Alchemy Token API for balances** + **DeFiLlama for prices**. This avoids SDK dependency, works with ethers 6, and keeps prices free.
+
+```
+┌─────────────────────────────────────────────────┐
+│                NestJS Backend                    │
+│                                                  │
+│  ┌──────────────────┐  ┌──────────────────────┐ │
+│  │  AlchemyService   │  │  PriceService        │ │
+│  │                    │  │                      │ │
+│  │  getTokenBalances()│  │  getTokenPrices()    │ │
+│  │  getTokenMetadata()│  │  getHistoricalPrice()│ │
+│  └────────┬───────────┘  └────────┬─────────────┘ │
+│           │                       │               │
+│  ┌────────┴───────────┐  ┌───────┴──────────────┐ │
+│  │ Alchemy REST API   │  │ DeFiLlama REST API   │ │
+│  │ (JSON-RPC + REST)  │  │ (no auth needed)     │ │
+│  └────────────────────┘  └──────────────────────┘ │
+│                                                    │
+│  ┌──────────────────────────────────────────────┐ │
+│  │  VaultPortfolioService                        │ │
+│  │  Combines balances + prices + metadata        │ │
+│  │  Caching layer (in-memory or Redis)           │ │
+│  └──────────────────────────────────────────────┘ │
+└──────────────────────────────────────────────────┘
+```
+
+### NestJS Service Implementation Pattern
+
+#### AlchemyService (Token Balances)
+
+```typescript
+// src/blockchain/alchemy.service.ts
+import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+
+interface TokenBalance {
+  contractAddress: string;
+  tokenBalance: string; // hex string
+}
+
+interface TokenMetadata {
+  decimals: number;
+  logo: string | null;
+  name: string;
+  symbol: string;
+}
+
+interface TokenBalancesResponse {
+  address: string;
+  tokenBalances: TokenBalance[];
+}
+
+@Injectable()
+export class AlchemyService {
+  private readonly logger = new Logger(AlchemyService.name);
+  private readonly baseUrl: string;
+
+  constructor(private config: ConfigService) {
+    const apiKey = this.config.getOrThrow<string>('ALCHEMY_API_KEY');
+    this.baseUrl = `https://bnb-mainnet.g.alchemy.com/v2/${apiKey}`;
+  }
+
+  /** Fetch ERC-20 balances for a vault address (20 CU per call) */
+  async getTokenBalances(
+    walletAddress: string,
+    tokenAddresses: string[],
+  ): Promise<TokenBalancesResponse> {
+    const response = await fetch(this.baseUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'alchemy_getTokenBalances',
+        params: [walletAddress, tokenAddresses],
+      }),
+    });
+
+    const json = await response.json();
+    if (json.error) {
+      throw new Error(`Alchemy error: ${json.error.message}`);
+    }
+    return json.result;
+  }
+
+  /** Fetch token metadata — name, symbol, decimals, logo (10 CU per call) */
+  async getTokenMetadata(tokenAddress: string): Promise<TokenMetadata> {
+    const response = await fetch(this.baseUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'alchemy_getTokenMetadata',
+        params: [tokenAddress],
+      }),
+    });
+
+    const json = await response.json();
+    if (json.error) {
+      throw new Error(`Alchemy error: ${json.error.message}`);
+    }
+    return json.result;
+  }
+}
+```
+
+#### PriceService (DeFiLlama)
+
+```typescript
+// src/blockchain/price.service.ts
+import { Injectable, Logger } from '@nestjs/common';
+
+interface TokenPrice {
+  decimals: number;
+  symbol: string;
+  price: number;
+  timestamp: number;
+  confidence: number;
+}
+
+interface PricesResponse {
+  coins: Record<string, TokenPrice>;
+}
+
+@Injectable()
+export class PriceService {
+  private readonly logger = new Logger(PriceService.name);
+  private readonly baseUrl = 'https://coins.llama.fi';
+
+  /**
+   * Fetch current USD prices for BSC tokens.
+   * @param tokenAddresses - Array of BSC contract addresses (checksummed or lowercase)
+   * @returns Map of address -> price data
+   */
+  async getTokenPrices(
+    tokenAddresses: string[],
+  ): Promise<Map<string, TokenPrice>> {
+    const coins = tokenAddresses
+      .map((addr) => `bsc:${addr}`)
+      .join(',');
+
+    const response = await fetch(
+      `${this.baseUrl}/prices/current/${coins}`,
+    );
+    const json: PricesResponse = await response.json();
+
+    const result = new Map<string, TokenPrice>();
+    for (const [key, value] of Object.entries(json.coins)) {
+      // key = "bsc:0x..." -> extract address part
+      const address = key.split(':')[1];
+      result.set(address.toLowerCase(), value);
+    }
+    return result;
+  }
+
+  /** Fetch historical price at a specific UNIX timestamp */
+  async getHistoricalPrice(
+    tokenAddress: string,
+    timestamp: number,
+  ): Promise<TokenPrice | null> {
+    const coin = `bsc:${tokenAddress}`;
+    const response = await fetch(
+      `${this.baseUrl}/prices/historical/${timestamp}/${coin}`,
+    );
+    const json: PricesResponse = await response.json();
+    return json.coins[coin] ?? null;
+  }
+}
+```
+
+#### VaultPortfolioService (Combined)
+
+```typescript
+// src/blockchain/vault-portfolio.service.ts
+import { Injectable, Logger } from '@nestjs/common';
+import { AlchemyService } from './alchemy.service';
+import { PriceService } from './price.service';
+import { formatUnits } from 'ethers';
+
+interface VaultTokenPosition {
+  tokenAddress: string;
+  symbol: string;
+  name: string;
+  decimals: number;
+  balance: string;         // raw balance as decimal string
+  balanceFormatted: string; // human-readable (e.g., "100.5")
+  priceUsd: number | null;
+  valueUsd: number | null;
+  confidence: number | null;
+}
+
+interface VaultPortfolio {
+  vaultAddress: string;
+  positions: VaultTokenPosition[];
+  totalValueUsd: number;
+}
+
+@Injectable()
+export class VaultPortfolioService {
+  private readonly logger = new Logger(VaultPortfolioService.name);
+
+  // Cache token metadata (rarely changes)
+  private metadataCache = new Map<string, { decimals: number; name: string; symbol: string }>();
+
+  constructor(
+    private alchemy: AlchemyService,
+    private prices: PriceService,
+  ) {}
+
+  async getVaultPortfolio(
+    vaultAddress: string,
+    tokenAddresses: string[],
+  ): Promise<VaultPortfolio> {
+    // 1. Fetch balances and prices in parallel
+    const [balancesResult, priceMap] = await Promise.all([
+      this.alchemy.getTokenBalances(vaultAddress, tokenAddresses),
+      this.prices.getTokenPrices(tokenAddresses),
+    ]);
+
+    // 2. Fetch metadata for unknown tokens (cached)
+    const unknownTokens = tokenAddresses.filter(
+      (addr) => !this.metadataCache.has(addr.toLowerCase()),
+    );
+    if (unknownTokens.length > 0) {
+      const metadataResults = await Promise.all(
+        unknownTokens.map((addr) => this.alchemy.getTokenMetadata(addr)),
+      );
+      unknownTokens.forEach((addr, i) => {
+        this.metadataCache.set(addr.toLowerCase(), {
+          decimals: metadataResults[i].decimals,
+          name: metadataResults[i].name,
+          symbol: metadataResults[i].symbol,
+        });
+      });
+    }
+
+    // 3. Combine into positions
+    const positions: VaultTokenPosition[] = balancesResult.tokenBalances.map(
+      (tb) => {
+        const addr = tb.contractAddress.toLowerCase();
+        const metadata = this.metadataCache.get(addr)!;
+        const price = priceMap.get(addr);
+        const rawBalance = BigInt(tb.tokenBalance);
+        const balanceFormatted = formatUnits(rawBalance, metadata.decimals);
+        const valueUsd = price
+          ? parseFloat(balanceFormatted) * price.price
+          : null;
+
+        return {
+          tokenAddress: tb.contractAddress,
+          symbol: metadata.symbol,
+          name: metadata.name,
+          decimals: metadata.decimals,
+          balance: rawBalance.toString(),
+          balanceFormatted,
+          priceUsd: price?.price ?? null,
+          valueUsd,
+          confidence: price?.confidence ?? null,
+        };
+      },
+    );
+
+    const totalValueUsd = positions.reduce(
+      (sum, p) => sum + (p.valueUsd ?? 0),
+      0,
+    );
+
+    return { vaultAddress, positions, totalValueUsd };
+  }
+}
+```
+
+#### NestJS Module Registration
+
+```typescript
+// src/blockchain/blockchain.module.ts
+import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
+import { AlchemyService } from './alchemy.service';
+import { PriceService } from './price.service';
+import { VaultPortfolioService } from './vault-portfolio.service';
+
+@Module({
+  imports: [ConfigModule],
+  providers: [AlchemyService, PriceService, VaultPortfolioService],
+  exports: [AlchemyService, PriceService, VaultPortfolioService],
+})
+export class BlockchainModule {}
+```
+
+### Environment Variables Needed
+
+```bash
+# .env
+ALCHEMY_API_KEY=your_alchemy_api_key_here
+# No key needed for DeFiLlama
+```
+
+### Extensibility: DeFi Protocol Balances
+
+The architecture supports future protocol-specific balance fetching:
+
+| Protocol | Data Source | Implementation |
+|----------|-----------|----------------|
+| Aave V3 positions | On-chain `Pool.getUserAccountData()` via ethers 6 | `AaveService` using ethers `Contract.staticCall` |
+| PancakeSwap LP | PancakeSwap Subgraph or on-chain NFT reads | `PancakeSwapService` querying position NFTs |
+| General DeFi | DeFiLlama `/protocol/{name}` API | Per-protocol adapter |
+
+Each would implement a common interface:
+```typescript
+interface ProtocolBalanceProvider {
+  getPositions(vaultAddress: string): Promise<ProtocolPosition[]>;
+}
+```
+
+### Version Conflicts & Dependencies Summary
+
+| Dependency | Status | Notes |
+|-----------|--------|-------|
+| `alchemy-sdk` | **DO NOT USE** | Archived, ethers v5, conflicts with our stack |
+| `ethers` 6.16.0 | **Already installed** | Use for `formatUnits`, address utils |
+| Native `fetch` | **Available** | Node.js 18+ built-in, no extra deps |
+| `@nestjs/config` | **Already installed** | For `ALCHEMY_API_KEY` env var |
+
+**Zero new npm dependencies needed.** Everything uses native `fetch` + existing `ethers` for formatting utilities.
+
+### BSC-Specific Notes
+
+1. **All major BSC tokens use 18 decimals** (USDT, USDC are 18 on BSC, NOT 6 like Ethereum)
+2. DeFiLlama chain identifier is `bsc` (not `binance`, `bnb`, or `bsc-mainnet`)
+3. Alchemy RPC network identifier is `bnb-mainnet` (not `bsc-mainnet`)
+4. Alchemy Portfolio API network may be `bnb-mainnet` — verify in dashboard
+5. Token balances from Alchemy are hex-encoded — use `BigInt(hexString)` to convert
+6. DeFiLlama accepts both checksummed and lowercase addresses
+
+### Testing Approach
+
+```typescript
+// Learning test: verify Alchemy getTokenBalances works on BSC
+// packages/backend/src/blockchain/__tests__/alchemy.integration.spec.ts
+
+describe('AlchemyService (BSC integration)', () => {
+  it('should fetch USDT balance for a known address', async () => {
+    const BSC_USDT = '0x55d398326f99059fF775485246999027B3197955';
+    const KNOWN_HOLDER = '0x...'; // find a known USDT holder on BSCscan
+
+    const result = await alchemyService.getTokenBalances(KNOWN_HOLDER, [BSC_USDT]);
+
+    expect(result.tokenBalances).toHaveLength(1);
+    expect(result.tokenBalances[0].contractAddress.toLowerCase()).toBe(BSC_USDT.toLowerCase());
+    expect(result.tokenBalances[0].tokenBalance).toBeDefined();
+  });
+});
+
+// Learning test: verify DeFiLlama returns BSC prices
+describe('PriceService (DeFiLlama integration)', () => {
+  it('should fetch USDT price on BSC', async () => {
+    const BSC_USDT = '0x55d398326f99059fF775485246999027B3197955';
+    const prices = await priceService.getTokenPrices([BSC_USDT]);
+
+    const usdtPrice = prices.get(BSC_USDT.toLowerCase());
+    expect(usdtPrice).toBeDefined();
+    expect(usdtPrice!.price).toBeGreaterThan(0.9);
+    expect(usdtPrice!.price).toBeLessThan(1.1);
+    expect(usdtPrice!.symbol).toBe('USDT');
+    expect(usdtPrice!.decimals).toBe(18); // BSC uses 18 decimals for USDT
+  });
+});
+```
+
+---
+
+## 12. Visual Automation Graph Editor: @xyflow/react (React Flow)
+
+> **Docs source:** Context7 (reactflow.dev, xyflow/web GitHub), June 2026.
+> **Scope:** Everything needed to build a visual automation graph editor where users create directed graphs of Conditions and Actions, matching the on-chain Step[] format.
+
+### Version Decision
+
+- **Chosen version:** `@xyflow/react` ^12.11.0 (current stable)
+- **Why this version:** Latest v12. Peer deps require `react >=17` — our React 19.2.6 is satisfied. Fully compatible with Vite, TypeScript strict mode, and ESM.
+- **Package name:** `@xyflow/react` (NOT `reactflow` — the old package is v11 and deprecated)
+- **DO NOT USE:** `reactflow` (v11, deprecated), `@xyflow/react` <12.0 (different API shape)
+- **Layout helper:** `@dagrejs/dagre` ^3.0.0 (~35KB, synchronous, good for DAGs). Do NOT use the old unscoped `dagre` (0.8.5, unmaintained). Only upgrade to `elkjs` (~700KB, WASM) if dagre proves insufficient.
+- **Known dependency note:** @xyflow/react bundles zustand ^4.4.0 internally. Our project already has zustand 5.0.3 as a transitive dep from wagmi. With pnpm's strict isolation, both coexist safely (each package gets its own copy). Adds ~10KB gzipped to bundle. Do NOT install zustand as a direct dep — it creates confusion.
+
+### Installation
+
+```bash
+pnpm --filter frontend add @xyflow/react @dagrejs/dagre
+```
+
+**CRITICAL — Tailwind CSS 4 import order:** With Tailwind v4, you MUST import React Flow styles in `src/index.css` (after the Tailwind import), NOT in a component file. Tailwind v4's `@import "tailwindcss"` reorders CSS layers and will override React Flow styles, making nodes/edges invisible.
+
+```css
+/* src/index.css */
+@import "tailwindcss";
+@import "@xyflow/react/dist/style.css";
+```
+
+Do NOT use `import '@xyflow/react/dist/style.css'` in a component file — it will be reordered by Tailwind v4's CSS layering.
+
+### Core Concepts
+
+React Flow renders a pannable, zoomable canvas with **nodes** (positioned boxes) and **edges** (connections between nodes). It uses a **controlled component** pattern where you own the nodes/edges state.
+
+**Key data structures:**
+
+```typescript
+import type { Node, Edge, Connection, Position } from '@xyflow/react';
+
+// Node: a box on the canvas
+interface Node<T = Record<string, unknown>> {
+  id: string;                    // unique identifier
+  type?: string;                 // maps to nodeTypes registry (default: 'default')
+  position: { x: number; y: number }; // top-left corner
+  data: T;                       // custom payload passed to your component
+  sourcePosition?: Position;     // default handle direction (Top/Right/Bottom/Left)
+  targetPosition?: Position;
+  parentId?: string;             // for sub-flows / grouping
+  extent?: 'parent' | [number, number, number, number]; // constrain within parent
+  draggable?: boolean;
+  selectable?: boolean;
+  hidden?: boolean;
+}
+
+// Edge: a connection between two nodes
+interface Edge<T = Record<string, unknown>> {
+  id: string;                    // unique identifier
+  source: string;                // source node id
+  target: string;                // target node id
+  sourceHandle?: string | null;  // which handle on source (for multi-handle nodes)
+  targetHandle?: string | null;  // which handle on target
+  type?: string;                 // maps to edgeTypes registry
+  animated?: boolean;            // dashed animation
+  label?: string | React.ReactNode;
+  data?: T;                      // custom payload
+  style?: React.CSSProperties;
+  markerEnd?: string | { type: MarkerType; color?: string };
+  markerStart?: string | { type: MarkerType; color?: string };
+}
+
+// Connection: transient object during drag-connect (before becoming an Edge)
+interface Connection {
+  source: string;
+  target: string;
+  sourceHandle: string | null;
+  targetHandle: string | null;
+}
+```
+
+### Minimal Setup (Controlled Flow)
+
+```typescript
+import { useCallback } from 'react';
+import {
+  ReactFlow,
+  Controls,
+  Background,
+  MiniMap,
+  addEdge,
+  useNodesState,
+  useEdgesState,
+  type OnConnect,
+  type Node,
+  type Edge,
+} from '@xyflow/react';
+import '@xyflow/react/dist/style.css';
+
+const initialNodes: Node[] = [
+  { id: '1', position: { x: 0, y: 0 }, data: { label: 'Start' } },
+];
+const initialEdges: Edge[] = [];
+
+function FlowEditor() {
+  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
+  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+
+  const onConnect: OnConnect = useCallback(
+    (connection) => setEdges((eds) => addEdge(connection, eds)),
+    [setEdges],
+  );
+
+  return (
+    <div style={{ width: '100%', height: '600px' }}>
+      <ReactFlow
+        nodes={nodes}
+        edges={edges}
+        onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
+        onConnect={onConnect}
+        fitView
+      >
+        <Controls />
+        <Background />
+        <MiniMap />
+      </ReactFlow>
+    </div>
+  );
+}
+```
+
+**Critical:** The parent container MUST have explicit width and height. React Flow fills its parent.
+
+### State Management Hooks
+
+#### useNodesState / useEdgesState
+
+Convenience hooks that wrap `useState` and provide change handlers:
+
+```typescript
+const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
+const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+```
+
+- `setNodes` / `setEdges`: standard React setState (value or updater function)
+- `onNodesChange` / `onEdgesChange`: handlers for internal React Flow events (drag, select, delete, etc.)
+- Pass all three to `<ReactFlow>` as shown above
+
+#### useReactFlow
+
+Imperative API for programmatic manipulation. Must be used inside `<ReactFlowProvider>`.
+
+```typescript
+import { useReactFlow, ReactFlowProvider } from '@xyflow/react';
+
+function GraphToolbar() {
+  const {
+    getNodes,            // () => Node[]
+    getEdges,            // () => Edge[]
+    setNodes,            // (nodes: Node[] | updater) => void
+    setEdges,            // (edges: Edge[] | updater) => void
+    addNodes,            // (nodes: Node | Node[]) => void
+    addEdges,            // (edges: Edge | Edge[]) => void
+    deleteElements,      // ({ nodes?: Node[], edges?: Edge[] }) => void
+    getNode,             // (id: string) => Node | undefined
+    getEdge,             // (id: string) => Edge | undefined
+    screenToFlowPosition,// ({ x, y }) => { x, y } -- screen coords to flow coords
+    fitView,             // (options?) => void
+    zoomIn,              // () => void
+    zoomOut,             // () => void
+    toObject,            // () => { nodes, edges, viewport } -- serialize
+  } = useReactFlow();
+
+  return (
+    <button onClick={() => fitView({ padding: 0.2 })}>
+      Fit View
+    </button>
+  );
+}
+
+// IMPORTANT: Wrap in ReactFlowProvider
+function App() {
+  return (
+    <ReactFlowProvider>
+      <FlowEditor />
+      <GraphToolbar />
+    </ReactFlowProvider>
+  );
+}
+```
+
+### Custom Nodes
+
+Custom nodes are React components. Register them via the `nodeTypes` prop.
+
+```typescript
+import { Handle, Position, type NodeProps } from '@xyflow/react';
+
+// Define your data type
+type ConditionNodeData = {
+  label: string;
+  contractAddress: string;
+  conditionType: 'TokenBalance' | 'Interval' | 'Timer';
+};
+
+// Custom node component
+function ConditionNode({ data, selected }: NodeProps) {
+  return (
+    <div className={`condition-node ${selected ? 'selected' : ''}`}>
+      {/* Incoming edge connects here */}
+      <Handle type="target" position={Position.Top} />
+
+      <div className="node-header">{data.conditionType}</div>
+      <div className="node-body">{data.label}</div>
+
+      {/* Two outgoing handles for true/false branching */}
+      <Handle
+        type="source"
+        position={Position.Bottom}
+        id="true"           // unique handle ID
+        style={{ left: '30%', background: '#22c55e' }}
+      />
+      <Handle
+        type="source"
+        position={Position.Bottom}
+        id="false"          // unique handle ID
+        style={{ left: '70%', background: '#ef4444' }}
+      />
+    </div>
+  );
+}
+
+// Register -- MUST be defined outside component (or useMemo) to avoid re-renders
+const nodeTypes = {
+  condition: ConditionNode,
+  action: ActionNode,     // similar pattern, single source handle
+};
+
+// Use in ReactFlow
+<ReactFlow nodeTypes={nodeTypes} ... />
+```
+
+**Handle rules:**
+- `type="target"` = incoming connection point
+- `type="source"` = outgoing connection point
+- Use `id` prop when a node has multiple handles of the same type
+- `position`: `Position.Top`, `Position.Right`, `Position.Bottom`, `Position.Left`
+- `isConnectable`, `isConnectableStart`, `isConnectableEnd` for fine control
+
+### Custom Edges
+
+Custom edges render SVG paths between nodes. Use `BaseEdge` + path utilities.
+
+```typescript
+import {
+  BaseEdge,
+  EdgeLabelRenderer,
+  getBezierPath,
+  getSmoothStepPath,
+  getStraightPath,
+  useReactFlow,
+  type EdgeProps,
+} from '@xyflow/react';
+
+type FlowEdgeData = {
+  label: string;    // "true" | "false" | "next"
+  branch: 'true' | 'false' | 'next';
+};
+
+function FlowEdge({ id, data, ...props }: EdgeProps<FlowEdgeData>) {
+  const { deleteElements } = useReactFlow();
+  const [edgePath, labelX, labelY] = getSmoothStepPath(props);
+
+  const color = data?.branch === 'true' ? '#22c55e'
+              : data?.branch === 'false' ? '#ef4444'
+              : '#6b7280';
+
+  return (
+    <>
+      <BaseEdge id={id} path={edgePath} style={{ stroke: color, strokeWidth: 2 }} />
+      <EdgeLabelRenderer>
+        <div
+          style={{
+            position: 'absolute',
+            transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
+            background: color,
+            color: 'white',
+            padding: '2px 6px',
+            borderRadius: 4,
+            fontSize: 11,
+            pointerEvents: 'all',
+          }}
+          className="nodrag nopan"
+        >
+          {data?.label}
+          <button
+            onClick={() => deleteElements({ edges: [{ id }] })}
+            style={{ marginLeft: 4, cursor: 'pointer' }}
+          >
+            x
+          </button>
+        </div>
+      </EdgeLabelRenderer>
+    </>
+  );
+}
+
+const edgeTypes = {
+  flow: FlowEdge,
+};
+
+<ReactFlow edgeTypes={edgeTypes} ... />
+```
+
+**Path utilities:**
+- `getBezierPath(props)` -- curved (default)
+- `getSmoothStepPath(props)` -- right-angle steps with rounded corners (best for flowcharts)
+- `getStraightPath(props)` -- straight line
+
+Each returns `[pathString, labelX, labelY, offsetX, offsetY]`.
+
+**EdgeLabelRenderer:** Required for rendering HTML (not SVG) labels on edges. Labels are absolutely positioned divs. Add `className="nodrag nopan"` to prevent panning when clicking the label.
+
+### Drag and Drop from Sidebar
+
+Use the native HTML Drag and Drop API to let users add nodes from a palette.
+
+```typescript
+import { useReactFlow, ReactFlowProvider } from '@xyflow/react';
+
+// Sidebar component
+function NodePalette() {
+  const onDragStart = (event: React.DragEvent, nodeType: string) => {
+    event.dataTransfer.setData('application/reactflow-type', nodeType);
+    event.dataTransfer.effectAllowed = 'move';
+  };
+
+  return (
+    <aside>
+      <div draggable onDragStart={(e) => onDragStart(e, 'condition')}>
+        Condition
+      </div>
+      <div draggable onDragStart={(e) => onDragStart(e, 'action')}>
+        Action
+      </div>
+    </aside>
+  );
+}
+
+// In your flow editor component
+function FlowEditor() {
+  const { screenToFlowPosition, addNodes } = useReactFlow();
+
+  const onDragOver = useCallback((event: React.DragEvent) => {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+  }, []);
+
+  const onDrop = useCallback((event: React.DragEvent) => {
+    event.preventDefault();
+    const type = event.dataTransfer.getData('application/reactflow-type');
+    if (!type) return;
+
+    const position = screenToFlowPosition({
+      x: event.clientX,
+      y: event.clientY,
+    });
+
+    const newNode: Node = {
+      id: crypto.randomUUID(),
+      type,
+      position,
+      data: { label: `New ${type}`, /* defaults */ },
+    };
+
+    addNodes(newNode);
+  }, [screenToFlowPosition, addNodes]);
+
+  return (
+    <ReactFlow
+      onDrop={onDrop}
+      onDragOver={onDragOver}
+      // ... other props
+    />
+  );
+}
+```
+
+### Connection Validation
+
+Use `isValidConnection` on `<ReactFlow>` to enforce graph rules.
+
+```typescript
+import type { Connection, Edge } from '@xyflow/react';
+
+type IsValidConnection = (edge: Edge | Connection) => boolean;
+
+const isValidConnection: IsValidConnection = (connection) => {
+  const { source, target, sourceHandle } = connection;
+
+  // Rule 1: No self-connections
+  if (source === target) return false;
+
+  // Rule 2: Conditions must connect via "true" or "false" handles
+  // Rule 3: Actions connect via their single "next" handle
+  // Rule 4: Prevent duplicate edges from same handle
+  // (access nodes/edges via useReactFlow or closure)
+  return true;
+};
+
+<ReactFlow isValidConnection={isValidConnection} ... />
+```
+
+Can also be set per-handle via the `isValidConnection` prop on `<Handle>`, but the `<ReactFlow>` level prop is preferred for performance.
+
+### Key Event Handlers on ReactFlow
+
+```typescript
+<ReactFlow
+  // State management (required for controlled flow)
+  nodes={nodes}
+  edges={edges}
+  onNodesChange={onNodesChange}      // drag, select, remove, position changes
+  onEdgesChange={onEdgesChange}      // select, remove changes
+  onConnect={onConnect}              // new connection completed
+
+  // Connection validation
+  isValidConnection={isValidConnection}
+
+  // Connection events
+  onConnectStart={onConnectStart}    // drag started from handle
+  onConnectEnd={onConnectEnd}        // drag ended (connected or not)
+
+  // Node events
+  onNodeClick={onNodeClick}          // (event, node) => void
+  onNodeDoubleClick={onNodeDoubleClick}
+  onNodeDragStop={onNodeDragStop}    // (event, node, nodes) => void -- save positions
+  onNodesDelete={onNodesDelete}      // (nodes) => void -- after deletion
+
+  // Edge events
+  onEdgeClick={onEdgeClick}
+  onEdgesDelete={onEdgesDelete}
+
+  // Pane events
+  onPaneClick={onPaneClick}          // click on empty canvas (deselect)
+
+  // Reconnection (drag existing edge to new target)
+  onReconnect={onReconnect}          // (oldEdge, newConnection) => void
+  onReconnectStart={onReconnectStart}
+  onReconnectEnd={onReconnectEnd}
+
+  // Registration
+  nodeTypes={nodeTypes}              // custom node components
+  edgeTypes={edgeTypes}              // custom edge components
+
+  // Display
+  fitView                            // fit on initial render
+  connectionLineType={ConnectionLineType.SmoothStep}
+  defaultEdgeOptions={{ animated: true, type: 'smoothstep' }}
+
+  // Behavior
+  deleteKeyCode="Delete"             // or "Backspace"
+  selectionKeyCode="Shift"
+  multiSelectionKeyCode="Meta"       // Cmd on Mac
+  connectionMode={ConnectionMode.Loose} // allow connecting to any handle
+/>
+```
+
+### Plugin Components
+
+```typescript
+import {
+  Controls,     // zoom in/out/fit buttons
+  MiniMap,      // bird's-eye overview
+  Background,   // dot/line grid pattern
+  Panel,        // positioned overlay panel
+} from '@xyflow/react';
+
+// Inside <ReactFlow>:
+<Controls />
+<MiniMap
+  pannable
+  zoomable
+  nodeColor={(node) => node.type === 'condition' ? '#3b82f6' : '#f59e0b'}
+/>
+<Background variant="dots" gap={16} size={1} />
+<Panel position="top-left">
+  <button>Auto Layout</button>
+</Panel>
+```
+
+### Auto-Layout with Dagre
+
+Dagre computes positions for a directed graph. Apply it after any structural change.
+
+```typescript
+import dagre from '@dagrejs/dagre';
+import type { Node, Edge } from '@xyflow/react';
+
+const NODE_WIDTH = 200;
+const NODE_HEIGHT = 80;
+
+function getLayoutedElements(
+  nodes: Node[],
+  edges: Edge[],
+  direction: 'TB' | 'LR' = 'TB',
+): { nodes: Node[]; edges: Edge[] } {
+  const g = new dagre.graphlib.Graph().setDefaultEdgeLabel(() => ({}));
+  g.setGraph({ rankdir: direction, nodesep: 50, ranksep: 80 });
+
+  nodes.forEach((node) => {
+    g.setNode(node.id, { width: NODE_WIDTH, height: NODE_HEIGHT });
+  });
+
+  edges.forEach((edge) => {
+    g.setEdge(edge.source, edge.target);
+  });
+
+  dagre.layout(g);
+
+  const isHorizontal = direction === 'LR';
+  const layoutedNodes = nodes.map((node) => {
+    const pos = g.node(node.id);
+    return {
+      ...node,
+      targetPosition: isHorizontal ? 'left' : 'top',
+      sourcePosition: isHorizontal ? 'right' : 'bottom',
+      position: {
+        x: pos.x - NODE_WIDTH / 2,
+        y: pos.y - NODE_HEIGHT / 2,
+      },
+    };
+  });
+
+  return { nodes: layoutedNodes, edges };
+}
+```
+
+**Usage:** Call `getLayoutedElements` when loading a graph, after adding/removing nodes, or on a "layout" button click. Then `setNodes(layouted.nodes)` and `setEdges(layouted.edges)`.
+
+### Edge Markers (Arrows)
+
+```typescript
+import { MarkerType } from '@xyflow/react';
+
+const edge: Edge = {
+  id: 'e1-2',
+  source: '1',
+  target: '2',
+  markerEnd: { type: MarkerType.ArrowClosed },
+  // or markerEnd: { type: MarkerType.Arrow, color: '#22c55e' },
+};
+```
+
+### Built-in Node Types
+
+- `'default'` -- one target handle (top), one source handle (bottom)
+- `'input'` -- source handle only (start node)
+- `'output'` -- target handle only (end node)
+- `'group'` -- container for child nodes (sub-flows)
+
+### Sub-flows / Grouping
+
+```typescript
+const parentNode: Node = {
+  id: 'group-1',
+  type: 'group',
+  position: { x: 0, y: 0 },
+  data: {},
+  style: { width: 400, height: 300 },
+};
+
+const childNode: Node = {
+  id: 'child-1',
+  type: 'condition',
+  position: { x: 20, y: 40 },     // relative to parent
+  parentId: 'group-1',             // makes it a child
+  extent: 'parent',                // constrained within parent bounds
+  data: { label: 'Nested' },
+};
+```
+
+### Performance Considerations
+
+1. **nodeTypes and edgeTypes MUST be stable references** -- define outside component or use `useMemo`. Changing the reference causes all nodes to re-render.
+2. **Memo your custom node components** with `React.memo()` to avoid unnecessary re-renders.
+3. For 500+ nodes, consider:
+   - Setting `nodesDraggable={false}` during layout animations
+   - Using `onlyRenderVisibleElements` prop (default true)
+   - Debouncing position updates
+4. `useNodesState` / `useEdgesState` handle immutability internally -- do not spread-copy unnecessarily.
+
+### Serialization: toObject / fromObject
+
+```typescript
+const { toObject } = useReactFlow();
+
+// Save
+const flowState = toObject();
+// Returns: { nodes: Node[], edges: Edge[], viewport: { x, y, zoom } }
+const json = JSON.stringify(flowState);
+
+// Restore
+const parsed = JSON.parse(json);
+setNodes(parsed.nodes);
+setEdges(parsed.edges);
+```
+
+---
+
+### Application to Strategy Builder: Graph <-> Step[] Conversion
+
+#### Design: Node Types for Automation Steps
+
+| Node Type | Visual | Handles | Maps to |
+|-----------|--------|---------|---------|
+| `condition` | Blue card | 1 target (top), 2 sources: "true" (green, bottom-left), "false" (red, bottom-right) | `StepType.CONDITION` |
+| `action` | Amber card | 1 target (top), 1 source: "next" (bottom) | `StepType.ACTION` |
+
+#### Design: Edge Types
+
+| Edge Type | Visual | Maps to |
+|-----------|--------|---------|
+| `true-branch` | Green, label "true" | `step.nextOnTrue` |
+| `false-branch` | Red, label "false" | `step.nextOnFalse` |
+| `next` | Gray, label "next" | Action's `step.nextOnTrue` |
+
+#### Converting React Flow Graph to Step[]
+
+```typescript
+import type { Node, Edge } from '@xyflow/react';
+
+const DONE = 0xFFFFFFFF; // type(uint32).max
+
+interface Step {
+  stepType: 'CONDITION' | 'ACTION';
+  target: string;        // contract address
+  selector: string;      // bytes4 function selector
+  nextOnTrue: number;    // step index or DONE
+  nextOnFalse: number;   // step index or DONE
+  data: string;          // ABI-encoded params
+}
+
+function graphToSteps(nodes: Node[], edges: Edge[]): Step[] {
+  // 1. Topological sort (step 0 must be the trigger/entry node)
+  //    Use BFS from the node with no incoming edges (or user-designated start)
+  const startNode = findStartNode(nodes, edges);
+  const ordered = topologicalSort(startNode, nodes, edges);
+
+  // 2. Create index map: nodeId -> step index
+  const indexMap = new Map<string, number>();
+  ordered.forEach((node, i) => indexMap.set(node.id, i));
+
+  // 3. Convert each node to a Step
+  return ordered.map((node) => {
+    const outEdges = edges.filter((e) => e.source === node.id);
+
+    if (node.type === 'condition') {
+      const trueEdge = outEdges.find((e) => e.sourceHandle === 'true');
+      const falseEdge = outEdges.find((e) => e.sourceHandle === 'false');
+
+      return {
+        stepType: 'CONDITION',
+        target: node.data.contractAddress,
+        selector: node.data.selector,
+        nextOnTrue: trueEdge ? indexMap.get(trueEdge.target)! : DONE,
+        nextOnFalse: falseEdge ? indexMap.get(falseEdge.target)! : DONE,
+        data: node.data.encodedParams,
+      };
+    } else {
+      const nextEdge = outEdges.find((e) => e.sourceHandle === 'next' || !e.sourceHandle);
+
+      return {
+        stepType: 'ACTION',
+        target: node.data.contractAddress,
+        selector: node.data.selector,
+        nextOnTrue: nextEdge ? indexMap.get(nextEdge.target)! : DONE,
+        nextOnFalse: DONE, // actions always have nextOnFalse = DONE
+        data: node.data.encodedParams,
+      };
+    }
+  });
+}
+```
+
+#### Converting Step[] Back to React Flow Graph
+
+```typescript
+function stepsToGraph(steps: Step[]): { nodes: Node[]; edges: Edge[] } {
+  const nodes: Node[] = steps.map((step, i) => ({
+    id: `step-${i}`,
+    type: step.stepType === 'CONDITION' ? 'condition' : 'action',
+    position: { x: 0, y: 0 }, // will be auto-layouted
+    data: {
+      label: decodeStepLabel(step),
+      contractAddress: step.target,
+      selector: step.selector,
+      encodedParams: step.data,
+      stepIndex: i,
+    },
+  }));
+
+  const edges: Edge[] = [];
+  steps.forEach((step, i) => {
+    if (step.nextOnTrue !== DONE) {
+      edges.push({
+        id: `e-${i}-true-${step.nextOnTrue}`,
+        source: `step-${i}`,
+        target: `step-${step.nextOnTrue}`,
+        sourceHandle: step.stepType === 'CONDITION' ? 'true' : 'next',
+        type: 'flow',
+        data: {
+          label: step.stepType === 'CONDITION' ? 'true' : 'next',
+          branch: step.stepType === 'CONDITION' ? 'true' : 'next',
+        },
+      });
+    }
+    if (step.stepType === 'CONDITION' && step.nextOnFalse !== DONE) {
+      edges.push({
+        id: `e-${i}-false-${step.nextOnFalse}`,
+        source: `step-${i}`,
+        target: `step-${step.nextOnFalse}`,
+        sourceHandle: 'false',
+        type: 'flow',
+        data: { label: 'false', branch: 'false' },
+      });
+    }
+  });
+
+  // Apply auto-layout
+  const layouted = getLayoutedElements(nodes, edges, 'TB');
+  return layouted;
+}
+```
+
+#### Validation Rules for the Graph Editor
+
+These should be enforced via `isValidConnection` and before `graphToSteps`:
+
+1. **Exactly one start node** (no incoming edges) -- this becomes step 0
+2. **For public automations:** step 0 must be a CONDITION (the trigger)
+3. **For owner automations:** step 0 can be either CONDITION or ACTION
+4. **No cycles** (on-chain traversal has MAX_STEPS=256 guard, but cycles are UX-confusing)
+5. **No orphan nodes** (all nodes must be reachable from step 0)
+6. **Condition nodes:** "true" handle must connect somewhere (false can be DONE)
+7. **Action nodes:** nextOnFalse must always be DONE
+8. **Max 256 steps** (on-chain limit)
+9. **No duplicate edges** from the same source handle
+
+### Gotchas & Pitfalls
+
+1. **nodeTypes/edgeTypes must be stable references.** Define OUTSIDE the component (module-level) or use `useMemo`. Changing the reference unmounts ALL nodes — catastrophic re-render.
+
+2. **ALWAYS wrap custom node components in `React.memo()`.** Without it, every node change (position, selection, data) re-renders ALL nodes. 100 nodes without memo: 2-10 FPS. With memo: 50-60 FPS.
+
+3. **Wrap ALL callback props with `useCallback`.** Anonymous functions (`onNodeClick={() => ...}`) cause 6x FPS drop.
+
+4. **Focus loss in node forms.** Updating `node.data` creates a new reference, causing uncontrolled inputs to lose focus. Fix: use `defaultValue` + `onBlur` instead of `value` + `onChange`, or store form state separately in a Zustand store.
+
+5. **Add `className="nodrag"` to inputs inside custom nodes** — otherwise dragging the node fires when clicking form inputs. Add `"nopan"` to scrollable containers.
+
+6. **Dynamic handles require `useUpdateNodeInternals()`.** If handles appear/disappear, call this hook after the change. Use `opacity: 0` to hide handles, NOT `display: none` (breaks edge positioning).
+
+7. **Mutations are silently ignored in v12.** Must create new data objects when updating nodes (`{...node, data: {...node.data, label: 'new'}}`, not `node.data.label = 'new'`).
+
+8. **Dagre returns center coordinates** but React Flow uses top-left origin. Always subtract `width/2` and `height/2` from dagre positions. In v12, measured dimensions are in `node.measured.width/height` (NOT `node.width/height`).
+
+9. **Undo/Redo is not built-in.** Implement with a snapshot stack: store `{ nodes, edges }` on semantic actions (node add/delete, edge add/delete, node drag stop). Take snapshots on `onNodeDragStop`, NOT `onNodeDrag`. Limit history depth (~50).
+
+10. **Container MUST have explicit width and height.** React Flow fills its parent — if the parent has no dimensions, the canvas is invisible.
+
+### Testing Strategy
+
+**Priority order (highest ROI first):**
+
+1. **Graph conversion logic (`graphToSteps`, `stepsToGraph`)** — pure functions, no React/DOM dependency, no mocks needed. Test every edge case: cycles, orphans, single-node graphs, max 256 steps, condition-only vs action-only paths.
+
+2. **Validation logic** — pure functions, no mocks. Test all 8+ validation rules individually.
+
+3. **Auto-layout (dagre integration)** — no React Flow mocks needed. Verify node positions are computed and coordinate conversion (center → top-left) is correct.
+
+4. **Component rendering** — requires extensive mocks:
+   - Mock `ResizeObserver`, `DOMMatrixReadOnly`, `Element.prototype.offsetHeight/offsetWidth`
+   - Mock `SVGElement.getBBox`
+   - Disable `nodesDraggable` and `panOnDrag` in tests
+   - Use `waitFor` for async edge rendering
+   - Consider whether the testing cost is worth it — pure logic tests give more confidence per effort.
+
+5. **E2E interactions** — use Playwright. No mocking needed. Best for validating drag-and-drop, connection drawing, and full flows.
+
+### Context7 Coverage Gaps
+
+The following topics had limited or no documentation coverage in Context7 and may need supplementation from web sources if needed during implementation:
+
+1. **onReconnect / onReconnectStart / onReconnectEnd** -- documented in API reference but no Context7 code examples. These allow dragging an existing edge endpoint to a new node.
+2. **NodeToolbar / NodeResizer** -- mentioned as plugin components but no Context7 code snippets. NodeToolbar shows a toolbar when a node is selected. NodeResizer adds resize handles.
+3. **Sub-flows (parentId, extent)** -- conceptually documented but no complete Context7 examples showing child nodes constrained within parents.
+4. **Performance optimization for large graphs** -- no dedicated Context7 documentation. General React optimization principles (memo, stable refs) apply.
+5. **TypeScript generic patterns** -- the hooks accept generic types (`useReactFlow<MyNodeType, MyEdgeType>()`, `EdgeProps<MyEdgeData>`, `NodeProps<MyNodeData>`) but full generic typing examples were sparse.
+6. **onDelete callback** -- not found in Context7 results. Use `onNodesDelete` / `onEdgesDelete` instead.
+7. **Undo/redo** -- not built-in. Must implement manually using a state history stack.
+
+---
+
+## 12. Conditions / Trigger-Konfiguration (PEC-217) — Zod + React-Flow custom nodes
+
+> **Docs source:** Context7 `/websites/zod_dev_v4` (Zod 4, stable) + `/websites/reactflow_dev` (xyflow v12); repo patterns read 2026-06-03.
+> **Scope:** The PEC-217 epic — making `IntervalCondition`, `TimerCondition`, `TokenBalanceCondition` configurable as graph nodes with user-friendly units and auto-allocated context slots.
+
+### Scope reality check (read first)
+
+PEC-217 is **mostly internal work**:
+- The three condition **contracts already exist** (see CLAUDE.md "Example Contracts"). No contract work.
+- `@xyflow/react` v12 **is already installed and in use** — condition nodes already render (`src/features/automation-editor/components/condition-node.tsx`). See the existing React-Flow section above for the full library reference; this section only adds condition-specific conventions.
+- Config forms are **already JSON-Schema-driven** — `StepType.paramSchema` (with `x-ui-widget`/`x-ui-slot-access` extensions) seeded in `packages/backend/prisma/seed.ts`, rendered generically by `dynamic-form.tsx`. Backend already encodes params→ABI and auto-allocates context slots (`EncodingService`/`ContextService`).
+
+**The only genuinely new external dependency is Zod.** It is not installed anywhere today, and there is no `shared` package yet (the MVP layout above planned one, but it was never created).
+
+#### ⚠️ Architectural decision to settle in the PRD
+
+The ticket says "Zod-Schemas für Params-Validierung" + "Params-Schemas in shared-Package". But the system **already validates params via JSON Schema** rendered by `DynamicForm`. Introducing Zod means choosing:
+
+1. **Zod as source of truth** — define params as Zod in a new `shared` package, derive JSON Schema for the DB/form via `z.toJSONSchema()`. Highest consistency, biggest refactor (and `x-ui-*` extensions + transforms don't round-trip — see gotchas).
+2. **Zod as a thin layer** — keep the DB-driven `DynamicForm`, add Zod only for frontend pre-submit validation + the unit-conversion boundary. Smallest change; two schemas to keep in sync.
+3. **No Zod** — extend the existing JSON-Schema validation with the missing pieces (unit conversion, cross-field rules). No new dependency.
+
+This section documents options 1/2 (Zod assumed per the ticket). **Confirm the choice in the PRD before coding.** Note this supersedes the MVP version table above, which lists `zod ^3.x` — the correct target is now **Zod 4**.
+
+### Existing condition gap this epic closes
+
+`seed.ts` currently defines Interval/Timer params with **raw seconds** UI (`title: 'Interval (seconds)'`, `'Delay (seconds)'`). The ticket's Ergebnisziel #2 wants **hours/days** in the UI and token amounts instead of wei. That conversion layer is the new work — and the #1 named risk ("falsche Einheitenumrechnung").
+
+---
+
+### Part A — Zod
+
+**What:** TypeScript-first schema + validator; one declaration yields a runtime check and a static type (`z.infer`). For PEC-217: validated trigger params + a typed boundary for unit conversion (hours/days→seconds, human amount→wei).
+
+**Version Decision**
+- **Chosen:** `zod@^4` (latest stable **4.0.1**; install `zod`, default export is v4).
+- **Why:** Stack (TS 5.8 strict, React 19, Node 22, NestJS 11, Vite 6) is well above Zod 4's floor; faster type-checking, smaller bundle, built-in `z.toJSONSchema()`.
+- **Hard requirement:** **TypeScript ≥ 5.5, `strict: true`** (repo: TS 5.8 strict → OK). Non-strict tsconfig silently mis-infers.
+- **DO NOT USE:**
+  - `zod@3.x` — pre-v4 API; no `z.toJSONSchema`, old error API, slower. (Overrides the `^3.x` entry in §9.)
+  - The `zod/v4` transitional sub-export (from `zod@3.25.x`) — now that v4 is stable, import from `zod`, not `zod/v4`. Mixing the two yields "two different Zod instances" type errors.
+  - `zod-to-json-schema` (3rd-party) — superseded by built-in `z.toJSONSchema()`.
+- **Existing deps that interact:** none. Frontend form (`dynamic-form.tsx`) + backend encoder (`encoding.service.ts`) consume JSON Schema, not Zod; NestJS DTOs are plain classes (no class-validator). Clean slate; the only friction is the JSON-Schema form (decision above).
+- **Monorepo:** pin **one** Zod version workspace-wide (root override / pnpm `catalog:`). Two copies break type identity. If a `shared` package is created, `zod` is its dependency.
+- **Conflicts:** none.
+
+**Install**
+```bash
+pnpm --filter shared add zod      # option 1 (if shared package created)
+pnpm --filter frontend add zod    # option 2 (frontend-only layer)
+```
+Ships both ESM + CJS; Vite (ESM) and NestJS (CJS) both fine.
+
+**Key API for this feature**
+
+1) **Unit conversion via `.transform()` — input ≠ output type** (the core hours→seconds pattern):
+```typescript
+const HoursToSeconds = z.number().positive().transform((h) => Math.round(h * 3600));
+type In  = z.input<typeof HoursToSeconds>;  // hours  — form binds here
+type Out = z.output<typeof HoursToSeconds>; // seconds — encoder consumes here
+```
+- `z.input` (form) vs `z.output`/`z.infer` (encoder) **matters** — conflating them is the #1 "encoder got hours not seconds" bug.
+- `.transform()` returns a `ZodPipe`, **not introspectable** → can't emit JSON Schema from it. Keep transforms **out** of UI-driving / `toJSONSchema` schemas; convert in a separate parse at the form→encode boundary.
+
+2) **`z.coerce` for string text fields** (`x-ui-widget: 'amount'` binds strings):
+```typescript
+const Amount = z.coerce.bigint();
+```
+⚠️ Zod 4: input type of any `z.coerce.*` is now **`unknown`** (was specific in v3). For wei, prefer viem `parseUnits(value, decimals)` (decimals are token-specific — the epic assumes 18 but don't hardcode); validate the *string shape* with Zod, do the decimal math in the transform.
+
+3) **Cross-field / value rules via `.refine()`** (e.g. Timer `delta > 0`, "static value XOR context slot"):
+```typescript
+const TimerParams = z.object({
+  delta: z.coerce.number().int().positive(),
+  timeSlot: z.union([z.string(), z.literal(4294967295)]).optional(),
+}).refine((p) => p.delta > 0, { message: "Delay must be > 0", path: ["delta"] });
+```
+⚠️ Zod 4: refinements **no longer narrow** types; `ctx.path` is **gone** in `.superRefine()` (set `path` on the issue or use top-level `.refine(..., { path })`); function-as-second-arg messages deprecated → use `{ message, path }`.
+
+4) **Branded types** (optional; cheap insurance against unit mix-ups — the ticket's #1 risk):
+```typescript
+const Seconds = z.number().int().brand<"Seconds">();
+const Wei     = z.bigint().brand<"Wei">();
+```
+
+5) **`z.toJSONSchema()`** — only for option 1 (Zod as source of truth):
+```typescript
+const json = z.toJSONSchema(z.object({ interval: z.number(), timeSlot: z.number() }));
+```
+Caveat: `.transform()`/`.brand()`/`.refine()` don't round-trip, and the form's `x-ui-widget`/`x-ui-slot-access` extensions aren't producible — attach via `.meta({ 'x-ui-widget': 'context-slot' })` + a post-process step. Non-trivial; budget for it.
+
+**Error handling:** use `safeParse` in form UIs → `{ success, data | error }`; read `error.issues[].{path,message,code}`. v4 renamed `.flatten()`/`.format()` → `z.flattenError()`/`z.treeifyError()`.
+
+**Gotchas (Zod 4-specific):** single workspace version or types diverge · `z.input ≠ z.output` with transform/coerce/default · transforms not introspectable · `z.coerce.*` input is `unknown` · refine no longer narrows + `ctx.path` gone · `.flatten/.format` renamed · TS must be ≥5.5 strict.
+
+**Learning test:** `learning-tests/zod.test.ts` (vitest — repo runner). Pins version + smoke-checks it, and locks the unit-conversion + refine behaviors. Run manually after any Zod bump (NOT in CI):
+```bash
+pnpm --filter frontend exec vitest run ../../learning-tests/zod.test.ts
+```
+
+---
+
+### Part B — React-Flow v12 condition nodes (delta vs existing §React-Flow section)
+
+The library reference is already in this file (custom nodes, `nodeTypes`, handles, `useReactFlow`, container-size gotcha, testing). PEC-217 only adds **condition-node conventions**, taken from the existing `condition-node.tsx`:
+
+- Nodes are `memo`-wrapped, read state from the **Zustand** `editor-store` (current `ConditionNode` casts `data as unknown as EditorNodeData` and updates via the store — stay consistent with that; the React-Flow-native `updateNodeData(id, …)` is the alternative).
+- Condition nodes use **two source handles with explicit ids** `"true"`/`"false"` + one target handle. Multiple same-type handles **must** have unique ids or edges attach to the wrong branch.
+- Interactive form inputs inside nodes need the **`nodrag`** class (already applied in `dynamic-form.tsx`) so canvas dragging doesn't steal focus.
+- New nodes must participate in `validate-graph.ts` (errors surface via `validationErrors` keyed by `nodeId` → red ring).
+- v12 typing: `type CondNode = Node<DataShape, 'condition'>` → `NodeProps<CondNode>`. Never mix the old `reactflow` (v11) package with `@xyflow/react` (v12).
+
+No learning test for React-Flow — already exercised by `lib/__tests__/` + Playwright golden-path tests. Cover new nodes via `validate-graph`/`graph-to-steps` unit tests + the Playwright editor flow.
+
+### Open questions for the PRD
+1. Zod source-of-truth vs. layer vs. none (decision above) → whether a `shared` package gets created now.
+2. Where unit conversion lives — frontend Zod `.transform()` at submit, or backend `EncodingService` (recommend: convert in frontend, re-validate ranges in backend).
+3. Wei conversion uses viem `parseUnits` with the token's actual decimals (don't hardcode 18).
+
+---
+
+> **Remember:** Delete this file after the MVP sprint is complete. Stale research leads to code against APIs that no longer exist.
