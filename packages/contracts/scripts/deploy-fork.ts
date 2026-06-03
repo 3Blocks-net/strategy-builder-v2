@@ -153,6 +153,12 @@ async function main() {
   const aaveBorrowActionAddr = await aaveBorrowAction.getAddress();
   console.log(`  AaveV3BorrowAction: ${aaveBorrowActionAddr}`);
 
+  const aaveRepayAction = await ethers.deployContract("AaveV3RepayAction", [
+    aaveRegistryAddr,
+  ]);
+  const aaveRepayActionAddr = await aaveRepayAction.getAddress();
+  console.log(`  AaveV3RepayAction: ${aaveRepayActionAddr}`);
+
   // 8. Seed test wallet with tokens via impersonation
   //    Use a raw JsonRpcProvider to bypass Hardhat's local account signing
   console.log(`\nSeeding test wallet ${TEST_WALLET}...`);
@@ -216,6 +222,7 @@ async function main() {
     AaveV3SupplyAction: aaveSupplyActionAddr,
     AaveV3WithdrawAction: aaveWithdrawActionAddr,
     AaveV3BorrowAction: aaveBorrowActionAddr,
+    AaveV3RepayAction: aaveRepayActionAddr,
     config: {
       depositFeeBps: DEPOSIT_FEE_BPS,
       withdrawFeeBps: WITHDRAW_FEE_BPS,
@@ -256,6 +263,7 @@ AaveV3Registry:              ${aaveRegistryAddr}
 AaveV3SupplyAction:          ${aaveSupplyActionAddr}
 AaveV3WithdrawAction:        ${aaveWithdrawActionAddr}
 AaveV3BorrowAction:          ${aaveBorrowActionAddr}
+AaveV3RepayAction:           ${aaveRepayActionAddr}
 
 ${"═".repeat(55)}
  Backend .env  (packages/backend/.env)

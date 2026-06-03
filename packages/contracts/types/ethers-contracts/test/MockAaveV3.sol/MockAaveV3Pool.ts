@@ -18,27 +18,33 @@ export declare namespace IAaveV3Pool {
     }
 
   export interface MockAaveV3PoolInterface extends Interface {
-    getFunction(nameOrSignature: "aTokenOf" | "borrow" | "debtOf" | "getReserveData" | "getUserAccountData" | "repay" | "setAToken" | "supply" | "withdraw"): FunctionFragment;
+    getFunction(nameOrSignature: "aTokenOf" | "borrow" | "debtOf" | "debtTokenOf" | "getReserveData" | "getUserAccountData" | "repay" | "seedDebt" | "setAToken" | "setDebtToken" | "supply" | "withdraw"): FunctionFragment;
 
     
 
     encodeFunctionData(functionFragment: 'aTokenOf', values: [AddressLike]): string;
 encodeFunctionData(functionFragment: 'borrow', values: [AddressLike, BigNumberish, BigNumberish, BigNumberish, AddressLike]): string;
 encodeFunctionData(functionFragment: 'debtOf', values: [AddressLike, AddressLike]): string;
+encodeFunctionData(functionFragment: 'debtTokenOf', values: [AddressLike]): string;
 encodeFunctionData(functionFragment: 'getReserveData', values: [AddressLike]): string;
 encodeFunctionData(functionFragment: 'getUserAccountData', values: [AddressLike]): string;
 encodeFunctionData(functionFragment: 'repay', values: [AddressLike, BigNumberish, BigNumberish, AddressLike]): string;
+encodeFunctionData(functionFragment: 'seedDebt', values: [AddressLike, AddressLike, BigNumberish]): string;
 encodeFunctionData(functionFragment: 'setAToken', values: [AddressLike, AddressLike]): string;
+encodeFunctionData(functionFragment: 'setDebtToken', values: [AddressLike, AddressLike]): string;
 encodeFunctionData(functionFragment: 'supply', values: [AddressLike, BigNumberish, AddressLike, BigNumberish]): string;
 encodeFunctionData(functionFragment: 'withdraw', values: [AddressLike, BigNumberish, AddressLike]): string;
 
     decodeFunctionResult(functionFragment: 'aTokenOf', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'borrow', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'debtOf', data: BytesLike): Result;
+decodeFunctionResult(functionFragment: 'debtTokenOf', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'getReserveData', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'getUserAccountData', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'repay', data: BytesLike): Result;
+decodeFunctionResult(functionFragment: 'seedDebt', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'setAToken', data: BytesLike): Result;
+decodeFunctionResult(functionFragment: 'setDebtToken', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'supply', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'withdraw', data: BytesLike): Result;
   }
@@ -103,6 +109,14 @@ decodeFunctionResult(functionFragment: 'withdraw', data: BytesLike): Result;
     
 
     
+    debtTokenOf: TypedContractMethod<
+      [arg0: AddressLike, ],
+      [string],
+      'view'
+    >
+    
+
+    
     getReserveData: TypedContractMethod<
       [asset: AddressLike, ],
       [IAaveV3Pool.ReserveDataStructOutput],
@@ -120,15 +134,31 @@ decodeFunctionResult(functionFragment: 'withdraw', data: BytesLike): Result;
 
     
     repay: TypedContractMethod<
-      [arg0: AddressLike, arg1: BigNumberish, arg2: BigNumberish, arg3: AddressLike, ],
+      [asset: AddressLike, amount: BigNumberish, arg2: BigNumberish, onBehalfOf: AddressLike, ],
       [bigint],
-      'view'
+      'nonpayable'
+    >
+    
+
+    
+    seedDebt: TypedContractMethod<
+      [asset: AddressLike, user: AddressLike, amount: BigNumberish, ],
+      [void],
+      'nonpayable'
     >
     
 
     
     setAToken: TypedContractMethod<
       [asset: AddressLike, aToken: AddressLike, ],
+      [void],
+      'nonpayable'
+    >
+    
+
+    
+    setDebtToken: TypedContractMethod<
+      [asset: AddressLike, debtToken: AddressLike, ],
       [void],
       'nonpayable'
     >
@@ -168,6 +198,11 @@ getFunction(nameOrSignature: 'debtOf'): TypedContractMethod<
       [bigint],
       'view'
     >;
+getFunction(nameOrSignature: 'debtTokenOf'): TypedContractMethod<
+      [arg0: AddressLike, ],
+      [string],
+      'view'
+    >;
 getFunction(nameOrSignature: 'getReserveData'): TypedContractMethod<
       [asset: AddressLike, ],
       [IAaveV3Pool.ReserveDataStructOutput],
@@ -179,12 +214,22 @@ getFunction(nameOrSignature: 'getUserAccountData'): TypedContractMethod<
       'view'
     >;
 getFunction(nameOrSignature: 'repay'): TypedContractMethod<
-      [arg0: AddressLike, arg1: BigNumberish, arg2: BigNumberish, arg3: AddressLike, ],
+      [asset: AddressLike, amount: BigNumberish, arg2: BigNumberish, onBehalfOf: AddressLike, ],
       [bigint],
-      'view'
+      'nonpayable'
+    >;
+getFunction(nameOrSignature: 'seedDebt'): TypedContractMethod<
+      [asset: AddressLike, user: AddressLike, amount: BigNumberish, ],
+      [void],
+      'nonpayable'
     >;
 getFunction(nameOrSignature: 'setAToken'): TypedContractMethod<
       [asset: AddressLike, aToken: AddressLike, ],
+      [void],
+      'nonpayable'
+    >;
+getFunction(nameOrSignature: 'setDebtToken'): TypedContractMethod<
+      [asset: AddressLike, debtToken: AddressLike, ],
       [void],
       'nonpayable'
     >;

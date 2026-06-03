@@ -27,10 +27,23 @@ contract MockAToken is ERC20 {
  */
 contract MockAaveV3Pool is IAaveV3Pool {
     mapping(address => address) public aTokenOf;
+    mapping(address => address) public debtTokenOf;
     mapping(address => mapping(address => uint256)) public debtOf;
 
     function setAToken(address asset, address aToken) external {
         aTokenOf[asset] = aToken;
+    }
+
+    /// Register the variable debt token so `getReserveData` + repay-max work.
+    function setDebtToken(address asset, address debtToken) external {
+        debtTokenOf[asset] = debtToken;
+    }
+
+    /// Test helper: give `user` an outstanding debt (mirrors the debt token).
+    function seedDebt(address asset, address user, uint256 amount) external {
+        debtOf[asset][user] += amount;
+        address dt = debtTokenOf[asset];
+        if (dt != address(0)) MockAToken(dt).mint(user, amount);
     }
 
     function supply(
@@ -65,16 +78,28 @@ contract MockAaveV3Pool is IAaveV3Pool {
         address onBehalfOf
     ) external override {
         debtOf[asset][onBehalfOf] += amount;
+        address dt = debtTokenOf[asset];
+        if (dt != address(0)) MockAToken(dt).mint(onBehalfOf, amount);
         IERC20(asset).transfer(onBehalfOf, amount);
     }
 
     function repay(
-        address,
+        address asset,
+        uint256 amount,
         uint256,
-        uint256,
-        address
-    ) external pure override returns (uint256) {
-        revert("not implemented");
+        address onBehalfOf
+    ) external override returns (uint256) {
+        uint256 debt = debtOf[asset][onBehalfOf];
+        uint256 pay = amount == type(uint256).max
+            ? debt
+            : (amount > debt ? debt : amount);
+        if (pay > 0) {
+            IERC20(asset).transferFrom(msg.sender, address(this), pay);
+            debtOf[asset][onBehalfOf] = debt - pay;
+            address dt = debtTokenOf[asset];
+            if (dt != address(0)) MockAToken(dt).burn(onBehalfOf, pay);
+        }
+        return pay;
     }
 
     function getUserAccountData(
@@ -92,6 +117,7 @@ contract MockAaveV3Pool is IAaveV3Pool {
         address asset
     ) external view override returns (ReserveData memory data) {
         data.aTokenAddress = aTokenOf[asset];
+        data.variableDebtTokenAddress = debtTokenOf[asset];
     }
 }
 

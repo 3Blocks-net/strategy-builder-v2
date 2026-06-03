@@ -30,6 +30,9 @@ function loadContractAddresses(): Record<string, string> {
       AaveV3BorrowAction:
         data.AaveV3BorrowAction ??
         '0x0000000000000000000000000000000000000000',
+      AaveV3RepayAction:
+        data.AaveV3RepayAction ??
+        '0x0000000000000000000000000000000000000000',
     };
   }
 
@@ -57,6 +60,9 @@ function loadContractAddresses(): Record<string, string> {
       '0x0000000000000000000000000000000000000000',
     AaveV3BorrowAction:
       process.env.AAVE_V3_BORROW_ACTION_ADDRESS ??
+      '0x0000000000000000000000000000000000000000',
+    AaveV3RepayAction:
+      process.env.AAVE_V3_REPAY_ACTION_ADDRESS ??
       '0x0000000000000000000000000000000000000000',
   };
 }
@@ -599,6 +605,90 @@ async function main() {
             title: 'Borrowed Amount to Context Slot',
             description:
               'Write the borrowed amount to a context slot for later steps (e.g. a swap). Max uint32 = skip.',
+            'x-ui-widget': 'context-slot',
+            'x-ui-slot-access': 'write',
+            default: 4294967295,
+          },
+        },
+        required: ['asset', 'mode'],
+      },
+    },
+    {
+      name: 'Aave V3 Repay',
+      description:
+        'Repays an Aave V3 loan from the vault (always variable rate). Repay a fixed amount, an amount from a context slot, or your full debt (capped at your balance). The actual repaid amount is written to a context slot.',
+      category: StepCategory.ACTION,
+      contractAddress: addresses.AaveV3RepayAction,
+      selector: EXECUTE_SELECTOR,
+      afterExecutionSelector: null,
+      abiFragment: {
+        type: 'tuple',
+        components: [
+          { name: 'asset', type: 'address' },
+          { name: 'mode', type: 'uint8' },
+          { name: 'amount', type: 'uint256' },
+          { name: 'amountFromSlot', type: 'uint32' },
+          { name: 'targetHealthFactor', type: 'uint256' },
+          { name: 'amountToSlot', type: 'uint32' },
+        ],
+      },
+      paramSchema: {
+        type: 'object',
+        properties: {
+          asset: {
+            type: 'string',
+            title: 'Token',
+            description: 'The borrowed Aave V3 reserve to repay',
+            'x-ui-widget': 'token-selector',
+            'x-ui-token-source': 'aave',
+          },
+          mode: {
+            type: 'integer',
+            title: 'Amount',
+            description:
+              'How the repaid amount is determined: a fixed value, a value from a previous step, or your full outstanding debt.',
+            'x-ui-widget': 'aave-amount-mode',
+            'x-ui-amount-field': 'amount',
+            'x-ui-amount-token-field': 'asset',
+            'x-ui-slot-field': 'amountFromSlot',
+            // FIXED / FROM_SLOT / MAX_AVAILABLE (full debt). TARGET_HF deferred.
+            'x-ui-modes': [0, 1, 2],
+            'x-ui-max-label': 'Repay full debt',
+            'x-ui-max-note':
+              'Repays as much of your loan as your balance allows (capped at the outstanding debt).',
+            default: 0,
+          },
+          amount: {
+            type: 'string',
+            title: 'Amount',
+            description: 'Amount to repay in human units (e.g. 1.5). Used when mode is FIXED.',
+            'x-ui-widget': 'token-amount',
+            'x-ui-amount-token-field': 'asset',
+            'x-ui-hidden': true,
+            default: '0',
+          },
+          amountFromSlot: {
+            type: 'integer',
+            title: 'Amount from Context Slot',
+            description:
+              'Read the amount from a context slot. Used when mode is FROM_SLOT. Max uint32 = unset.',
+            'x-ui-widget': 'context-slot',
+            'x-ui-slot-access': 'read',
+            'x-ui-hidden': true,
+            default: 4294967295,
+          },
+          targetHealthFactor: {
+            type: 'string',
+            title: 'Target Health Factor',
+            description: 'Reserved for the TARGET_HF mode (not yet available). 1e18 units.',
+            'x-ui-hidden': true,
+            default: '0',
+          },
+          amountToSlot: {
+            type: 'integer',
+            title: 'Actual Repaid Amount to Context Slot',
+            description:
+              'Write the actual repaid amount (which differs from a "repay full debt" request) to a context slot. Max uint32 = skip.',
             'x-ui-widget': 'context-slot',
             'x-ui-slot-access': 'write',
             default: 4294967295,

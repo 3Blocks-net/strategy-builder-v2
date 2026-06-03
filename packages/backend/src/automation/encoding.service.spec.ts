@@ -357,6 +357,31 @@ describe('EncodingService', () => {
       expect(decoded[5]).toBe(1n); // amountToSlot resolved borrowed → 1
     });
 
+    it('encodes Aave Repay MAX (full debt) params with the actual-out slot', () => {
+      const asset = '0x55d398326f99059fF775485246999027B3197955';
+      const abiFragment = mockStepTypes.find((s) => s.id === 'st-aave-supply')!
+        .abiFragment;
+      const result = service.encodeParams(
+        {
+          asset,
+          mode: 2, // MAX_AVAILABLE = repay full debt
+          amount: '0',
+          amountFromSlot: 4294967295,
+          targetHealthFactor: '0',
+          amountToSlot: 'repaid',
+        },
+        abiFragment as any,
+        { repaid: 4 },
+      );
+      const decoded = abiCoder.decode(
+        ['address', 'uint8', 'uint256', 'uint32', 'uint256', 'uint32'],
+        result,
+      );
+      expect(decoded[1]).toBe(2n); // MAX
+      expect(decoded[3]).toBe(BigInt(4294967295)); // amountFromSlot NO_SLOT
+      expect(decoded[5]).toBe(4n); // amountToSlot resolved repaid → 4
+    });
+
     it('resolves context slot names to indices', () => {
       const slotMapping = { 'next-trigger-time': 0 };
       const result = service.encodeParams(
