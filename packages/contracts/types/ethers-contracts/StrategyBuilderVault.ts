@@ -13,7 +13,7 @@ export declare namespace StrategyBuilderVault {
     }
 
   export interface StrategyBuilderVaultInterface extends Interface {
-    getFunction(nameOrSignature: "DONE" | "MAX_STEPS" | "automationCount" | "createAutomation" | "createOwnerAutomation" | "decodeContextDiff" | "deposit" | "depositFees" | "depositToken" | "executeAutomation" | "feeRegistry" | "getAutomation" | "getContext" | "initialize" | "isTriggerMet" | "minFeeDeposit" | "owner" | "renounceOwnership" | "setAutomationActive" | "setContext" | "setContextSlot" | "setMinFeeDeposit" | "transferOwnership" | "updateAutomationSteps" | "withdraw" | "withdrawETH"): FunctionFragment;
+    getFunction(nameOrSignature: "DONE" | "MAX_STEPS" | "automationCount" | "createAutomation" | "createOwnerAutomation" | "decodeContextDiff" | "deposit" | "depositFees" | "depositToken" | "executeAutomation" | "feeRegistry" | "getAutomation" | "getContext" | "initialize" | "isTriggerMet" | "minFeeDeposit" | "onERC721Received" | "owner" | "renounceOwnership" | "setAutomationActive" | "setContext" | "setContextSlot" | "setMinFeeDeposit" | "transferOwnership" | "updateAutomationSteps" | "withdraw" | "withdrawETH"): FunctionFragment;
 
     getEvent(nameOrSignatureOrTopic: "AutomationActiveChanged" | "AutomationCreated" | "AutomationExecuted" | "AutomationStepsUpdated" | "ContextSlotSet" | "Deposited" | "GasCompSettled" | "Initialized" | "MinFeeDepositUpdated" | "OwnershipTransferred" | "Withdrawn"): EventFragment;
 
@@ -33,6 +33,7 @@ encodeFunctionData(functionFragment: 'getContext', values?: undefined): string;
 encodeFunctionData(functionFragment: 'initialize', values: [AddressLike, AddressLike, AddressLike]): string;
 encodeFunctionData(functionFragment: 'isTriggerMet', values: [BigNumberish]): string;
 encodeFunctionData(functionFragment: 'minFeeDeposit', values?: undefined): string;
+encodeFunctionData(functionFragment: 'onERC721Received', values: [AddressLike, AddressLike, BigNumberish, BytesLike]): string;
 encodeFunctionData(functionFragment: 'owner', values?: undefined): string;
 encodeFunctionData(functionFragment: 'renounceOwnership', values?: undefined): string;
 encodeFunctionData(functionFragment: 'setAutomationActive', values: [BigNumberish, boolean]): string;
@@ -60,6 +61,7 @@ decodeFunctionResult(functionFragment: 'getContext', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'initialize', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'isTriggerMet', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'minFeeDeposit', data: BytesLike): Result;
+decodeFunctionResult(functionFragment: 'onERC721Received', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'owner', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'renounceOwnership', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'setAutomationActive', data: BytesLike): Result;
@@ -367,6 +369,14 @@ decodeFunctionResult(functionFragment: 'withdrawETH', data: BytesLike): Result;
     
 
     
+    onERC721Received: TypedContractMethod<
+      [arg0: AddressLike, arg1: AddressLike, arg2: BigNumberish, arg3: BytesLike, ],
+      [string],
+      'view'
+    >
+    
+
+    
     owner: TypedContractMethod<
       [],
       [string],
@@ -527,6 +537,11 @@ getFunction(nameOrSignature: 'isTriggerMet'): TypedContractMethod<
 getFunction(nameOrSignature: 'minFeeDeposit'): TypedContractMethod<
       [],
       [bigint],
+      'view'
+    >;
+getFunction(nameOrSignature: 'onERC721Received'): TypedContractMethod<
+      [arg0: AddressLike, arg1: AddressLike, arg2: BigNumberish, arg3: BytesLike, ],
+      [string],
       'view'
     >;
 getFunction(nameOrSignature: 'owner'): TypedContractMethod<

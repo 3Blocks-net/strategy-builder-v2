@@ -253,6 +253,50 @@ const mockStepTypes = [
       required: ['tokenIn', 'tokenOut', 'fee', 'amountIn'],
     },
   },
+  {
+    id: 'st-pcs-mint',
+    name: 'PancakeSwap V3 LP Mint',
+    category: 'ACTION',
+    contractAddress: '0x4444444444444444444444444444444444444444',
+    selector: EXECUTE_SELECTOR,
+    abiFragment: {
+      type: 'tuple',
+      components: [
+        { name: 'tokenA', type: 'address' },
+        { name: 'tokenB', type: 'address' },
+        { name: 'fee', type: 'uint24' },
+        { name: 'rangeMode', type: 'uint8' },
+        { name: 'tickLower', type: 'int24' },
+        { name: 'tickUpper', type: 'int24' },
+        { name: 'tickDelta', type: 'int24' },
+        { name: 'amountADesired', type: 'uint256' },
+        { name: 'amountBDesired', type: 'uint256' },
+        { name: 'tokenIdToSlot', type: 'uint32' },
+      ],
+    },
+    paramSchema: {
+      type: 'object',
+      properties: {
+        tokenA: { type: 'string', 'x-ui-widget': 'token-selector', 'x-ui-token-source': 'pancakeswap' },
+        tokenB: { type: 'string', 'x-ui-widget': 'token-selector', 'x-ui-token-source': 'pancakeswap' },
+        fee: { type: 'integer', 'x-ui-widget': 'fee-tier', default: 500 },
+        rangeMode: {
+          type: 'integer',
+          'x-ui-widget': 'tick-range',
+          'x-ui-tick-lower-field': 'tickLower',
+          'x-ui-tick-upper-field': 'tickUpper',
+          default: 1,
+        },
+        tickLower: { type: 'integer', 'x-ui-hidden': true, default: 0 },
+        tickUpper: { type: 'integer', 'x-ui-hidden': true, default: 0 },
+        tickDelta: { type: 'integer', 'x-ui-hidden': true, default: 0 },
+        amountADesired: { type: 'string', 'x-ui-widget': 'token-amount', 'x-ui-amount-token-field': 'tokenA' },
+        amountBDesired: { type: 'string', 'x-ui-widget': 'token-amount', 'x-ui-amount-token-field': 'tokenB' },
+        tokenIdToSlot: { type: 'integer', 'x-ui-widget': 'context-slot', 'x-ui-slot-access': 'write', default: 4294967295 },
+      },
+      required: ['tokenA', 'tokenB', 'fee', 'tokenIdToSlot'],
+    },
+  },
 ];
 
 describe('EncodingService', () => {
@@ -696,6 +740,92 @@ describe('EncodingService', () => {
         edges: [],
       };
       await expect(service.encode('v1', '0xvault', 's1', graph)).rejects.toThrow(/Invalid step parameters/i);
+    });
+
+    it('encodes an LP mint carrying rangeMode + explicit ticks (incl. negative)', () => {
+      const tokenA = '0x55d398326f99059fF775485246999027B3197955';
+      const tokenB = '0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c';
+      const abiFragment = mockStepTypes.find((s) => s.id === 'st-pcs-mint')!.abiFragment;
+      const result = service.encodeParams(
+        {
+          tokenA,
+          tokenB,
+          fee: 500,
+          rangeMode: 0, // explicit — ticks carried, not stripped
+          tickLower: -1000,
+          tickUpper: 2000,
+          tickDelta: 0,
+          amountADesired: '1000000000000000000',
+          amountBDesired: '2000000000000000000',
+          tokenIdToSlot: 'lpId',
+        },
+        abiFragment as any,
+        { lpId: 3 },
+      );
+      const decoded = abiCoder.decode(
+        ['address', 'address', 'uint24', 'uint8', 'int24', 'int24', 'int24', 'uint256', 'uint256', 'uint32'],
+        result,
+      );
+      expect(decoded[3]).toBe(0n); // rangeMode explicit
+      expect(decoded[4]).toBe(-1000n); // tickLower carried (negative)
+      expect(decoded[5]).toBe(2000n); // tickUpper carried
+      expect(decoded[9]).toBe(3n); // tokenIdToSlot resolved lpId → 3
+    });
+
+    it('encodes a preset-width LP mint carrying rangeMode + tickDelta (not stripped)', () => {
+      const tokenA = '0x55d398326f99059fF775485246999027B3197955';
+      const tokenB = '0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c';
+      const abiFragment = mockStepTypes.find((s) => s.id === 'st-pcs-mint')!.abiFragment;
+      const result = service.encodeParams(
+        {
+          tokenA,
+          tokenB,
+          fee: 500,
+          rangeMode: 1,
+          tickLower: 0,
+          tickUpper: 0,
+          tickDelta: 950,
+          amountADesired: '1000000000000000000',
+          amountBDesired: '1000000000000000000',
+          tokenIdToSlot: 4294967295,
+        },
+        abiFragment as any,
+        {},
+      );
+      const decoded = abiCoder.decode(
+        ['address', 'address', 'uint24', 'uint8', 'int24', 'int24', 'int24', 'uint256', 'uint256', 'uint32'],
+        result,
+      );
+      expect(decoded[3]).toBe(1n); // preset
+      expect(decoded[6]).toBe(950n); // tickDelta carried
+    });
+
+    it('rejects an explicit LP mint with tickLower >= tickUpper (raw-mode guard, HTTP 400)', async () => {
+      const graph = {
+        nodes: [
+          {
+            id: 'm1',
+            type: 'ACTION' as const,
+            data: {
+              stepTypeId: 'st-pcs-mint',
+              params: {
+                tokenA: '0x55d398326f99059fF775485246999027B3197955',
+                tokenB: '0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c',
+                fee: 500,
+                rangeMode: 0,
+                tickLower: 1000,
+                tickUpper: 1000,
+                tickDelta: 0,
+                amountADesired: '1',
+                amountBDesired: '1',
+                tokenIdToSlot: 4294967295,
+              },
+            },
+          },
+        ],
+        edges: [],
+      };
+      await expect(service.encode('v1', '0xvault', 'm1', graph)).rejects.toThrow(/Invalid step parameters/i);
     });
 
     it('rejects an Aave supply with a zero asset (raw-mode zero-token guard, HTTP 400)', async () => {

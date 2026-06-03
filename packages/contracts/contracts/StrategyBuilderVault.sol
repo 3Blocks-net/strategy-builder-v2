@@ -620,4 +620,21 @@ contract StrategyBuilderVault is
         (bool ok,) = to.call{value: toSend}("");
         if (!ok) revert ETHTransferFailed();
     }
+
+    // ─── ERC-721 custody ────────────────────────────────────────────────────
+
+    /**
+     * Accept ERC-721 transfers so the vault can hold PancakeSwap V3 LP position
+     * NFTs. Implemented proactively and unconditionally (a 4-line magic-selector
+     * return, zero downside) — immune to today's non-safe NPM `_mint` and a
+     * future switch to `_safeMint`.
+     */
+    function onERC721Received(
+        address,
+        address,
+        uint256,
+        bytes calldata
+    ) external pure returns (bytes4) {
+        return this.onERC721Received.selector;
+    }
 }

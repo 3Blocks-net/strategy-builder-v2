@@ -368,3 +368,55 @@ describe('mapParamsToRaw — health-factor (TARGET_HF)', () => {
     expect(raw.targetHealthFactor).toBe('0');
   });
 });
+
+describe('mapParamsToRaw — LP mint (carry ticks, strip friendly prices)', () => {
+  const mintSchema: StepSchema = {
+    paramSchema: {
+      properties: {
+        tokenA: { type: 'string', 'x-ui-widget': 'token-selector' },
+        tokenB: { type: 'string', 'x-ui-widget': 'token-selector' },
+        fee: { type: 'integer', 'x-ui-widget': 'fee-tier' },
+        rangeMode: { type: 'integer', 'x-ui-widget': 'tick-range' },
+        tickLower: { type: 'integer', 'x-ui-hidden': true },
+        tickUpper: { type: 'integer', 'x-ui-hidden': true },
+        tickDelta: { type: 'integer', 'x-ui-hidden': true },
+      },
+    },
+    abiFragment: {
+      type: 'tuple',
+      components: [
+        { name: 'tokenA', type: 'address' },
+        { name: 'tokenB', type: 'address' },
+        { name: 'fee', type: 'uint24' },
+        { name: 'rangeMode', type: 'uint8' },
+        { name: 'tickLower', type: 'int24' },
+        { name: 'tickUpper', type: 'int24' },
+        { name: 'tickDelta', type: 'int24' },
+      ],
+    },
+  };
+  const A = '0x1111111111111111111111111111111111111111';
+  const B = '0x2222222222222222222222222222222222222222';
+
+  it('carries rangeMode + ticks and strips friendly min/max price fields', () => {
+    const raw = mapParamsToRaw(
+      {
+        tokenA: A,
+        tokenB: B,
+        fee: 500,
+        rangeMode: 0,
+        tickLower: -1000,
+        tickUpper: 2000,
+        tickDelta: 0,
+        minPrice: '1.1', // friendly-only
+        maxPrice: '1.3', // friendly-only
+      },
+      mintSchema,
+    );
+    expect(raw.rangeMode).toBe(0);
+    expect(raw.tickLower).toBe(-1000);
+    expect(raw.tickUpper).toBe(2000);
+    expect('minPrice' in raw).toBe(false);
+    expect('maxPrice' in raw).toBe(false);
+  });
+});

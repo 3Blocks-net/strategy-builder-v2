@@ -180,6 +180,12 @@ async function main() {
   const pcsSwapActionAddr = await pcsSwapAction.getAddress();
   console.log(`  PancakeSwapV3SwapAction: ${pcsSwapActionAddr}`);
 
+  const pcsMintAction = await ethers.deployContract("PancakeSwapV3MintAction", [
+    pcsRegistryAddr,
+  ]);
+  const pcsMintActionAddr = await pcsMintAction.getAddress();
+  console.log(`  PancakeSwapV3MintAction: ${pcsMintActionAddr}`);
+
   // 8. Seed test wallet with tokens via impersonation
   //    Use a raw JsonRpcProvider to bypass Hardhat's local account signing
   console.log(`\nSeeding test wallet ${TEST_WALLET}...`);
@@ -246,6 +252,7 @@ async function main() {
     AaveV3RepayAction: aaveRepayActionAddr,
     PancakeSwapV3Registry: pcsRegistryAddr,
     PancakeSwapV3SwapAction: pcsSwapActionAddr,
+    PancakeSwapV3MintAction: pcsMintActionAddr,
     config: {
       depositFeeBps: DEPOSIT_FEE_BPS,
       withdrawFeeBps: WITHDRAW_FEE_BPS,
@@ -289,6 +296,7 @@ AaveV3BorrowAction:          ${aaveBorrowActionAddr}
 AaveV3RepayAction:           ${aaveRepayActionAddr}
 PancakeSwapV3Registry:       ${pcsRegistryAddr}
 PancakeSwapV3SwapAction:     ${pcsSwapActionAddr}
+PancakeSwapV3MintAction:     ${pcsMintActionAddr}
 
 ${"═".repeat(55)}
  Backend .env  (packages/backend/.env)

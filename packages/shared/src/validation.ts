@@ -225,6 +225,31 @@ function validateAaveAmountMode(
     : [];
 }
 
+/**
+ * `tick-range` guard: in explicit-range mode (rangeMode 0) the computed
+ * `tickLower` must be strictly below `tickUpper`. Mirrors the on-chain
+ * `InvalidTicks` revert so a bad range is caught at /encode (HTTP 400) and in
+ * the editor. Preset mode (rangeMode 1) carries only `tickDelta`, so it's exempt.
+ */
+function validateTickRange(
+  schema: FieldSchema,
+  value: unknown,
+  params: Record<string, unknown>,
+): ParamValidationError[] {
+  if (Number(value) !== 0) return []; // explicit mode only
+  const lowerField = schema['x-ui-tick-lower-field'] as string | undefined;
+  const upperField = schema['x-ui-tick-upper-field'] as string | undefined;
+  if (!lowerField || !upperField) return [];
+  const lower = Number(params[lowerField]);
+  const upper = Number(params[upperField]);
+  if (!Number.isFinite(lower) || !Number.isFinite(upper) || lower >= upper) {
+    return [
+      { field: upperField, message: 'The upper price must be greater than the lower price' },
+    ];
+  }
+  return [];
+}
+
 const VALID_FEE_TIERS = new Set([100, 500, 2500, 10000]);
 
 /**
@@ -318,6 +343,8 @@ export function validateParams(
       );
     } else if (widget === 'fee-tier') {
       errors.push(...validateFeeTier(field, fieldSchema, value, options.mode));
+    } else if (widget === 'tick-range') {
+      errors.push(...validateTickRange(fieldSchema, value, params));
     } else if (widget === 'duration') {
       errors.push(...validateDuration(field, fieldSchema, value, options.mode));
     } else if (widget === 'token-selector') {

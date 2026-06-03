@@ -406,3 +406,34 @@ describe('validateParams — fee-tier guard', () => {
     expect(validateParams(schema, { fee: 3000 }, { mode: 'friendly' })).toEqual([]);
   });
 });
+
+describe('validateParams — tick-range guard', () => {
+  const schema: ParamSchema = {
+    type: 'object',
+    properties: {
+      rangeMode: {
+        type: 'integer',
+        'x-ui-widget': 'tick-range',
+        'x-ui-tick-lower-field': 'tickLower',
+        'x-ui-tick-upper-field': 'tickUpper',
+      },
+      tickLower: { type: 'integer', 'x-ui-hidden': true },
+      tickUpper: { type: 'integer', 'x-ui-hidden': true },
+    },
+    required: ['rangeMode'],
+  };
+
+  it('rejects tickLower >= tickUpper in explicit mode (rangeMode 0)', () => {
+    const errors = validateParams(schema, { rangeMode: 0, tickLower: 100, tickUpper: 100 }, { mode: 'raw' });
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toMatchObject({ field: 'tickUpper' });
+  });
+
+  it('accepts tickLower < tickUpper in explicit mode', () => {
+    expect(validateParams(schema, { rangeMode: 0, tickLower: -100, tickUpper: 100 }, { mode: 'raw' })).toEqual([]);
+  });
+
+  it('ignores the tick check in preset mode (rangeMode 1)', () => {
+    expect(validateParams(schema, { rangeMode: 1, tickLower: 0, tickUpper: 0 }, { mode: 'raw' })).toEqual([]);
+  });
+});

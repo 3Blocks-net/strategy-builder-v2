@@ -36,6 +36,9 @@ function loadContractAddresses(): Record<string, string> {
       PancakeSwapV3SwapAction:
         data.PancakeSwapV3SwapAction ??
         '0x0000000000000000000000000000000000000000',
+      PancakeSwapV3MintAction:
+        data.PancakeSwapV3MintAction ??
+        '0x0000000000000000000000000000000000000000',
     };
   }
 
@@ -69,6 +72,9 @@ function loadContractAddresses(): Record<string, string> {
       '0x0000000000000000000000000000000000000000',
     PancakeSwapV3SwapAction:
       process.env.PANCAKESWAP_V3_SWAP_ACTION_ADDRESS ??
+      '0x0000000000000000000000000000000000000000',
+    PancakeSwapV3MintAction:
+      process.env.PANCAKESWAP_V3_MINT_ACTION_ADDRESS ??
       '0x0000000000000000000000000000000000000000',
   };
 }
@@ -810,6 +816,99 @@ async function main() {
           },
         },
         required: ['tokenIn', 'tokenOut', 'fee', 'amountIn'],
+      },
+    },
+    {
+      name: 'PancakeSwap V3 LP Mint',
+      description:
+        'Opens a new PancakeSwap V3 concentrated-liquidity position from the vault. Define the price range as explicit min/max prices or a preset width around the current price. The position NFT token-id is written to a context slot.',
+      category: StepCategory.ACTION,
+      contractAddress: addresses.PancakeSwapV3MintAction,
+      selector: EXECUTE_SELECTOR,
+      afterExecutionSelector: null,
+      abiFragment: {
+        type: 'tuple',
+        components: [
+          { name: 'tokenA', type: 'address' },
+          { name: 'tokenB', type: 'address' },
+          { name: 'fee', type: 'uint24' },
+          { name: 'rangeMode', type: 'uint8' },
+          { name: 'tickLower', type: 'int24' },
+          { name: 'tickUpper', type: 'int24' },
+          { name: 'tickDelta', type: 'int24' },
+          { name: 'amountADesired', type: 'uint256' },
+          { name: 'amountBDesired', type: 'uint256' },
+          { name: 'tokenIdToSlot', type: 'uint32' },
+        ],
+      },
+      paramSchema: {
+        type: 'object',
+        properties: {
+          tokenA: {
+            type: 'string',
+            title: 'Token A',
+            description: 'First token of the pair',
+            'x-ui-widget': 'token-selector',
+            'x-ui-token-source': 'pancakeswap',
+          },
+          tokenB: {
+            type: 'string',
+            title: 'Token B',
+            description: 'Second token of the pair',
+            'x-ui-widget': 'token-selector',
+            'x-ui-token-source': 'pancakeswap',
+          },
+          fee: {
+            type: 'integer',
+            title: 'Fee Tier',
+            description: 'The PancakeSwap V3 pool fee tier.',
+            'x-ui-widget': 'fee-tier',
+            default: 500,
+          },
+          rangeMode: {
+            type: 'integer',
+            title: 'Price Range',
+            description:
+              'Define the position range as explicit min/max prices, or a preset width around the current price.',
+            'x-ui-widget': 'tick-range',
+            'x-ui-token0-field': 'tokenA',
+            'x-ui-token1-field': 'tokenB',
+            'x-ui-fee-field': 'fee',
+            'x-ui-tick-lower-field': 'tickLower',
+            'x-ui-tick-upper-field': 'tickUpper',
+            'x-ui-tick-delta-field': 'tickDelta',
+            default: 1,
+          },
+          tickLower: { type: 'integer', title: 'Tick Lower', 'x-ui-hidden': true, default: 0 },
+          tickUpper: { type: 'integer', title: 'Tick Upper', 'x-ui-hidden': true, default: 0 },
+          tickDelta: { type: 'integer', title: 'Tick Delta', 'x-ui-hidden': true, default: 0 },
+          amountADesired: {
+            type: 'string',
+            title: 'Amount A',
+            description: 'Amount of Token A to add (human units). Toggle to use the full vault balance.',
+            'x-ui-widget': 'token-amount',
+            'x-ui-amount-token-field': 'tokenA',
+            'x-ui-zero-toggle': { label: 'Volles Guthaben', default: false },
+          },
+          amountBDesired: {
+            type: 'string',
+            title: 'Amount B',
+            description: 'Amount of Token B to add (human units). Toggle to use the full vault balance.',
+            'x-ui-widget': 'token-amount',
+            'x-ui-amount-token-field': 'tokenB',
+            'x-ui-zero-toggle': { label: 'Volles Guthaben', default: false },
+          },
+          tokenIdToSlot: {
+            type: 'integer',
+            title: 'Position Token-ID to Context Slot',
+            description:
+              'Write the new position NFT token-id to a context slot so later automations can manage it.',
+            'x-ui-widget': 'context-slot',
+            'x-ui-slot-access': 'write',
+            default: 4294967295,
+          },
+        },
+        required: ['tokenA', 'tokenB', 'fee', 'tokenIdToSlot'],
       },
     },
   ];

@@ -3,6 +3,7 @@ import { zeroToggleField, type DurationUnit } from 'shared';
 import { type ContextVariable, useEditorStore } from '../store/editor-store';
 import { ContextInputField } from './context-input-field';
 import { ContextOutputField } from './context-output-field';
+import { computeExplicitTicks, presetTickDelta } from '../lib/ticks';
 
 const NO_SLOT = 4294967295;
 
@@ -37,6 +38,13 @@ interface FieldSchema {
   // aave-amount-mode: restrict the offered modes (e.g. Borrow = [0, 1] — no
   // oracle-bound MAX_AVAILABLE / TARGET_HF yet). Default: all four.
   'x-ui-modes'?: number[];
+  // tick-range composite: the sibling fields it drives.
+  'x-ui-token0-field'?: string;
+  'x-ui-token1-field'?: string;
+  'x-ui-fee-field'?: string;
+  'x-ui-tick-lower-field'?: string;
+  'x-ui-tick-upper-field'?: string;
+  'x-ui-tick-delta-field'?: string;
 }
 
 export type TokenList = { address: string; symbol: string; decimals?: number }[];
@@ -217,6 +225,19 @@ function FormField({
         value={(value as string) ?? vaultAddress}
         onChange={onChange}
         placeholder={vaultAddress}
+      />
+    );
+  }
+
+  if (widget === 'tick-range') {
+    return (
+      <TickRangeField
+        fieldName={fieldName}
+        schema={schema}
+        value={value}
+        allValues={allValues}
+        onChange={onChange}
+        nodeId={nodeId}
       />
     );
   }
@@ -623,6 +644,158 @@ function HealthFactorField({
         }}
         placeholder="1.5"
       />
+      <FieldError message={error} />
+    </div>
+  );
+}
+
+const PRESET_WIDTHS = [5, 10, 20];
+
+/**
+ * `tick-range` composite: a rangeMode toggle exposing EITHER explicit min/max
+ * price inputs (computes `tickLower`/`tickUpper` off-chain, rounded outward) OR
+ * a preset ±% width (computes a `tickDelta` constant; centering is on-chain).
+ * The friendly price/width inputs are stripped at the encode boundary (not in
+ * the abiFragment); only rangeMode + ticks/tickDelta are carried.
+ */
+function TickRangeField({
+  fieldName,
+  schema,
+  value,
+  allValues,
+  onChange,
+  nodeId,
+}: {
+  fieldName: string;
+  schema: FieldSchema;
+  value: unknown;
+  allValues: Record<string, unknown>;
+  onChange: (name: string, value: unknown) => void;
+  nodeId: string;
+}) {
+  const tokenDecimals = useEditorStore((s) => s.tokenDecimals);
+  const error = useFieldError(nodeId, schema['x-ui-tick-upper-field'] ?? 'tickUpper');
+
+  const token0Field = schema['x-ui-token0-field'] ?? 'tokenA';
+  const token1Field = schema['x-ui-token1-field'] ?? 'tokenB';
+  const feeField = schema['x-ui-fee-field'] ?? 'fee';
+  const lowerField = schema['x-ui-tick-lower-field'] ?? 'tickLower';
+  const upperField = schema['x-ui-tick-upper-field'] ?? 'tickUpper';
+  const deltaField = schema['x-ui-tick-delta-field'] ?? 'tickDelta';
+
+  const initialMode = value === undefined || value === null ? (schema.default as number) ?? 1 : Number(value);
+  const [mode, setMode] = useState<number>(initialMode);
+  const [minPrice, setMinPrice] = useState<string>('');
+  const [maxPrice, setMaxPrice] = useState<string>('');
+  const [pct, setPct] = useState<number>(10);
+
+  function decimalsOf(addr: unknown): number {
+    return typeof addr === 'string' ? tokenDecimals[addr.toLowerCase()] ?? 18 : 18;
+  }
+
+  function applyExplicit(nextMin: string, nextMax: string) {
+    onChange(fieldName, 0);
+    const min = Number(nextMin);
+    const max = Number(nextMax);
+    const tokenA = allValues[token0Field];
+    const tokenB = allValues[token1Field];
+    if (
+      Number.isFinite(min) &&
+      Number.isFinite(max) &&
+      min > 0 &&
+      max > 0 &&
+      typeof tokenA === 'string' &&
+      typeof tokenB === 'string' &&
+      tokenA &&
+      tokenB
+    ) {
+      const { tickLower, tickUpper } = computeExplicitTicks({
+        minPrice: min,
+        maxPrice: max,
+        tokenA,
+        tokenB,
+        decA: decimalsOf(tokenA),
+        decB: decimalsOf(tokenB),
+        fee: Number(allValues[feeField] ?? 500),
+      });
+      onChange(lowerField, tickLower);
+      onChange(upperField, tickUpper);
+    }
+  }
+
+  function applyPreset(nextPct: number) {
+    onChange(fieldName, 1);
+    onChange(deltaField, presetTickDelta(nextPct));
+  }
+
+  return (
+    <div>
+      <FieldLabel schema={schema} />
+      <div className="nodrag mb-2 flex gap-2 text-xs">
+        <button
+          type="button"
+          className={`px-2 py-1 rounded border ${mode === 1 ? 'bg-blue-50 border-blue-400 text-blue-700' : 'border-gray-300 text-gray-600'}`}
+          onClick={() => {
+            setMode(1);
+            applyPreset(pct);
+          }}
+        >
+          Preset width
+        </button>
+        <button
+          type="button"
+          className={`px-2 py-1 rounded border ${mode === 0 ? 'bg-blue-50 border-blue-400 text-blue-700' : 'border-gray-300 text-gray-600'}`}
+          onClick={() => {
+            setMode(0);
+            applyExplicit(minPrice, maxPrice);
+          }}
+        >
+          Explicit prices
+        </button>
+      </div>
+
+      {mode === 1 ? (
+        <select
+          className="nodrag w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+          value={String(pct)}
+          onChange={(e) => {
+            const next = Number(e.target.value);
+            setPct(next);
+            applyPreset(next);
+          }}
+        >
+          {PRESET_WIDTHS.map((w) => (
+            <option key={w} value={w}>
+              ±{w}% around current price
+            </option>
+          ))}
+        </select>
+      ) : (
+        <div className="flex gap-2">
+          <input
+            type="text"
+            inputMode="decimal"
+            className={`nodrag w-1/2 border rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 ${error ? 'border-red-400' : 'border-gray-300 focus:ring-blue-500'}`}
+            value={minPrice}
+            onChange={(e) => {
+              setMinPrice(e.target.value);
+              applyExplicit(e.target.value, maxPrice);
+            }}
+            placeholder="Min price"
+          />
+          <input
+            type="text"
+            inputMode="decimal"
+            className={`nodrag w-1/2 border rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 ${error ? 'border-red-400' : 'border-gray-300 focus:ring-blue-500'}`}
+            value={maxPrice}
+            onChange={(e) => {
+              setMaxPrice(e.target.value);
+              applyExplicit(minPrice, e.target.value);
+            }}
+            placeholder="Max price"
+          />
+        </div>
+      )}
       <FieldError message={error} />
     </div>
   );
