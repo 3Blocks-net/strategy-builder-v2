@@ -1,13 +1,19 @@
 import { describe, it, expect } from 'vitest';
-import { mapParamsToRaw, mapGraphToRaw, type StepSchema } from '../encode-boundary';
+import {
+  mapParamsToRaw,
+  mapGraphToRaw,
+  buildContextOverrides,
+  type StepSchema,
+} from '../encode-boundary';
+import { encodeTimestamp } from 'shared';
 
 const intervalSchema: StepSchema = {
   paramSchema: {
     properties: {
       interval: { type: 'object', 'x-ui-widget': 'duration' },
+      // friendly-only start-time field, NOT in abiFragment
+      startTime: { type: 'integer', 'x-ui-widget': 'start-time', 'x-ui-time-slot-field': 'timeSlot' },
       timeSlot: { type: 'integer', 'x-ui-widget': 'context-slot' },
-      // a friendly-only field NOT present in abiFragment
-      startTime: { type: 'integer' },
     },
     required: ['interval', 'timeSlot'],
   },
@@ -83,5 +89,50 @@ describe('mapGraphToRaw', () => {
       {},
     );
     expect(graph.edges[0].sourceHandle).toBe('out');
+  });
+});
+
+describe('buildContextOverrides', () => {
+  it('routes startTime → name-keyed override for the referenced slot', () => {
+    const overrides = buildContextOverrides(
+      [
+        {
+          id: 'c1',
+          type: 'CONDITION',
+          data: {
+            stepTypeId: 'st-interval',
+            params: {
+              interval: { value: 7, unit: 'days' },
+              startTime: 1_700_000_000,
+              timeSlot: '__time_c1',
+            },
+          },
+        },
+      ],
+      { 'st-interval': intervalSchema },
+    );
+    expect(overrides).toEqual({ '__time_c1': encodeTimestamp(1_700_000_000) });
+  });
+
+  it('skips nodes without a start-time field or without a slot name', () => {
+    const overrides = buildContextOverrides(
+      [{ id: 'a1', type: 'ACTION', data: { stepTypeId: 'st-x', params: {} } }],
+      { 'st-x': { paramSchema: { properties: { foo: { type: 'string' } } } } },
+    );
+    expect(overrides).toEqual({});
+  });
+
+  it('omits the override when startTime is unset', () => {
+    const overrides = buildContextOverrides(
+      [
+        {
+          id: 'c1',
+          type: 'CONDITION',
+          data: { stepTypeId: 'st-interval', params: { interval: { value: 1, unit: 'days' }, timeSlot: '__time_c1' } },
+        },
+      ],
+      { 'st-interval': intervalSchema },
+    );
+    expect(overrides).toEqual({});
   });
 });

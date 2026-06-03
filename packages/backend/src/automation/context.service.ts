@@ -74,20 +74,30 @@ export class ContextService {
   buildExpandedContext(
     currentCtx: string[],
     newSlots: { index: number; initialValue: string }[],
-    overrides?: Record<number, string>,
+    overrides?: Record<string, string>,
+    slotMapping?: Record<string, number>,
   ): string[] {
+    // Overrides are name-keyed (the /encode API contract); resolve them to
+    // indices via the slotMapping returned by allocateSlots.
+    const indexOverrides: Record<number, string> = {};
+    for (const [name, value] of Object.entries(overrides ?? {})) {
+      const idx = slotMapping?.[name];
+      if (idx !== undefined) indexOverrides[idx] = value;
+    }
+
     const maxIndex = Math.max(
       currentCtx.length - 1,
+      -1,
       ...newSlots.map((s) => s.index),
-      ...Object.keys(overrides ?? {}).map(Number),
+      ...Object.keys(indexOverrides).map(Number),
     );
 
     if (maxIndex < 0) return [];
 
     const expanded: string[] = [];
     for (let i = 0; i <= maxIndex; i++) {
-      if (overrides && i in overrides) {
-        expanded.push(overrides[i]);
+      if (i in indexOverrides) {
+        expanded.push(indexOverrides[i]);
       } else if (i < currentCtx.length) {
         expanded.push(currentCtx[i]);
       } else {

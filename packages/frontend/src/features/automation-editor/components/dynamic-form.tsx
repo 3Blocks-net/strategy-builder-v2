@@ -20,6 +20,8 @@ interface FieldSchema {
   default?: unknown;
   'x-ui-widget'?: string;
   'x-ui-slot-access'?: string;
+  'x-ui-hidden'?: boolean;
+  'x-ui-time-slot-field'?: string;
 }
 
 interface FormSchema {
@@ -105,6 +107,10 @@ function FormField({
   const widget = schema['x-ui-widget'];
   const isOptional = schema.default === NO_SLOT;
 
+  // Auto-managed fields (e.g. the time slot seeded by a start-time field) are
+  // kept in params but hidden from the friendly UI.
+  if (schema['x-ui-hidden']) return null;
+
   if (slotAccess === 'write') {
     return (
       <ContextOutputField
@@ -161,6 +167,18 @@ function FormField({
   if (widget === 'duration') {
     return (
       <DurationField
+        fieldName={fieldName}
+        schema={schema}
+        value={value}
+        onChange={onChange}
+        nodeId={nodeId}
+      />
+    );
+  }
+
+  if (widget === 'start-time') {
+    return (
+      <StartTimeField
         fieldName={fieldName}
         schema={schema}
         value={value}
@@ -297,6 +315,59 @@ function DurationField({
           ))}
         </select>
       </div>
+      <FieldError message={error} />
+    </div>
+  );
+}
+
+function unixToLocalInput(unixSeconds: number): string {
+  const d = new Date(unixSeconds * 1000);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function StartTimeField({
+  fieldName,
+  schema,
+  value,
+  onChange,
+  nodeId,
+}: {
+  fieldName: string;
+  schema: FieldSchema;
+  value: unknown;
+  onChange: (name: string, value: unknown) => void;
+  nodeId: string;
+}) {
+  const initialUnix =
+    typeof value === 'number' ? value : value ? Number(value) : undefined;
+  const [local, setLocal] = useState<string>(
+    initialUnix !== undefined && Number.isFinite(initialUnix)
+      ? unixToLocalInput(initialUnix)
+      : '',
+  );
+  const error = useFieldError(nodeId, fieldName);
+
+  return (
+    <div>
+      <FieldLabel schema={schema} />
+      <input
+        type="datetime-local"
+        className={`nodrag w-full border rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 ${
+          error ? 'border-red-400 focus:ring-red-500' : 'border-gray-300 focus:ring-blue-500'
+        }`}
+        value={local}
+        onChange={(e) => {
+          const next = e.target.value;
+          setLocal(next);
+          if (!next) {
+            onChange(fieldName, undefined);
+            return;
+          }
+          const secs = Math.floor(new Date(next).getTime() / 1000);
+          onChange(fieldName, Number.isFinite(secs) ? secs : undefined);
+        }}
+      />
       <FieldError message={error} />
     </div>
   );

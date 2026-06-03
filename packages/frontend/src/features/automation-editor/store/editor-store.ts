@@ -51,6 +51,11 @@ export function materializeDefaultParams(
     ) {
       params[name] = `__time_${nodeId}`;
     }
+    // start-time defaults to "now" (Unix seconds) — dynamic, so not expressible
+    // as a static schema default.
+    if (fieldSchema['x-ui-widget'] === 'start-time' && fieldSchema.default === undefined) {
+      params[name] = Math.floor(Date.now() / 1000);
+    }
   }
   return params;
 }

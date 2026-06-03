@@ -133,6 +133,16 @@ async function main() {
             'x-ui-widget': 'duration',
             default: { value: 1, unit: 'days' },
           },
+          startTime: {
+            type: 'integer',
+            title: 'Start Time',
+            description:
+              'When the trigger first fires (default: now). Friendly-only — written as the initial value of the auto-assigned time slot at deploy.',
+            'x-ui-widget': 'start-time',
+            // Points at the context-slot field whose initial value this start
+            // time seeds (the mapper routes startTime → contextOverrides[<slotName>]).
+            'x-ui-time-slot-field': 'timeSlot',
+          },
           timeSlot: {
             type: 'integer',
             title: 'Time Slot',
@@ -140,6 +150,8 @@ async function main() {
               'Context slot storing the next trigger timestamp. The slot is automatically advanced after each execution.',
             'x-ui-widget': 'context-slot',
             'x-ui-slot-access': 'read-write',
+            // Auto-assigned and seeded from Start Time — hidden from the friendly UI.
+            'x-ui-hidden': true,
           },
         },
         required: ['interval', 'timeSlot'],

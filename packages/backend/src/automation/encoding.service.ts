@@ -81,7 +81,7 @@ export class EncodingService {
     vaultAddress: string,
     automationId: string,
     graph: EditorGraph,
-    contextOverrides?: Record<number, string>,
+    contextOverrides?: Record<string, string>,
   ): Promise<EncodeResult> {
     this.validateServerSide(graph);
 
@@ -180,19 +180,18 @@ export class EncodingService {
         // fresh vault with no context
       }
 
-      const defaultTimestamp = this.abiCoder.encode(
-        ['uint256'],
-        [Math.floor(Date.now() / 1000)],
-      );
-      const newSlots = newSlotEntries.map(([, index]) => ({
+      // New slots default to `0x`; only slots that receive a name-keyed
+      // start-time override get a non-zero (timestamp) initial value.
+      const newSlots = newSlotEntries.map(([name, index]) => ({
         index,
-        initialValue: contextOverrides?.[index] ?? defaultTimestamp,
+        initialValue: contextOverrides?.[name] ?? '0x',
       }));
 
       const expanded = this.contextService.buildExpandedContext(
         onChainCtx,
         newSlots,
         contextOverrides,
+        slotMapping,
       );
 
       contextCalldata = this.vaultInterface.encodeFunctionData('setContext', [expanded]);
@@ -204,7 +203,7 @@ export class EncodingService {
           slotName: name,
           isNew,
           currentValue: isNew ? undefined : onChainCtx[index],
-          newValue: contextOverrides?.[index] ?? (isNew ? defaultTimestamp : onChainCtx[index]),
+          newValue: contextOverrides?.[name] ?? (isNew ? '0x' : onChainCtx[index]),
           usedByActiveAutomations: [],
         });
       }
@@ -395,7 +394,7 @@ export class EncodingService {
     automationId: string,
     onChainId: number,
     graph: EditorGraph,
-    contextOverrides?: Record<number, string>,
+    contextOverrides?: Record<string, string>,
   ): Promise<EncodeResult> {
     this.validateServerSide(graph);
 
@@ -465,9 +464,10 @@ export class EncodingService {
       const newSlotEntries = Object.entries(slotMapping).filter(([, idx]) => idx >= onChainCtx.length);
       if (newSlotEntries.length > 0 || hasOverrides) {
         requiresContextTx = true;
-        const defaultTs = this.abiCoder.encode(['uint256'], [Math.floor(Date.now() / 1000)]);
-        const newSlots = newSlotEntries.map(([, index]) => ({ index, initialValue: contextOverrides?.[index] ?? defaultTs }));
-        const expanded = this.contextService.buildExpandedContext(onChainCtx, newSlots, contextOverrides);
+        // New slots default to `0x`; only name-keyed start-time overrides seed
+        // a timestamp.
+        const newSlots = newSlotEntries.map(([name, index]) => ({ index, initialValue: contextOverrides?.[name] ?? '0x' }));
+        const expanded = this.contextService.buildExpandedContext(onChainCtx, newSlots, contextOverrides, slotMapping);
         contextCalldata = this.vaultInterface.encodeFunctionData('setContext', [expanded]);
       }
 
@@ -478,7 +478,7 @@ export class EncodingService {
           slotName: name,
           isNew,
           currentValue: isNew ? undefined : onChainCtx[index],
-          newValue: contextOverrides?.[index] ?? (isNew ? '0x' : onChainCtx[index]),
+          newValue: contextOverrides?.[name] ?? (isNew ? '0x' : onChainCtx[index]),
           usedByActiveAutomations: [],
         });
       }

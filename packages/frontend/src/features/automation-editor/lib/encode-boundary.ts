@@ -12,7 +12,7 @@
  * contextOverrides). The generic backend encoder stays unchanged.
  */
 
-import { toSeconds, type Duration } from 'shared';
+import { toSeconds, encodeTimestamp, type Duration } from 'shared';
 
 export interface AbiFragment {
   type: string;
@@ -93,6 +93,40 @@ export function mapParamsToRaw(
   }
 
   return raw;
+}
+
+/**
+ * Build the name-keyed `contextOverrides` for `POST /encode` from every node's
+ * friendly `start-time` field. A `start-time` field declares which context-slot
+ * field it seeds via `x-ui-time-slot-field`; we read that field's variable name
+ * (e.g. `__time_<nodeId>`) and map it to the ABI-encoded chosen timestamp. The
+ * friendly `startTime` field is stripped by {@link mapParamsToRaw} (it never
+ * appears in the abiFragment), so only the override carries it forward.
+ */
+export function buildContextOverrides(
+  nodes: EditorNodeLike[],
+  stepSchemas: Record<string, StepSchema>,
+): Record<string, string> {
+  const overrides: Record<string, string> = {};
+
+  for (const node of nodes) {
+    const properties = stepSchemas[node.data.stepTypeId]?.paramSchema?.properties ?? {};
+    for (const [field, fieldSchema] of Object.entries(properties)) {
+      if (fieldSchema['x-ui-widget'] !== 'start-time') continue;
+
+      const slotField = fieldSchema['x-ui-time-slot-field'] as string | undefined;
+      if (!slotField) continue;
+
+      const slotName = node.data.params[slotField];
+      const startTime = node.data.params[field];
+      if (typeof slotName !== 'string' || slotName === '') continue;
+      if (startTime === undefined || startTime === null || startTime === '') continue;
+
+      overrides[slotName] = encodeTimestamp(Number(startTime));
+    }
+  }
+
+  return overrides;
 }
 
 interface EditorNodeLike {

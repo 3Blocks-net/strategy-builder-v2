@@ -7,7 +7,7 @@ import { apiFetch } from '@/lib/api';
 import { StrategyBuilderVaultAbi } from '@/lib/abis';
 import { waitForReceipt } from '@/lib/wait-for-receipt';
 import { useEditorStore } from '../store/editor-store';
-import { mapGraphToRaw } from '../lib/encode-boundary';
+import { mapGraphToRaw, buildContextOverrides } from '../lib/encode-boundary';
 
 interface ContextChange {
   slotIndex: number;
@@ -43,7 +43,6 @@ export function DeployDialog({ automationId, label, isEdit = false, onClose }: D
   const [phase, setPhase] = useState<DeployPhase>('preview');
   const [encodeResult, setEncodeResult] = useState<EncodeResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [contextOverrides, setContextOverrides] = useState<Record<number, string>>({});
 
   const nodes = useEditorStore((s) => s.nodes);
   const edges = useEditorStore((s) => s.edges);
@@ -57,11 +56,12 @@ export function DeployDialog({ automationId, label, isEdit = false, onClose }: D
     try {
       setPhase('encoding');
       setError(null);
-      const overrides = Object.keys(contextOverrides).length > 0 ? contextOverrides : undefined;
-
       // Encode-boundary mapper: convert the friendly editor params to raw
-      // values (and strip friendly-only fields) right before POST /encode.
+      // values (and strip friendly-only fields) right before POST /encode, and
+      // derive the name-keyed contextOverrides (e.g. start-time → time slot).
       const graph = mapGraphToRaw(nodes, edges, stepSchemas);
+      const builtOverrides = buildContextOverrides(nodes, stepSchemas);
+      const overrides = Object.keys(builtOverrides).length > 0 ? builtOverrides : undefined;
 
       const encodePath = isEdit ? 'encode-update' : 'encode';
       const res = await apiFetch(
@@ -184,18 +184,9 @@ export function DeployDialog({ automationId, label, isEdit = false, onClose }: D
                       )}
                     </div>
                     {c.isNew && (
-                      <input
-                        type="text"
-                        className="mt-2 w-full border border-gray-300 rounded px-2 py-1 text-sm font-mono"
-                        placeholder="0x"
-                        defaultValue={c.newValue}
-                        onBlur={(e) =>
-                          setContextOverrides((prev) => ({
-                            ...prev,
-                            [c.slotIndex]: e.target.value || '0x',
-                          }))
-                        }
-                      />
+                      <p className="mt-1 text-xs text-gray-500 font-mono break-all">
+                        Initial value: {c.newValue}
+                      </p>
                     )}
                   </div>
                 ))}

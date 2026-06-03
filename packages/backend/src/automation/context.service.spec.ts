@@ -146,22 +146,34 @@ describe('ContextService', () => {
       expect(result).toEqual(['0xaaa', '0x', '0x']);
     });
 
-    it('applies overrides for existing slots', () => {
+    it('applies name-keyed overrides for existing slots (resolved via slotMapping)', () => {
       const result = service.buildExpandedContext(
         ['0xaaa', '0xbbb'],
         [],
-        { 0: '0xccc' },
+        { slotA: '0xccc' },
+        { slotA: 0 },
       );
       expect(result).toEqual(['0xccc', '0xbbb']);
     });
 
-    it('handles new slots + overrides together', () => {
+    it('handles new slots + name-keyed overrides together', () => {
       const result = service.buildExpandedContext(
         ['0xaaa', '0xbbb'],
         [{ index: 2, initialValue: '0xddd' }],
-        { 1: '0xccc' },
+        { slotB: '0xccc' },
+        { slotB: 1 },
       );
       expect(result).toEqual(['0xaaa', '0xccc', '0xddd']);
+    });
+
+    it('ignores overrides whose name is absent from the slotMapping', () => {
+      const result = service.buildExpandedContext(
+        ['0xaaa', '0xbbb'],
+        [],
+        { unknownSlot: '0xccc' },
+        { someOther: 5 },
+      );
+      expect(result).toEqual(['0xaaa', '0xbbb']);
     });
   });
 

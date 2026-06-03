@@ -103,7 +103,7 @@ export class AutomationController {
     @Param('address') address: string,
     @Param('id') id: string,
     @Request() req: any,
-    @Body() body: { contextOverrides?: Record<number, string>; graph?: any },
+    @Body() body: { contextOverrides?: Record<string, string>; graph?: any },
   ) {
     const automation = await this.automationService.findById(id);
     const editorState = automation.editorState as any;
@@ -134,7 +134,7 @@ export class AutomationController {
     @Param('address') address: string,
     @Param('id') id: string,
     @Request() req: any,
-    @Body() body: { contextOverrides?: Record<number, string>; graph?: any },
+    @Body() body: { contextOverrides?: Record<string, string>; graph?: any },
   ) {
     const automation = await this.automationService.findById(id);
     if (automation.onChainId === null) {

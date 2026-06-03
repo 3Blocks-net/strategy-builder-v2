@@ -411,6 +411,46 @@ describe('EncodingService', () => {
       expect(decoded[1]).toBe(1n);
     });
 
+    it('resolves name-keyed contextOverrides to the slot init value (start-time)', async () => {
+      const allocateSlots = jest.fn().mockResolvedValue({ dailyTimer: 0 });
+      (service as any).contextService.allocateSlots = allocateSlots;
+      const buildExpanded = jest.fn().mockReturnValue(['0x00']);
+      (service as any).contextService.buildExpandedContext = buildExpanded;
+      (service as any).contextService.readOnChainContext = jest
+        .fn()
+        .mockResolvedValue([]);
+
+      const ts = '0x' + '0'.repeat(56) + '654ac620';
+      const graph = {
+        nodes: [
+          {
+            id: 'c1',
+            type: 'CONDITION' as const,
+            data: {
+              stepTypeId: 'st-interval',
+              params: { interval: '86400', timeSlot: 'dailyTimer' },
+            },
+          },
+        ],
+        edges: [],
+      };
+
+      const result = await service.encode('v1', '0xvault', 'a1', graph, {
+        dailyTimer: ts,
+      });
+
+      // name-keyed overrides + the slotMapping are forwarded so the slot init
+      // value can be resolved by index
+      expect(buildExpanded).toHaveBeenCalledWith(
+        [],
+        expect.any(Array),
+        { dailyTimer: ts },
+        { dailyTimer: 0 },
+      );
+      const change = result.contextChanges.find((c) => c.slotName === 'dailyTimer');
+      expect(change?.newValue).toBe(ts);
+    });
+
     it('leaves an unset optional slot field as NO_SLOT (regression: no slot 0)', async () => {
       const graph = {
         nodes: [
