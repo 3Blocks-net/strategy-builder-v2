@@ -121,3 +121,90 @@ describe('param-validation pass (Deploy gate)', () => {
     expect(paramErrors).toEqual([]);
   });
 });
+
+// Timer reuses the same duration + start-time infra as Interval (Slice 4).
+const timerStepType: StepTypeOption = {
+  id: 'st-timer',
+  name: 'Timer Condition',
+  description: '',
+  category: 'CONDITION',
+  contractAddress: '0xdef',
+  selector: '0xd89f1e36',
+  afterExecutionSelector: '0xb2792168',
+  paramSchema: {
+    type: 'object',
+    properties: {
+      delta: {
+        type: 'object',
+        title: 'Delay',
+        'x-ui-widget': 'duration',
+        default: { value: 30, unit: 'days' },
+      },
+      startTime: {
+        type: 'integer',
+        title: 'Start Time',
+        'x-ui-widget': 'start-time',
+        'x-ui-time-slot-field': 'timeSlot',
+      },
+      timeSlot: {
+        type: 'integer',
+        title: 'Time Slot',
+        'x-ui-widget': 'context-slot',
+        'x-ui-slot-access': 'read-write',
+        'x-ui-hidden': true,
+      },
+    },
+    required: ['delta', 'timeSlot'],
+  },
+  abiFragment: {
+    type: 'tuple',
+    components: [
+      { name: 'delta', type: 'uint256' },
+      { name: 'timeSlot', type: 'uint32' },
+    ],
+  },
+};
+
+function timerNode(params: Record<string, unknown>) {
+  return {
+    id: 't1',
+    type: 'CONDITION' as const,
+    position: { x: 0, y: 0 },
+    data: {
+      stepTypeId: 'st-timer',
+      stepTypeName: 'Timer Condition',
+      category: 'CONDITION' as const,
+      contractAddress: '0x',
+      selector: '0x',
+      params,
+    },
+  };
+}
+
+describe('Timer reuses friendly infra (Slice 4)', () => {
+  it('node-init materializes delta default, hidden time-slot name, and start-time now', () => {
+    const params = materializeDefaultParams(timerStepType.paramSchema, 't1');
+    expect(params.delta).toEqual({ value: 30, unit: 'days' });
+    expect(params.timeSlot).toBe('__time_t1');
+    expect(typeof params.startTime).toBe('number');
+  });
+
+  it('flags delta = 0 via the generic duration rule', () => {
+    useEditorStore.getState().setStepSchemas({
+      'st-timer': {
+        paramSchema: timerStepType.paramSchema,
+        abiFragment: timerStepType.abiFragment,
+      },
+    });
+    useEditorStore.setState({
+      nodes: [timerNode({ delta: { value: 0, unit: 'days' }, timeSlot: '__time_t1' })],
+      edges: [],
+    });
+    useEditorStore.getState().runValidation();
+    const err = useEditorStore
+      .getState()
+      .validationErrors.find((e) => e.nodeId === 't1' && e.fieldName === 'delta');
+    expect(err).toBeTruthy();
+    expect(err!.message).toMatch(/greater than 0/);
+  });
+});

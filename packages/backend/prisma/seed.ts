@@ -176,10 +176,20 @@ async function main() {
         type: 'object',
         properties: {
           delta: {
-            type: 'string',
-            title: 'Delay (seconds)',
+            type: 'object',
+            title: 'Delay',
             description:
-              'Number of seconds after the start time before the timer fires. Must be greater than 0.',
+              'How long after the start time the timer fires once. Enter a number and a unit (minutes, hours, days, weeks).',
+            'x-ui-widget': 'duration',
+            default: { value: 30, unit: 'days' },
+          },
+          startTime: {
+            type: 'integer',
+            title: 'Start Time',
+            description:
+              'Anchor the delay counts from (default: now). Friendly-only — written as the initial value of the auto-assigned time slot at deploy.',
+            'x-ui-widget': 'start-time',
+            'x-ui-time-slot-field': 'timeSlot',
           },
           timeSlot: {
             type: 'integer',
@@ -188,6 +198,8 @@ async function main() {
               'Context slot storing the start timestamp. Set to 0 to stop the timer. Reset to 0 after firing.',
             'x-ui-widget': 'context-slot',
             'x-ui-slot-access': 'read-write',
+            // Auto-assigned and seeded from Start Time — hidden from the friendly UI.
+            'x-ui-hidden': true,
           },
         },
         required: ['delta', 'timeSlot'],

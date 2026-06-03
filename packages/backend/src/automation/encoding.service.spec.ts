@@ -108,6 +108,42 @@ const mockStepTypes = [
       },
     },
   },
+  // Appended at the end so the index-based mockStepTypes[0..2] references in the
+  // encodeParams tests stay stable.
+  {
+    id: 'st-timer',
+    name: 'Timer Condition',
+    category: 'CONDITION',
+    contractAddress: '0x9A676e781A523b5d0C0e43731313A708CB607508',
+    selector: CHECK_SELECTOR,
+    abiFragment: {
+      type: 'tuple',
+      components: [
+        { name: 'delta', type: 'uint256' },
+        { name: 'timeSlot', type: 'uint32' },
+      ],
+    },
+    paramSchema: {
+      type: 'object',
+      properties: {
+        delta: { type: 'object', title: 'Delay', 'x-ui-widget': 'duration' },
+        startTime: {
+          type: 'integer',
+          title: 'Start Time',
+          'x-ui-widget': 'start-time',
+          'x-ui-time-slot-field': 'timeSlot',
+        },
+        timeSlot: {
+          type: 'integer',
+          title: 'Time Slot',
+          'x-ui-widget': 'context-slot',
+          'x-ui-slot-access': 'read-write',
+          'x-ui-hidden': true,
+        },
+      },
+      required: ['delta', 'timeSlot'],
+    },
+  },
 ];
 
 describe('EncodingService', () => {
@@ -409,6 +445,48 @@ describe('EncodingService', () => {
       // the timeSlot field encodes the resolved index (1), not 0/default
       const decoded = abiCoder.decode(['uint256', 'uint32'], result.steps[0].data);
       expect(decoded[1]).toBe(1n);
+    });
+
+    it('encodes a Timer condition with raw delta seconds', async () => {
+      const graph = {
+        nodes: [
+          {
+            id: 't1',
+            type: 'CONDITION' as const,
+            data: {
+              stepTypeId: 'st-timer',
+              params: { delta: '2592000', timeSlot: 0 },
+            },
+          },
+        ],
+        edges: [],
+      };
+
+      const result = await service.encode('v1', '0xvault', 'a1', graph);
+
+      expect(result.stepCount).toBe(1);
+      const decoded = abiCoder.decode(['uint256', 'uint32'], result.steps[0].data);
+      expect(decoded[0]).toBe(2592000n); // 30 days in seconds
+    });
+
+    it('rejects raw params with timer delta = 0 (raw-mode guard)', async () => {
+      const graph = {
+        nodes: [
+          {
+            id: 't1',
+            type: 'CONDITION' as const,
+            data: {
+              stepTypeId: 'st-timer',
+              params: { delta: '0', timeSlot: 'timerSlot' },
+            },
+          },
+        ],
+        edges: [],
+      };
+
+      await expect(
+        service.encode('v1', '0xvault', 'a1', graph),
+      ).rejects.toThrow(/Invalid step parameters/i);
     });
 
     it('resolves name-keyed contextOverrides to the slot init value (start-time)', async () => {
