@@ -3,5 +3,7 @@
 /* eslint-disable */
 export type { IAaveOracle } from './IAaveOracle.js';
 export type { IAaveV3Pool } from './IAaveV3Pool.js';
+export type { IPancakeV3Factory } from './IPancakeV3Factory.js';
+export type { IPancakeV3SwapRouter } from './IPancakeV3SwapRouter.js';
 export type { IPoolAddressesProvider } from './IPoolAddressesProvider.js';
 export type { IPriceOracle } from './IPriceOracle.js';

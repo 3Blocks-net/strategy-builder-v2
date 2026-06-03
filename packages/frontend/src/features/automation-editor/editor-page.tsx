@@ -18,6 +18,7 @@ import { ValidationPanel } from './components/validation-panel';
 import { DeployDialog } from './components/deploy-dialog';
 import { DebugDialog } from './components/debug-dialog';
 import { useAutoSave } from './hooks/use-auto-save';
+import { usePoolValidity } from './hooks/use-pool-validity';
 import { isValidConnection as checkCycle } from './lib/is-valid-connection';
 import type { GraphNode, GraphEdge } from './lib/types';
 import { apiFetch } from '@/lib/api';
@@ -59,6 +60,7 @@ export function AutomationEditorPage() {
   } = useEditorStore();
 
   useAutoSave(vaultAddress, automationId);
+  usePoolValidity();
 
   // Reset store on mount
   useEffect(() => {
@@ -83,9 +85,16 @@ export function AutomationEditorPage() {
       apiFetch('/tokens?protocol=aave')
         .then((r) => r.json())
         .catch(() => ({ tokens: [] })),
-    ]).then(([accepted, aave]) => {
+      apiFetch('/tokens?protocol=pancakeswap')
+        .then((r) => r.json())
+        .catch(() => ({ tokens: [] })),
+    ]).then(([accepted, aave, pancakeswap]) => {
       const map: Record<string, number> = {};
-      for (const t of [...(accepted.tokens ?? []), ...(aave.tokens ?? [])]) {
+      for (const t of [
+        ...(accepted.tokens ?? []),
+        ...(aave.tokens ?? []),
+        ...(pancakeswap.tokens ?? []),
+      ]) {
         if (t.address && typeof t.decimals === 'number') {
           map[t.address.toLowerCase()] = t.decimals;
         }

@@ -2,3 +2,4 @@
 /* tslint:disable */
 /* eslint-disable */
 export { AaveV3Registry__factory } from './AaveV3Registry__factory.js';
+export { PancakeSwapV3Registry__factory } from './PancakeSwapV3Registry__factory.js';

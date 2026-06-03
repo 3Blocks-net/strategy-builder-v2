@@ -221,6 +221,18 @@ function FormField({
     );
   }
 
+  if (widget === 'fee-tier') {
+    return (
+      <FeeTierField
+        fieldName={fieldName}
+        schema={schema}
+        value={value}
+        onChange={onChange}
+        nodeId={nodeId}
+      />
+    );
+  }
+
   if (widget === 'duration') {
     return (
       <DurationField
@@ -611,6 +623,50 @@ function HealthFactorField({
         }}
         placeholder="1.5"
       />
+      <FieldError message={error} />
+    </div>
+  );
+}
+
+const FEE_TIERS: { value: number; label: string }[] = [
+  { value: 100, label: '0.01%' },
+  { value: 500, label: '0.05%' },
+  { value: 2500, label: '0.25%' },
+  { value: 10000, label: '1%' },
+];
+
+/** PancakeSwap V3 fee-tier selector. Emits the integer tier (100/500/…). */
+function FeeTierField({
+  fieldName,
+  schema,
+  value,
+  onChange,
+  nodeId,
+}: {
+  fieldName: string;
+  schema: FieldSchema;
+  value: unknown;
+  onChange: (name: string, value: unknown) => void;
+  nodeId: string;
+}) {
+  const error = useFieldError(nodeId, fieldName);
+  const current = value === undefined || value === null ? (schema.default as number) ?? 500 : Number(value);
+  return (
+    <div>
+      <FieldLabel schema={schema} />
+      <select
+        className={`nodrag w-full border rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 ${
+          error ? 'border-red-400 focus:ring-red-500' : 'border-gray-300 focus:ring-blue-500'
+        }`}
+        value={String(current)}
+        onChange={(e) => onChange(fieldName, Number(e.target.value))}
+      >
+        {FEE_TIERS.map((t) => (
+          <option key={t.value} value={t.value}>
+            {t.label}
+          </option>
+        ))}
+      </select>
       <FieldError message={error} />
     </div>
   );

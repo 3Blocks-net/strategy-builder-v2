@@ -219,6 +219,40 @@ const mockStepTypes = [
       required: ['asset', 'mode'],
     },
   },
+  {
+    id: 'st-pcs-swap',
+    name: 'PancakeSwap V3 Swap',
+    category: 'ACTION',
+    contractAddress: '0x3333333333333333333333333333333333333333',
+    selector: EXECUTE_SELECTOR,
+    abiFragment: {
+      type: 'tuple',
+      components: [
+        { name: 'tokenIn', type: 'address' },
+        { name: 'tokenOut', type: 'address' },
+        { name: 'fee', type: 'uint24' },
+        { name: 'amountIn', type: 'uint256' },
+        { name: 'amountInFromSlot', type: 'uint32' },
+        { name: 'amountOutToSlot', type: 'uint32' },
+        { name: 'amountOutMinimum', type: 'uint256' },
+        { name: 'minOutFromSlot', type: 'uint32' },
+      ],
+    },
+    paramSchema: {
+      type: 'object',
+      properties: {
+        tokenIn: { type: 'string', 'x-ui-widget': 'token-selector', 'x-ui-token-source': 'pancakeswap' },
+        tokenOut: { type: 'string', 'x-ui-widget': 'token-selector', 'x-ui-token-source': 'pancakeswap' },
+        fee: { type: 'integer', 'x-ui-widget': 'fee-tier', default: 500 },
+        amountIn: { type: 'string', 'x-ui-widget': 'token-amount', 'x-ui-amount-token-field': 'tokenIn' },
+        amountInFromSlot: { type: 'integer', 'x-ui-widget': 'context-slot', 'x-ui-slot-access': 'read', default: 4294967295 },
+        amountOutToSlot: { type: 'integer', 'x-ui-widget': 'context-slot', 'x-ui-slot-access': 'write', default: 4294967295 },
+        amountOutMinimum: { type: 'string', 'x-ui-hidden': true, default: '0' },
+        minOutFromSlot: { type: 'integer', 'x-ui-widget': 'context-slot', 'x-ui-slot-access': 'read', 'x-ui-hidden': true, default: 4294967295 },
+      },
+      required: ['tokenIn', 'tokenOut', 'fee', 'amountIn'],
+    },
+  },
 ];
 
 describe('EncodingService', () => {
@@ -608,6 +642,60 @@ describe('EncodingService', () => {
       await expect(
         service.encode('v1', '0xvault', 'a1', graph),
       ).rejects.toThrow(/Invalid step parameters/i);
+    });
+
+    it('encodes a PancakeSwap swap (fee tier + amountOut slot + amountOutMinimum 0)', () => {
+      const tokenIn = '0x55d398326f99059fF775485246999027B3197955';
+      const tokenOut = '0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c';
+      const abiFragment = mockStepTypes.find((s) => s.id === 'st-pcs-swap')!.abiFragment;
+      const result = service.encodeParams(
+        {
+          tokenIn,
+          tokenOut,
+          fee: 500,
+          amountIn: '1000000000000000000',
+          amountInFromSlot: 4294967295,
+          amountOutToSlot: 'swapOut',
+          amountOutMinimum: '0',
+          minOutFromSlot: 4294967295,
+        },
+        abiFragment as any,
+        { swapOut: 2 },
+      );
+      const decoded = abiCoder.decode(
+        ['address', 'address', 'uint24', 'uint256', 'uint32', 'uint32', 'uint256', 'uint32'],
+        result,
+      );
+      expect(decoded[0]).toBe(tokenIn);
+      expect(decoded[2]).toBe(500n); // fee tier
+      expect(decoded[5]).toBe(2n); // amountOutToSlot resolved swapOut → 2
+      expect(decoded[6]).toBe(0n); // amountOutMinimum ships at 0
+    });
+
+    it('rejects a swap with an invalid fee tier (raw-mode guard, HTTP 400)', async () => {
+      const graph = {
+        nodes: [
+          {
+            id: 's1',
+            type: 'ACTION' as const,
+            data: {
+              stepTypeId: 'st-pcs-swap',
+              params: {
+                tokenIn: '0x55d398326f99059fF775485246999027B3197955',
+                tokenOut: '0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c',
+                fee: 3000, // invalid (not a PCS V3 tier)
+                amountIn: '1000000000000000000',
+                amountInFromSlot: 4294967295,
+                amountOutToSlot: 4294967295,
+                amountOutMinimum: '0',
+                minOutFromSlot: 4294967295,
+              },
+            },
+          },
+        ],
+        edges: [],
+      };
+      await expect(service.encode('v1', '0xvault', 's1', graph)).rejects.toThrow(/Invalid step parameters/i);
     });
 
     it('rejects an Aave supply with a zero asset (raw-mode zero-token guard, HTTP 400)', async () => {

@@ -36,10 +36,14 @@ export function SidePanel() {
       .then((data) => setTokens(data.tokens ?? []))
       .catch(() => {});
     // Curated per-protocol lists for token-selector fields with an
-    // `x-ui-token-source` hint (e.g. the Aave reserve list).
+    // `x-ui-token-source` hint (Aave reserves, PancakeSwap pairs).
     apiFetch('/tokens?protocol=aave')
       .then((r) => r.json())
       .then((data) => setTokenSources((prev) => ({ ...prev, aave: data.tokens ?? [] })))
+      .catch(() => {});
+    apiFetch('/tokens?protocol=pancakeswap')
+      .then((r) => r.json())
+      .then((data) => setTokenSources((prev) => ({ ...prev, pancakeswap: data.tokens ?? [] })))
       .catch(() => {});
   }, []);
 

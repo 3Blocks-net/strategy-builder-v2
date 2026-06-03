@@ -3,6 +3,8 @@
 /* eslint-disable */
 import type * as mockAaveV3Sol from './MockAaveV3.sol/index.js';
 export type { mockAaveV3Sol };
+import type * as mockPancakeV3Sol from './MockPancakeV3.sol/index.js';
+export type { mockPancakeV3Sol };
 export type { ActionLibHarness } from './ActionLibHarness.js';
 export type { ERC1967ProxyHelper } from './ERC1967ProxyHelper.js';
 export type { MockERC20 } from './MockERC20.js';

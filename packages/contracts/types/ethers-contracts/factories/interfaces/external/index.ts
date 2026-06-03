@@ -3,5 +3,7 @@
 /* eslint-disable */
 export { IAaveOracle__factory } from './IAaveOracle__factory.js';
 export { IAaveV3Pool__factory } from './IAaveV3Pool__factory.js';
+export { IPancakeV3Factory__factory } from './IPancakeV3Factory__factory.js';
+export { IPancakeV3SwapRouter__factory } from './IPancakeV3SwapRouter__factory.js';
 export { IPoolAddressesProvider__factory } from './IPoolAddressesProvider__factory.js';
 export { IPriceOracle__factory } from './IPriceOracle__factory.js';

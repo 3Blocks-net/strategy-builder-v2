@@ -2,6 +2,7 @@
 /* tslint:disable */
 /* eslint-disable */
 export * as mockAaveV3Sol from './MockAaveV3.sol/index.js';
+export * as mockPancakeV3Sol from './MockPancakeV3.sol/index.js';
 export { ActionLibHarness__factory } from './ActionLibHarness__factory.js';
 export { ERC1967ProxyHelper__factory } from './ERC1967ProxyHelper__factory.js';
 export { MockERC20__factory } from './MockERC20__factory.js';

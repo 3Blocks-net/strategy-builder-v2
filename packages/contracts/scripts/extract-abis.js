@@ -36,6 +36,10 @@ const contracts = [
     artifact: 'actions/AaveV3RepayAction.sol/AaveV3RepayAction.json',
     name: 'AaveV3RepayAction',
   },
+  {
+    artifact: 'actions/PancakeSwapV3SwapAction.sol/PancakeSwapV3SwapAction.json',
+    name: 'PancakeSwapV3SwapAction',
+  },
 ];
 
 mkdirSync(outDir, { recursive: true });

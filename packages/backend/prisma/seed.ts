@@ -33,6 +33,9 @@ function loadContractAddresses(): Record<string, string> {
       AaveV3RepayAction:
         data.AaveV3RepayAction ??
         '0x0000000000000000000000000000000000000000',
+      PancakeSwapV3SwapAction:
+        data.PancakeSwapV3SwapAction ??
+        '0x0000000000000000000000000000000000000000',
     };
   }
 
@@ -64,8 +67,23 @@ function loadContractAddresses(): Record<string, string> {
     AaveV3RepayAction:
       process.env.AAVE_V3_REPAY_ACTION_ADDRESS ??
       '0x0000000000000000000000000000000000000000',
+    PancakeSwapV3SwapAction:
+      process.env.PANCAKESWAP_V3_SWAP_ACTION_ADDRESS ??
+      '0x0000000000000000000000000000000000000000',
   };
 }
+
+// Curated PancakeSwap V3 test pairs (BSC, all 18 decimals) — standard ERC-20s
+// only (no fee-on-transfer / rebasing). `decimals` feeds the frontend
+// tokenDecimals map for correct token-amount → base-units conversion.
+const PANCAKESWAP_BSC_TOKENS = [
+  { symbol: 'WBNB', address: '0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c', decimals: 18 },
+  { symbol: 'USDT', address: '0x55d398326f99059fF775485246999027B3197955', decimals: 18 },
+  { symbol: 'USDC', address: '0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d', decimals: 18 },
+  { symbol: 'BTCB', address: '0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c', decimals: 18 },
+  { symbol: 'ETH', address: '0x2170Ed0880ac9A755fd29B2688956BD959F933F8', decimals: 18 },
+  { symbol: 'CAKE', address: '0x0E09FaBB73Bd3Ade0a17ECC321fD13a19e81cE82', decimals: 18 },
+];
 
 // Curated Aave V3 BSC reserves (all 18 decimals on BSC). `decimals` feeds the
 // frontend tokenDecimals map for correct token-amount → base-units conversion.
@@ -701,6 +719,99 @@ async function main() {
         required: ['asset', 'mode'],
       },
     },
+    {
+      name: 'PancakeSwap V3 Swap',
+      description:
+        'Swaps one token for another via PancakeSwap V3 (single-hop). Ships without on-chain minimum-out (amountOutMinimum = 0) — the step executes rather than reverting on price movement. The output amount is written to a context slot.',
+      category: StepCategory.ACTION,
+      contractAddress: addresses.PancakeSwapV3SwapAction,
+      selector: EXECUTE_SELECTOR,
+      afterExecutionSelector: null,
+      abiFragment: {
+        type: 'tuple',
+        components: [
+          { name: 'tokenIn', type: 'address' },
+          { name: 'tokenOut', type: 'address' },
+          { name: 'fee', type: 'uint24' },
+          { name: 'amountIn', type: 'uint256' },
+          { name: 'amountInFromSlot', type: 'uint32' },
+          { name: 'amountOutToSlot', type: 'uint32' },
+          { name: 'amountOutMinimum', type: 'uint256' },
+          { name: 'minOutFromSlot', type: 'uint32' },
+        ],
+      },
+      paramSchema: {
+        type: 'object',
+        properties: {
+          tokenIn: {
+            type: 'string',
+            title: 'From Token',
+            description: 'The token to swap from',
+            'x-ui-widget': 'token-selector',
+            'x-ui-token-source': 'pancakeswap',
+          },
+          tokenOut: {
+            type: 'string',
+            title: 'To Token',
+            description: 'The token to swap to',
+            'x-ui-widget': 'token-selector',
+            'x-ui-token-source': 'pancakeswap',
+          },
+          fee: {
+            type: 'integer',
+            title: 'Fee Tier',
+            description: 'The PancakeSwap V3 pool fee tier to route through.',
+            'x-ui-widget': 'fee-tier',
+            default: 500,
+          },
+          amountIn: {
+            type: 'string',
+            title: 'Amount In',
+            description:
+              'Amount of the from-token to swap in human units (e.g. 1.5). Toggle to swap the full vault balance instead.',
+            'x-ui-widget': 'token-amount',
+            'x-ui-amount-token-field': 'tokenIn',
+            'x-ui-zero-toggle': { label: 'Volles Guthaben tauschen', default: false },
+          },
+          amountInFromSlot: {
+            type: 'integer',
+            title: 'Amount In from Context Slot',
+            description:
+              'Read the input amount from a context slot (e.g. a previous step’s output). Max uint32 = unset.',
+            'x-ui-widget': 'context-slot',
+            'x-ui-slot-access': 'read',
+            default: 4294967295,
+          },
+          amountOutToSlot: {
+            type: 'integer',
+            title: 'Output Amount to Context Slot',
+            description:
+              'Write the swap output amount to a context slot to chain it into a later step. Max uint32 = skip.',
+            'x-ui-widget': 'context-slot',
+            'x-ui-slot-access': 'write',
+            default: 4294967295,
+          },
+          amountOutMinimum: {
+            type: 'string',
+            title: 'Minimum Output',
+            description:
+              'Forward-compat: minimum acceptable output (base units). Hidden — ships at 0 (no slippage protection).',
+            'x-ui-hidden': true,
+            default: '0',
+          },
+          minOutFromSlot: {
+            type: 'integer',
+            title: 'Minimum Output from Context Slot',
+            description: 'Forward-compat: read the minimum output from a slot. Max uint32 = unset.',
+            'x-ui-widget': 'context-slot',
+            'x-ui-slot-access': 'read',
+            'x-ui-hidden': true,
+            default: 4294967295,
+          },
+        },
+        required: ['tokenIn', 'tokenOut', 'fee', 'amountIn'],
+      },
+    },
   ];
 
   for (const stepType of stepTypes) {
@@ -740,6 +851,21 @@ async function main() {
     });
   }
   console.log(`Seeded ${AAVE_BSC_TOKENS.length} Aave protocol tokens`);
+
+  for (const t of PANCAKESWAP_BSC_TOKENS) {
+    await prisma.protocolToken.upsert({
+      where: { protocol_address: { protocol: 'pancakeswap', address: t.address } },
+      update: { symbol: t.symbol, decimals: t.decimals, enabled: true },
+      create: {
+        protocol: 'pancakeswap',
+        address: t.address,
+        symbol: t.symbol,
+        decimals: t.decimals,
+        enabled: true,
+      },
+    });
+  }
+  console.log(`Seeded ${PANCAKESWAP_BSC_TOKENS.length} PancakeSwap protocol tokens`);
 }
 
 main()

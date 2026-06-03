@@ -225,6 +225,27 @@ function validateAaveAmountMode(
     : [];
 }
 
+const VALID_FEE_TIERS = new Set([100, 500, 2500, 10000]);
+
+/**
+ * `fee-tier` raw-mode guard: the PancakeSwap V3 fee tier must be one of
+ * {100, 500, 2500, 10000} (0.01% / 0.05% / 0.25% / 1%). Friendly mode is a
+ * select, so it's always valid there.
+ */
+function validateFeeTier(
+  field: string,
+  schema: FieldSchema,
+  value: unknown,
+  mode: ValidationMode,
+): ParamValidationError[] {
+  if (mode !== 'raw') return [];
+  const label = fieldLabel(schema, field);
+  const n = Number(value);
+  return VALID_FEE_TIERS.has(n)
+    ? []
+    : [{ field, message: `${label} must be one of 100, 500, 2500, 10000` }];
+}
+
 function validateDuration(
   field: string,
   schema: FieldSchema,
@@ -295,6 +316,8 @@ export function validateParams(
       errors.push(
         ...validateAaveAmountMode(fieldSchema, value, options.mode, params),
       );
+    } else if (widget === 'fee-tier') {
+      errors.push(...validateFeeTier(field, fieldSchema, value, options.mode));
     } else if (widget === 'duration') {
       errors.push(...validateDuration(field, fieldSchema, value, options.mode));
     } else if (widget === 'token-selector') {

@@ -381,3 +381,28 @@ describe('validateParams — aave-amount-mode TARGET_HF guard', () => {
     expect(validateParams(schema, { mode: 3, targetHealthFactor: '1.5' }, { mode: 'friendly' })).toEqual([]);
   });
 });
+
+describe('validateParams — fee-tier guard', () => {
+  const schema: ParamSchema = {
+    type: 'object',
+    properties: { fee: { type: 'integer', title: 'Fee Tier', 'x-ui-widget': 'fee-tier' } },
+    required: ['fee'],
+  };
+
+  it('accepts the four valid tiers (raw)', () => {
+    for (const fee of [100, 500, 2500, 10000]) {
+      expect(validateParams(schema, { fee }, { mode: 'raw' })).toEqual([]);
+    }
+  });
+
+  it('rejects an invalid tier (raw)', () => {
+    const errors = validateParams(schema, { fee: 3000 }, { mode: 'raw' });
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toMatchObject({ field: 'fee' });
+    expect(errors[0].message).toMatch(/100, 500, 2500, 10000/);
+  });
+
+  it('does not enforce the tier in friendly mode (select)', () => {
+    expect(validateParams(schema, { fee: 3000 }, { mode: 'friendly' })).toEqual([]);
+  });
+});

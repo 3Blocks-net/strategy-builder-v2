@@ -163,6 +163,8 @@ export interface EditorState {
   stepSchemas: Record<string, StepSchema>;
   tokenDecimals: Record<string, number>;
   vaultAddress: string;
+  /** Async/external validation (e.g. PCS pool-existence) merged into the gate. */
+  externalErrors: ValidationError[];
 
   onNodesChange: OnNodesChange<Node<EditorNodeData>>;
   onEdgesChange: OnEdgesChange;
@@ -189,6 +191,7 @@ export interface EditorState {
   setContextVariables: (variables: ContextVariable[]) => void;
   setStepSchemas: (schemas: Record<string, StepSchema>) => void;
   setTokenDecimals: (decimals: Record<string, number>) => void;
+  setExternalErrors: (errors: ValidationError[]) => void;
   setVaultAddress: (address: string) => void;
   mergeEditorContextVariables: (variables: ContextVariable[]) => void;
   mergeVaultContextSlots: (slots: ContextVariable[]) => void;
@@ -263,6 +266,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
   stepSchemas: {} as Record<string, StepSchema>,
   tokenDecimals: {} as Record<string, number>,
   vaultAddress: '',
+  externalErrors: [] as ValidationError[],
 
   onNodesChange: (changes) => {
     set({ nodes: applyNodeChanges(changes, get().nodes) });
@@ -386,7 +390,10 @@ export const useEditorStore = create<EditorState>((set, get) => {
     // purely via validationErrors.length and the panel + inline errors share
     // one source of truth.
     const paramErrors = validateNodeParams(nodes, stepSchemas, tokenDecimals);
-    set({ validationErrors: [...graphErrors, ...paramErrors], ownerOnly: oo });
+    set({
+      validationErrors: [...graphErrors, ...paramErrors, ...get().externalErrors],
+      ownerOnly: oo,
+    });
   },
 
   setLabel: (label) => set({ label, isDirty: true }),
@@ -516,6 +523,12 @@ export const useEditorStore = create<EditorState>((set, get) => {
     set({ tokenDecimals: decimals });
     // Token decimals gate the token-amount over-precision check.
     scheduleValidation();
+  },
+
+  setExternalErrors: (errors) => {
+    set({ externalErrors: errors });
+    // Re-run so the Deploy gate + panel pick up the async pool-existence result.
+    get().runValidation();
   },
 
   setVaultAddress: (address) => set({ vaultAddress: address }),

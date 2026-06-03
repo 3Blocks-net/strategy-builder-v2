@@ -21,6 +21,11 @@ const WBNB = "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c";
 // fork already has live Aave state, so the registry resolves the real Pool.
 const AAVE_POOL_ADDRESSES_PROVIDER = "0xff75B6da14FfbbfD355Daf7a2731456b3562Ba6D";
 
+// PancakeSwap V3 BSC addresses — canonical inputs for PancakeSwapV3Registry.
+const PCS_SWAP_ROUTER = "0x1b81D678ffb9C0263b24A97847620C99d213eB14";
+const PCS_POSITION_MANAGER = "0x46A15B0b27311cedF172AB29E4f4766fbE7F4364";
+const PCS_FACTORY = "0x0BFbCF9fa4f9C56B0F40a671Ad40E0805A091865";
+
 const TEST_WALLET = "0xBcd4042DE499D14e55001CcbB24a551F3b954096";
 
 // ─── Configurable parameters ──────────────────────────────────────────────
@@ -159,6 +164,22 @@ async function main() {
   const aaveRepayActionAddr = await aaveRepayAction.getAddress();
   console.log(`  AaveV3RepayAction: ${aaveRepayActionAddr}`);
 
+  // 7c. Deploy PancakeSwap V3 registry + actions (PCS spine, slice #6).
+  console.log("Deploying PancakeSwap V3 registry + actions...");
+  const pcsRegistry = await ethers.deployContract("PancakeSwapV3Registry", [
+    PCS_SWAP_ROUTER,
+    PCS_POSITION_MANAGER,
+    PCS_FACTORY,
+  ]);
+  const pcsRegistryAddr = await pcsRegistry.getAddress();
+  console.log(`  PancakeSwapV3Registry: ${pcsRegistryAddr}`);
+
+  const pcsSwapAction = await ethers.deployContract("PancakeSwapV3SwapAction", [
+    pcsRegistryAddr,
+  ]);
+  const pcsSwapActionAddr = await pcsSwapAction.getAddress();
+  console.log(`  PancakeSwapV3SwapAction: ${pcsSwapActionAddr}`);
+
   // 8. Seed test wallet with tokens via impersonation
   //    Use a raw JsonRpcProvider to bypass Hardhat's local account signing
   console.log(`\nSeeding test wallet ${TEST_WALLET}...`);
@@ -223,6 +244,8 @@ async function main() {
     AaveV3WithdrawAction: aaveWithdrawActionAddr,
     AaveV3BorrowAction: aaveBorrowActionAddr,
     AaveV3RepayAction: aaveRepayActionAddr,
+    PancakeSwapV3Registry: pcsRegistryAddr,
+    PancakeSwapV3SwapAction: pcsSwapActionAddr,
     config: {
       depositFeeBps: DEPOSIT_FEE_BPS,
       withdrawFeeBps: WITHDRAW_FEE_BPS,
@@ -264,6 +287,8 @@ AaveV3SupplyAction:          ${aaveSupplyActionAddr}
 AaveV3WithdrawAction:        ${aaveWithdrawActionAddr}
 AaveV3BorrowAction:          ${aaveBorrowActionAddr}
 AaveV3RepayAction:           ${aaveRepayActionAddr}
+PancakeSwapV3Registry:       ${pcsRegistryAddr}
+PancakeSwapV3SwapAction:     ${pcsSwapActionAddr}
 
 ${"═".repeat(55)}
  Backend .env  (packages/backend/.env)
