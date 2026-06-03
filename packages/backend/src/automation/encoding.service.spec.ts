@@ -26,7 +26,7 @@ const mockStepTypes = [
     paramSchema: {
       type: 'object',
       properties: {
-        interval: { type: 'string', title: 'Interval' },
+        interval: { type: 'object', title: 'Interval', 'x-ui-widget': 'duration' },
         timeSlot: {
           type: 'integer',
           title: 'Time Slot',
@@ -34,6 +34,7 @@ const mockStepTypes = [
           'x-ui-slot-access': 'read-write',
         },
       },
+      required: ['interval', 'timeSlot'],
     },
   },
   {
@@ -348,6 +349,26 @@ describe('EncodingService', () => {
       await expect(
         service.encode('v1', '0xvault', 'a1', { nodes: [], edges: [] }),
       ).rejects.toThrow('Graph must have at least one node');
+    });
+
+    it('rejects raw params with interval = 0 (raw-mode guard, HTTP 400)', async () => {
+      const graph = {
+        nodes: [
+          {
+            id: 'c1',
+            type: 'CONDITION' as const,
+            data: {
+              stepTypeId: 'st-interval',
+              params: { interval: '0', timeSlot: 'dailyTimer' },
+            },
+          },
+        ],
+        edges: [],
+      };
+
+      await expect(
+        service.encode('v1', '0xvault', 'a1', graph),
+      ).rejects.toThrow(/Invalid step parameters/i);
     });
 
     it('allocates context slots referenced by name and resolves them in step data', async () => {

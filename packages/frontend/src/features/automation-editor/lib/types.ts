@@ -35,6 +35,12 @@ export interface StepOutput {
 export interface ValidationError {
   message: string;
   nodeId?: string;
+  /**
+   * Field this error belongs to (param-validation pass only). Inline per-field
+   * errors filter the shared `validationErrors` list by `nodeId` + `fieldName`;
+   * the aggregated panel reads the same list.
+   */
+  fieldName?: string;
 }
 
 export interface Connection {

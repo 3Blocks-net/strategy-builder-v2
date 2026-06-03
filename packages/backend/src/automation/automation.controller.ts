@@ -103,26 +103,27 @@ export class AutomationController {
     @Param('address') address: string,
     @Param('id') id: string,
     @Request() req: any,
-    @Body() body: { contextOverrides?: Record<number, string> },
+    @Body() body: { contextOverrides?: Record<number, string>; graph?: any },
   ) {
     const automation = await this.automationService.findById(id);
     const editorState = automation.editorState as any;
 
-    if (!editorState?.nodes || !editorState?.edges) {
-      return this.encodingService.encode(
-        req.vault.id,
-        address,
-        id,
-        { nodes: [], edges: [] },
-        body.contextOverrides,
-      );
-    }
+    // The frontend runs the encode-boundary mapper (friendly → raw) and sends
+    // the mapped graph here; prefer it over the persisted friendly editorState
+    // so the encoder only ever sees raw values. Falls back to editorState for
+    // direct API callers (which the raw-mode guard then validates).
+    const graph =
+      body.graph?.nodes
+        ? { nodes: body.graph.nodes, edges: body.graph.edges ?? [] }
+        : editorState?.nodes && editorState?.edges
+          ? { nodes: editorState.nodes, edges: editorState.edges }
+          : { nodes: [], edges: [] };
 
     return this.encodingService.encode(
       req.vault.id,
       address,
       id,
-      { nodes: editorState.nodes, edges: editorState.edges },
+      graph,
       body.contextOverrides,
     );
   }
@@ -133,16 +134,19 @@ export class AutomationController {
     @Param('address') address: string,
     @Param('id') id: string,
     @Request() req: any,
-    @Body() body: { contextOverrides?: Record<number, string> },
+    @Body() body: { contextOverrides?: Record<number, string>; graph?: any },
   ) {
     const automation = await this.automationService.findById(id);
     if (automation.onChainId === null) {
       throw new ConflictException('Cannot update a draft automation');
     }
     const editorState = automation.editorState as any;
-    const graph = editorState?.nodes
-      ? { nodes: editorState.nodes, edges: editorState.edges ?? [] }
-      : { nodes: [], edges: [] };
+    // Prefer the frontend-mapped raw graph (see `encode` above).
+    const graph = body.graph?.nodes
+      ? { nodes: body.graph.nodes, edges: body.graph.edges ?? [] }
+      : editorState?.nodes
+        ? { nodes: editorState.nodes, edges: editorState.edges ?? [] }
+        : { nodes: [], edges: [] };
 
     return this.encodingService.encodeUpdate(
       req.vault.id,

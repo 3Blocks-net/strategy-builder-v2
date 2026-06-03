@@ -126,10 +126,12 @@ async function main() {
         type: 'object',
         properties: {
           interval: {
-            type: 'string',
-            title: 'Interval (seconds)',
+            type: 'object',
+            title: 'Interval',
             description:
-              'Number of seconds between each trigger. E.g. 86400 for daily.',
+              'How often the trigger fires. Enter a number and a unit (minutes, hours, days, weeks).',
+            'x-ui-widget': 'duration',
+            default: { value: 1, unit: 'days' },
           },
           timeSlot: {
             type: 'integer',

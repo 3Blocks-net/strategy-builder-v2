@@ -15,6 +15,11 @@ export class StepRegistryService {
         contractAddress: true,
         selector: true,
         afterExecutionSelector: true,
+        // paramSchema + abiFragment are needed client-side for node-init default
+        // materialization, the store's param-validation pass, and the
+        // encode-boundary mapper (friendly → raw) before POST /encode.
+        paramSchema: true,
+        abiFragment: true,
       },
       orderBy: { name: 'asc' },
     });

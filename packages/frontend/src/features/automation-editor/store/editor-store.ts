@@ -9,8 +9,10 @@ import {
   applyEdgeChanges,
   addEdge,
 } from '@xyflow/react';
+import { validateParams, type ParamSchema } from 'shared';
 import { validateGraph } from '../lib/validate-graph';
 import { autoLayout } from '../lib/auto-layout';
+import type { StepSchema, AbiFragment } from '../lib/encode-boundary';
 import type { ValidationError, GraphNode, GraphEdge } from '../lib/types';
 
 export interface StepTypeOption {
@@ -21,6 +23,56 @@ export interface StepTypeOption {
   contractAddress: string;
   selector: string;
   afterExecutionSelector: string | null;
+  paramSchema?: ParamSchema;
+  abiFragment?: AbiFragment;
+}
+
+/**
+ * Node-init default materialization: build a self-complete param set for a new
+ * node from its `paramSchema`. Static `default`s are copied verbatim; the
+ * read-write context-slot ("time slot") fields get a deterministic per-node
+ * name so the trigger's slot is auto-allocated without the user ever seeing a
+ * slot number (US #9). Keeps `params` self-complete so required-validation,
+ * round-trip, and display stay consistent on creation.
+ */
+export function materializeDefaultParams(
+  paramSchema: ParamSchema | undefined,
+  nodeId: string,
+): Record<string, unknown> {
+  const params: Record<string, unknown> = {};
+  const properties = paramSchema?.properties ?? {};
+  for (const [name, fieldSchema] of Object.entries(properties)) {
+    if (fieldSchema.default !== undefined) {
+      params[name] = fieldSchema.default;
+    }
+    if (
+      fieldSchema['x-ui-widget'] === 'context-slot' &&
+      fieldSchema['x-ui-slot-access'] === 'read-write'
+    ) {
+      params[name] = `__time_${nodeId}`;
+    }
+  }
+  return params;
+}
+
+function validateNodeParams(
+  nodes: Node<EditorNodeData>[],
+  stepSchemas: Record<string, StepSchema>,
+): ValidationError[] {
+  const errors: ValidationError[] = [];
+  for (const node of nodes) {
+    const schema = stepSchemas[node.data.stepTypeId]?.paramSchema as
+      | ParamSchema
+      | undefined;
+    if (!schema) continue;
+    const paramErrors = validateParams(schema, node.data.params ?? {}, {
+      mode: 'friendly',
+    });
+    for (const e of paramErrors) {
+      errors.push({ message: e.message, nodeId: node.id, fieldName: e.field });
+    }
+  }
+  return errors;
 }
 
 export interface EditorNodeData {
@@ -87,6 +139,7 @@ export interface EditorState {
   clipboard: Snapshot | null;
   contextVariables: ContextVariable[];
   activeTab: 'config' | 'context';
+  stepSchemas: Record<string, StepSchema>;
 
   onNodesChange: OnNodesChange<Node<EditorNodeData>>;
   onEdgesChange: OnEdgesChange;
@@ -111,6 +164,7 @@ export interface EditorState {
   addContextVariable: (variable: Omit<ContextVariable, 'slotIndex'>) => void;
   updateContextVariable: (slotIndex: number, updates: Partial<ContextVariable>) => void;
   setContextVariables: (variables: ContextVariable[]) => void;
+  setStepSchemas: (schemas: Record<string, StepSchema>) => void;
   mergeEditorContextVariables: (variables: ContextVariable[]) => void;
   mergeVaultContextSlots: (slots: ContextVariable[]) => void;
 }
@@ -181,6 +235,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
   clipboard: null as Snapshot | null,
   contextVariables: [] as ContextVariable[],
   activeTab: 'config' as 'config' | 'context',
+  stepSchemas: {} as Record<string, StepSchema>,
 
   onNodesChange: (changes) => {
     set({ nodes: applyNodeChanges(changes, get().nodes) });
@@ -247,7 +302,9 @@ export const useEditorStore = create<EditorState>((set, get) => {
         category: stepType.category,
         contractAddress: stepType.contractAddress,
         selector: stepType.selector,
-        params: {},
+        // Node-init: materialize the full default param set so the node is
+        // self-complete from creation (no latent unset-field bugs).
+        params: materializeDefaultParams(stepType.paramSchema, id),
       },
     };
     set({ nodes: [...get().nodes, newNode], isDirty: true });
@@ -285,15 +342,23 @@ export const useEditorStore = create<EditorState>((set, get) => {
       ),
       isDirty: true,
     });
+    // Re-run validation so inline per-field errors and the Deploy gate update
+    // as the user edits params.
+    scheduleValidation();
   },
 
   runValidation: () => {
-    const { nodes, edges } = get();
+    const { nodes, edges, stepSchemas } = get();
     const oo = inferOwnerOnly(nodes, edges);
     const graphNodes = toGraphNodes(nodes);
     const graphEdges = toGraphEdges(edges);
-    const errors = validateGraph(graphNodes, graphEdges, !oo);
-    set({ validationErrors: errors, ownerOnly: oo });
+    const graphErrors = validateGraph(graphNodes, graphEdges, !oo);
+    // Second pass: schema-driven param validation over ALL nodes (even ones
+    // never opened) merged into the same list, so the Deploy gate engages
+    // purely via validationErrors.length and the panel + inline errors share
+    // one source of truth.
+    const paramErrors = validateNodeParams(nodes, stepSchemas);
+    set({ validationErrors: [...graphErrors, ...paramErrors], ownerOnly: oo });
   },
 
   setLabel: (label) => set({ label, isDirty: true }),
@@ -411,6 +476,13 @@ export const useEditorStore = create<EditorState>((set, get) => {
   setActiveTab: (tab) => set({ activeTab: tab }),
 
   setContextVariables: (variables) => set({ contextVariables: variables }),
+
+  setStepSchemas: (schemas) => {
+    set({ stepSchemas: schemas });
+    // Schemas may arrive after the graph loads; re-validate so param errors
+    // for never-opened nodes show up once their schema is known.
+    scheduleValidation();
+  },
 
   // Auto-saved draft variables are the source of truth for editing, so they
   // win on slotIndex conflicts (overlay = incoming).

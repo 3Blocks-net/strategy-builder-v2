@@ -56,7 +56,7 @@ describe('StepRegistryService', () => {
   });
 
   describe('findAll', () => {
-    it('returns all step types without paramSchema or abiFragment', async () => {
+    it('returns all step types including paramSchema + abiFragment (needed for node-init, the param-validation pass, and the encode-boundary mapper)', async () => {
       const result = await service.findAll();
 
       expect(result).toEqual(mockStepTypes);
@@ -69,6 +69,8 @@ describe('StepRegistryService', () => {
           contractAddress: true,
           selector: true,
           afterExecutionSelector: true,
+          paramSchema: true,
+          abiFragment: true,
         },
         orderBy: { name: 'asc' },
       });

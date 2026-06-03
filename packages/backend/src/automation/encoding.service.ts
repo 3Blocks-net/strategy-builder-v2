@@ -1,5 +1,6 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { AbiCoder, Interface } from 'ethers';
+import { validateParams, type ParamSchema } from 'shared';
 import { PrismaService } from '../database/prisma.service';
 import { ContextService } from './context.service';
 
@@ -88,6 +89,8 @@ export class EncodingService {
 
     const stepTypes = await this.prisma.stepType.findMany();
     const stepTypeMap = new Map(stepTypes.map((st) => [st.id, st]));
+
+    this.validateRawParams(graph, stepTypeMap);
 
     const slotNames = this.extractSlotNames(graph, stepTypeMap);
     const slotMapping = slotNames.length > 0
@@ -279,6 +282,34 @@ export class EncodingService {
     }
   }
 
+  /**
+   * Defensive raw-mode guard (US #26): validates the raw params the encoder is
+   * about to ABI-encode against the same schema-driven rules the frontend uses
+   * in friendly mode, so direct API callers cannot create structurally invalid
+   * automations (e.g. interval = 0, broken address). Only catches structural
+   * violations — friendly-form plausibility is intentionally invisible here.
+   */
+  private validateRawParams(
+    graph: EditorGraph,
+    stepTypeMap: Map<string, { paramSchema?: unknown }>,
+  ): void {
+    const violations: string[] = [];
+    for (const node of graph.nodes) {
+      const stepType = stepTypeMap.get(node.data.stepTypeId);
+      const schema = stepType?.paramSchema as ParamSchema | undefined;
+      if (!schema) continue;
+      const errors = validateParams(schema, node.data.params ?? {}, {
+        mode: 'raw',
+      });
+      for (const e of errors) violations.push(`${node.id}.${e.field}: ${e.message}`);
+    }
+    if (violations.length > 0) {
+      throw new BadRequestException(
+        `Invalid step parameters: ${violations.join('; ')}`,
+      );
+    }
+  }
+
   private inferOwnerOnly(graph: EditorGraph): boolean {
     const incomingCount = new Map<string, number>();
     for (const n of graph.nodes) incomingCount.set(n.id, 0);
@@ -372,6 +403,8 @@ export class EncodingService {
 
     const stepTypes = await this.prisma.stepType.findMany();
     const stepTypeMap = new Map(stepTypes.map((st) => [st.id, st]));
+
+    this.validateRawParams(graph, stepTypeMap);
 
     const slotNames = this.extractSlotNames(graph, stepTypeMap);
     const slotMapping = slotNames.length > 0

@@ -1,9 +1,17 @@
-import { memo, useCallback } from 'react';
-import type { ContextVariable } from '../store/editor-store';
+import { memo, useCallback, useState } from 'react';
+import type { DurationUnit } from 'shared';
+import { type ContextVariable, useEditorStore } from '../store/editor-store';
 import { ContextInputField } from './context-input-field';
 import { ContextOutputField } from './context-output-field';
 
 const NO_SLOT = 4294967295;
+
+const DURATION_UNITS: { value: DurationUnit; label: string }[] = [
+  { value: 'minutes', label: 'Minutes' },
+  { value: 'hours', label: 'Hours' },
+  { value: 'days', label: 'Days' },
+  { value: 'weeks', label: 'Weeks' },
+];
 
 interface FieldSchema {
   type: string;
@@ -28,6 +36,7 @@ interface DynamicFormProps {
   contextVariables: ContextVariable[];
   onCreateVariable: (variable: { name: string; type: string; description: string }) => void;
   vaultAddress: string;
+  nodeId: string;
 }
 
 export const DynamicForm = memo(function DynamicForm({
@@ -38,6 +47,7 @@ export const DynamicForm = memo(function DynamicForm({
   contextVariables,
   onCreateVariable,
   vaultAddress,
+  nodeId,
 }: DynamicFormProps) {
   const properties = schema.properties ?? {};
 
@@ -61,6 +71,7 @@ export const DynamicForm = memo(function DynamicForm({
           contextVariables={contextVariables}
           onCreateVariable={onCreateVariable}
           vaultAddress={vaultAddress}
+          nodeId={nodeId}
         />
       ))}
     </div>
@@ -76,6 +87,7 @@ interface FormFieldProps {
   contextVariables: ContextVariable[];
   onCreateVariable: (variable: { name: string; type: string; description: string }) => void;
   vaultAddress: string;
+  nodeId: string;
 }
 
 function FormField({
@@ -87,6 +99,7 @@ function FormField({
   contextVariables,
   onCreateVariable,
   vaultAddress,
+  nodeId,
 }: FormFieldProps) {
   const slotAccess = schema['x-ui-slot-access'];
   const widget = schema['x-ui-widget'];
@@ -145,6 +158,18 @@ function FormField({
     );
   }
 
+  if (widget === 'duration') {
+    return (
+      <DurationField
+        fieldName={fieldName}
+        schema={schema}
+        value={value}
+        onChange={onChange}
+        nodeId={nodeId}
+      />
+    );
+  }
+
   if (widget === 'amount') {
     return (
       <TextInputField
@@ -175,6 +200,105 @@ function FormField({
       value={value as string | undefined}
       onChange={onChange}
     />
+  );
+}
+
+/**
+ * Inline per-field error, read from the shared `validationErrors` list (the
+ * same source the aggregated panel uses), filtered by nodeId + fieldName.
+ */
+function useFieldError(nodeId: string, fieldName: string): string | undefined {
+  return useEditorStore((s) =>
+    s.validationErrors.find(
+      (e) => e.nodeId === nodeId && e.fieldName === fieldName,
+    )?.message,
+  );
+}
+
+function FieldError({ message }: { message?: string }) {
+  if (!message) return null;
+  return <p className="mt-1 text-xs text-red-600">{message}</p>;
+}
+
+interface DurationValue {
+  value: number | undefined;
+  unit: DurationUnit;
+}
+
+function asDuration(value: unknown): DurationValue {
+  if (value && typeof value === 'object' && 'unit' in value) {
+    const v = value as { value?: unknown; unit?: unknown };
+    return {
+      value: typeof v.value === 'number' ? v.value : undefined,
+      unit: (v.unit as DurationUnit) ?? 'days',
+    };
+  }
+  return { value: undefined, unit: 'days' };
+}
+
+function DurationField({
+  fieldName,
+  schema,
+  value,
+  onChange,
+  nodeId,
+}: {
+  fieldName: string;
+  schema: FieldSchema;
+  value: unknown;
+  onChange: (name: string, value: unknown) => void;
+  nodeId: string;
+}) {
+  const initial = asDuration(value);
+  const [amount, setAmount] = useState<string>(
+    initial.value !== undefined ? String(initial.value) : '',
+  );
+  const [unit, setUnit] = useState<DurationUnit>(initial.unit);
+  const error = useFieldError(nodeId, fieldName);
+
+  function commit(nextAmount: string, nextUnit: DurationUnit) {
+    const parsed = nextAmount.trim() === '' ? undefined : Number(nextAmount);
+    onChange(fieldName, { value: parsed, unit: nextUnit });
+  }
+
+  return (
+    <div>
+      <FieldLabel schema={schema} />
+      <div className="flex gap-2">
+        <input
+          type="number"
+          min="0"
+          step="any"
+          className={`nodrag w-24 border rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 ${
+            error
+              ? 'border-red-400 focus:ring-red-500'
+              : 'border-gray-300 focus:ring-blue-500'
+          }`}
+          value={amount}
+          onChange={(e) => {
+            setAmount(e.target.value);
+            commit(e.target.value, unit);
+          }}
+          placeholder="0"
+        />
+        <select
+          className="nodrag flex-1 border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+          value={unit}
+          onChange={(e) => {
+            const next = e.target.value as DurationUnit;
+            setUnit(next);
+            commit(amount, next);
+          }}
+        >
+          {DURATION_UNITS.map((u) => (
+            <option key={u.value} value={u.value}>
+              {u.label}
+            </option>
+          ))}
+        </select>
+      </div>
+      <FieldError message={error} />
+    </div>
   );
 }
 

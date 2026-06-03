@@ -53,6 +53,7 @@ export function AutomationEditorPage() {
     setContextVariables,
     mergeEditorContextVariables,
     mergeVaultContextSlots,
+    setStepSchemas,
   } = useEditorStore();
 
   useAutoSave(vaultAddress, automationId);
@@ -85,7 +86,16 @@ export function AutomationEditorPage() {
   useEffect(() => {
     apiFetch('/step-types')
       .then((res) => res.json())
-      .then(setStepTypes)
+      .then((data: StepTypeOption[]) => {
+        setStepTypes(data);
+        // Feed schemas into the store for node-init, the param-validation pass,
+        // and the encode-boundary mapper.
+        const schemas: Record<string, { paramSchema?: any; abiFragment?: any }> = {};
+        for (const st of data) {
+          schemas[st.id] = { paramSchema: st.paramSchema, abiFragment: st.abiFragment };
+        }
+        setStepSchemas(schemas);
+      })
       .catch(console.error);
   }, []);
 

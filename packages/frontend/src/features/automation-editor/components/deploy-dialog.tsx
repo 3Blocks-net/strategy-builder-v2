@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button';
 import { apiFetch } from '@/lib/api';
 import { StrategyBuilderVaultAbi } from '@/lib/abis';
 import { waitForReceipt } from '@/lib/wait-for-receipt';
+import { useEditorStore } from '../store/editor-store';
+import { mapGraphToRaw } from '../lib/encode-boundary';
 
 interface ContextChange {
   slotIndex: number;
@@ -43,6 +45,10 @@ export function DeployDialog({ automationId, label, isEdit = false, onClose }: D
   const [error, setError] = useState<string | null>(null);
   const [contextOverrides, setContextOverrides] = useState<Record<number, string>>({});
 
+  const nodes = useEditorStore((s) => s.nodes);
+  const edges = useEditorStore((s) => s.edges);
+  const stepSchemas = useEditorStore((s) => s.stepSchemas);
+
   const { sendTransactionAsync } = useSendTransaction();
 
   const handleDeploy = async () => {
@@ -53,10 +59,14 @@ export function DeployDialog({ automationId, label, isEdit = false, onClose }: D
       setError(null);
       const overrides = Object.keys(contextOverrides).length > 0 ? contextOverrides : undefined;
 
+      // Encode-boundary mapper: convert the friendly editor params to raw
+      // values (and strip friendly-only fields) right before POST /encode.
+      const graph = mapGraphToRaw(nodes, edges, stepSchemas);
+
       const encodePath = isEdit ? 'encode-update' : 'encode';
       const res = await apiFetch(
         `/vaults/${vaultAddress}/automations/${automationId}/${encodePath}`,
-        { method: 'POST', body: JSON.stringify({ contextOverrides: overrides }) },
+        { method: 'POST', body: JSON.stringify({ contextOverrides: overrides, graph }) },
       );
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));

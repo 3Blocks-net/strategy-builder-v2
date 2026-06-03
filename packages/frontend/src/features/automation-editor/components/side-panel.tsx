@@ -108,6 +108,7 @@ export function SidePanel() {
                     contextVariables={contextVariables}
                     onCreateVariable={addContextVariable}
                     vaultAddress={vaultAddress ?? ''}
+                    nodeId={selectedNodeId}
                   />
                 ) : (
                   <p className="text-sm text-gray-500">Loading configuration...</p>
