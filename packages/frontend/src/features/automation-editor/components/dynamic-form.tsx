@@ -1,5 +1,5 @@
 import { memo, useCallback, useState } from 'react';
-import type { DurationUnit } from 'shared';
+import { zeroToggleField, type DurationUnit } from 'shared';
 import { type ContextVariable, useEditorStore } from '../store/editor-store';
 import { ContextInputField } from './context-input-field';
 import { ContextOutputField } from './context-output-field';
@@ -23,6 +23,7 @@ interface FieldSchema {
   'x-ui-hidden'?: boolean;
   'x-ui-time-slot-field'?: string;
   'x-ui-amount-token-field'?: string;
+  'x-ui-zero-toggle'?: { label?: string };
 }
 
 interface FormSchema {
@@ -369,31 +370,48 @@ function TokenAmountField({
     ? tokens.find((t) => t.address.toLowerCase() === tokenAddr.toLowerCase())
     : undefined;
 
+  const zeroToggle = schema['x-ui-zero-toggle'];
+  const toggleKey = zeroToggleField(fieldName);
+  const toggleOn = allValues[toggleKey] === true;
+
   return (
     <div>
       <FieldLabel schema={schema} />
+      {zeroToggle && (
+        <label className="nodrag mb-1.5 flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            className="rounded"
+            checked={toggleOn}
+            onChange={(e) => onChange(toggleKey, e.target.checked)}
+          />
+          <span className="text-sm text-gray-700">{zeroToggle.label ?? 'Use default'}</span>
+        </label>
+      )}
       <input
         type="text"
         inputMode="decimal"
+        disabled={toggleOn}
         className={`nodrag w-full border rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 ${
           error ? 'border-red-400 focus:ring-red-500' : 'border-gray-300 focus:ring-blue-500'
-        }`}
-        value={amount}
+        } ${toggleOn ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : ''}`}
+        value={toggleOn ? '' : amount}
         onChange={(e) => {
           setAmount(e.target.value);
           onChange(fieldName, e.target.value);
         }}
-        placeholder="0.0"
+        placeholder={toggleOn ? zeroToggle?.label ?? '' : '0.0'}
       />
-      {token ? (
-        <p className="mt-0.5 text-xs text-gray-400">
-          {token.symbol} · converts using {token.decimals ?? '?'} decimals
-        </p>
-      ) : (
-        <p className="mt-0.5 text-xs text-amber-600">
-          Select a token to set the conversion decimals
-        </p>
-      )}
+      {!toggleOn &&
+        (token ? (
+          <p className="mt-0.5 text-xs text-gray-400">
+            {token.symbol} · converts using {token.decimals ?? '?'} decimals
+          </p>
+        ) : (
+          <p className="mt-0.5 text-xs text-amber-600">
+            Select a token to set the conversion decimals
+          </p>
+        ))}
       <FieldError message={error} />
     </div>
   );

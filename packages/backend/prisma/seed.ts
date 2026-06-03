@@ -246,8 +246,10 @@ async function main() {
             type: 'string',
             title: 'Amount',
             description:
-              'Amount to transfer in token base units. Set to 0 to transfer the full vault balance.',
-            'x-ui-widget': 'amount',
+              'Amount to transfer in human units (e.g. 1.5). Toggle to send the full vault balance instead.',
+            'x-ui-widget': 'token-amount',
+            'x-ui-amount-token-field': 'token',
+            'x-ui-zero-toggle': { label: 'Volles Vault-Guthaben', default: false },
           },
           amountFromSlot: {
             type: 'integer',
@@ -312,9 +314,10 @@ async function main() {
             type: 'string',
             title: 'Top-up Amount',
             description:
-              'Amount to deposit. Set to 0 to fill exactly to the minimum fee deposit target.',
-            'x-ui-widget': 'amount',
-            default: '0',
+              'Amount to deposit in human units. Toggle to fill exactly to the minimum fee deposit target instead.',
+            'x-ui-widget': 'token-amount',
+            'x-ui-amount-token-field': 'token',
+            'x-ui-zero-toggle': { label: 'Bis Zielreserve auffüllen', default: true },
           },
         },
         required: ['feeRegistry', 'token', 'topUpAmount'],

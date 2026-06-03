@@ -196,6 +196,71 @@ describe('validateParams — token-amount (raw mode)', () => {
   });
 });
 
+const transferSchema: ParamSchema = {
+  type: 'object',
+  properties: {
+    token: { type: 'string', title: 'Token', 'x-ui-widget': 'token-selector' },
+    amount: {
+      type: 'string',
+      title: 'Amount',
+      'x-ui-widget': 'token-amount',
+      'x-ui-amount-token-field': 'token',
+      'x-ui-zero-toggle': { label: 'Full vault balance' },
+    },
+  },
+  required: ['token', 'amount'],
+};
+
+describe('validateParams — token-amount zero-toggle (friendly)', () => {
+  it('toggle ON: amount irrelevant, valid even when empty', () => {
+    const errors = validateParams(
+      transferSchema,
+      { token: TOKEN_18, amount: '', amount_useZero: true },
+      { mode: 'friendly', tokenDecimals },
+    );
+    expect(errors).toEqual([]);
+  });
+
+  it('toggle OFF: empty amount is an error (US #17)', () => {
+    const errors = validateParams(
+      transferSchema,
+      { token: TOKEN_18, amount: '', amount_useZero: false },
+      { mode: 'friendly', tokenDecimals },
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toMatchObject({ field: 'amount' });
+  });
+
+  it('toggle OFF: amount 0 is an error (US #17)', () => {
+    const errors = validateParams(
+      transferSchema,
+      { token: TOKEN_18, amount: '0', amount_useZero: false },
+      { mode: 'friendly', tokenDecimals },
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toMatch(/greater than 0/);
+  });
+
+  it('toggle OFF (default/undefined): a positive amount is valid', () => {
+    const errors = validateParams(
+      transferSchema,
+      { token: TOKEN_18, amount: '1.5' },
+      { mode: 'friendly', tokenDecimals },
+    );
+    expect(errors).toEqual([]);
+  });
+
+  it('toggle OFF: over-precision still flagged', () => {
+    const errors = validateParams(
+      transferSchema,
+      { token: TOKEN_6, amount: '1.1234567' },
+      { mode: 'friendly', tokenDecimals },
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toMatch(/decimal places/);
+  });
+});
+
 describe('validateParams — required', () => {
   it('flags a missing required scalar field', () => {
     const schema: ParamSchema = {

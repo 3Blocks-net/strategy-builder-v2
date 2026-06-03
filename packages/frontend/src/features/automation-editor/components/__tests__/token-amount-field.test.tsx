@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
+import { zeroToggleField } from 'shared';
 import { DynamicForm } from '../dynamic-form';
 import { useEditorStore } from '../../store/editor-store';
 
@@ -66,5 +67,55 @@ describe('TokenAmountField widget', () => {
     });
     renderForm({ token: TOKEN, minBalance: '1.1234567' });
     expect(screen.getByText(/at most 6 decimal places/)).toBeInTheDocument();
+  });
+});
+
+const toggleSchema = {
+  type: 'object' as const,
+  properties: {
+    token: { type: 'string', title: 'Token', 'x-ui-widget': 'token-selector' },
+    amount: {
+      type: 'string',
+      title: 'Amount',
+      'x-ui-widget': 'token-amount',
+      'x-ui-amount-token-field': 'token',
+      'x-ui-zero-toggle': { label: 'Full vault balance' },
+    },
+  },
+  required: ['token', 'amount'],
+};
+
+function renderToggleForm(values: Record<string, unknown>, onChange = () => {}) {
+  return render(
+    <DynamicForm
+      schema={toggleSchema as any}
+      values={values}
+      onChange={onChange}
+      tokens={[{ address: TOKEN, symbol: 'USDT', decimals: 6 }]}
+      contextVariables={[]}
+      onCreateVariable={() => {}}
+      vaultAddress="0x0000000000000000000000000000000000000000"
+      nodeId="t1"
+    />,
+  );
+}
+
+describe('TokenAmountField — zero-toggle variant', () => {
+  it('renders the toggle with its label', () => {
+    renderToggleForm({ token: TOKEN, amount: '1', [zeroToggleField('amount')]: false });
+    expect(screen.getByText('Full vault balance')).toBeInTheDocument();
+  });
+
+  it('writes the flat boolean param when toggled on', () => {
+    const onChange = vi.fn();
+    renderToggleForm({ token: TOKEN, amount: '', [zeroToggleField('amount')]: false }, onChange);
+    fireEvent.click(screen.getByRole('checkbox'));
+    expect(onChange).toHaveBeenCalledWith({ [zeroToggleField('amount')]: true });
+  });
+
+  it('disables the amount input when the toggle is on', () => {
+    renderToggleForm({ token: TOKEN, amount: '', [zeroToggleField('amount')]: true });
+    const input = screen.getByPlaceholderText('Full vault balance') as HTMLInputElement;
+    expect(input.disabled).toBe(true);
   });
 });

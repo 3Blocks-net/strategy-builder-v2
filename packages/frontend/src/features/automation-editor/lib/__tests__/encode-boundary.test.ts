@@ -5,7 +5,7 @@ import {
   buildContextOverrides,
   type StepSchema,
 } from '../encode-boundary';
-import { encodeTimestamp } from 'shared';
+import { encodeTimestamp, zeroToggleField } from 'shared';
 
 const intervalSchema: StepSchema = {
   paramSchema: {
@@ -158,6 +158,74 @@ describe('mapParamsToRaw — token-amount', () => {
         tokenDecimals,
       ),
     ).toThrow(/decimals/i);
+  });
+});
+
+const transferSchema: StepSchema = {
+  paramSchema: {
+    properties: {
+      token: { type: 'string', 'x-ui-widget': 'token-selector' },
+      recipient: { type: 'string' },
+      amount: {
+        type: 'string',
+        'x-ui-widget': 'token-amount',
+        'x-ui-amount-token-field': 'token',
+        'x-ui-zero-toggle': { label: 'Full vault balance' },
+      },
+    },
+  },
+  abiFragment: {
+    type: 'tuple',
+    components: [
+      { name: 'token', type: 'address' },
+      { name: 'recipient', type: 'address' },
+      { name: 'amount', type: 'uint256' },
+    ],
+  },
+};
+
+describe('mapParamsToRaw — token-amount zero-toggle', () => {
+  it('toggle ON → raw 0 regardless of the amount field', () => {
+    const raw = mapParamsToRaw(
+      {
+        token: TOKEN_18,
+        recipient: '0xrec',
+        amount: '999',
+        [zeroToggleField('amount')]: true,
+      },
+      transferSchema,
+      tokenDecimals,
+    );
+    expect(raw.amount).toBe('0');
+  });
+
+  it('toggle OFF → base units via decimals', () => {
+    const raw = mapParamsToRaw(
+      {
+        token: TOKEN_18,
+        recipient: '0xrec',
+        amount: '1.5',
+        [zeroToggleField('amount')]: false,
+      },
+      transferSchema,
+      tokenDecimals,
+    );
+    expect(raw.amount).toBe('1500000000000000000');
+  });
+
+  it('strips the friendly toggle boolean (not an abiFragment key)', () => {
+    const raw = mapParamsToRaw(
+      {
+        token: TOKEN_18,
+        recipient: '0xrec',
+        amount: '1.5',
+        [zeroToggleField('amount')]: false,
+      },
+      transferSchema,
+      tokenDecimals,
+    );
+    expect(zeroToggleField('amount') in raw).toBe(false);
+    expect(Object.keys(raw).sort()).toEqual(['amount', 'recipient', 'token']);
   });
 });
 

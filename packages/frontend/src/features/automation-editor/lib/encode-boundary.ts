@@ -12,7 +12,7 @@
  * contextOverrides). The generic backend encoder stays unchanged.
  */
 
-import { toSeconds, encodeTimestamp, toBaseUnits, type Duration } from 'shared';
+import { toSeconds, encodeTimestamp, toBaseUnits, zeroToggleField, type Duration } from 'shared';
 
 export interface AbiFragment {
   type: string;
@@ -64,6 +64,7 @@ function isDuration(value: unknown): value is Duration {
 
 /** Convert one friendly field value to its raw representation. */
 function mapFieldToRaw(
+  field: string,
   widget: string | undefined,
   value: unknown,
   fieldSchema: FieldSchema | undefined,
@@ -77,6 +78,15 @@ function mapFieldToRaw(
   }
 
   if (widget === 'token-amount') {
+    // Zero-toggle on ⇒ the contract's "0 means special" path (full balance /
+    // fill-to-target). The friendly boolean is friendly-only and gets stripped.
+    if (
+      fieldSchema?.['x-ui-zero-toggle'] != null &&
+      params[zeroToggleField(field)] === true
+    ) {
+      return '0';
+    }
+
     const tokenField = fieldSchema?.['x-ui-amount-token-field'] as string | undefined;
     const tokenAddr = tokenField ? params[tokenField] : undefined;
     const decimals =
@@ -115,8 +125,14 @@ export function mapParamsToRaw(
     const fieldSchema = properties[name];
     const widget = fieldSchema?.['x-ui-widget'];
     const value = params[name];
-    if (value === undefined) continue; // let the backend apply schema defaults
-    raw[name] = mapFieldToRaw(widget, value, fieldSchema, params, tokenDecimals);
+    const zeroToggleOn =
+      widget === 'token-amount' &&
+      fieldSchema?.['x-ui-zero-toggle'] != null &&
+      params[zeroToggleField(name)] === true;
+    // Skip unset fields so the backend applies its schema default — unless a
+    // zero-toggle is on, where the amount is meant to be 0 regardless.
+    if (value === undefined && !zeroToggleOn) continue;
+    raw[name] = mapFieldToRaw(name, widget, value, fieldSchema, params, tokenDecimals);
   }
 
   return raw;

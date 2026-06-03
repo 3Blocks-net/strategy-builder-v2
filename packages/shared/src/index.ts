@@ -12,4 +12,4 @@ export type {
   ValidateOptions,
   ParamValidationError,
 } from './validation';
-export { validateParams } from './validation';
+export { validateParams, zeroToggleField } from './validation';

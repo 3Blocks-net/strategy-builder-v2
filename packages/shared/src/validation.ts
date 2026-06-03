@@ -67,6 +67,28 @@ function isDuration(value: unknown): value is Duration {
 
 const MAX_UINT256 = 1n << 256n;
 const AMOUNT_RE = /^\d+(\.\d+)?$/;
+const ZERO_AMOUNT_RE = /^0+(\.0+)?$/;
+
+/**
+ * Param key holding the flat boolean for a token-amount field's zero-toggle
+ * (the "0 means something special" UX wrapper). Shared by the widget (writes),
+ * the friendly validator, and the encode-boundary mapper so all three agree.
+ */
+export function zeroToggleField(field: string): string {
+  return `${field}_useZero`;
+}
+
+function hasZeroToggle(schema: FieldSchema): boolean {
+  return schema['x-ui-zero-toggle'] != null;
+}
+
+function isZeroToggleOn(
+  field: string,
+  schema: FieldSchema,
+  params: Record<string, unknown>,
+): boolean {
+  return hasZeroToggle(schema) && params[zeroToggleField(field)] === true;
+}
 
 function validateTokenAmount(
   field: string,
@@ -79,7 +101,8 @@ function validateTokenAmount(
   const label = fieldLabel(schema, field);
 
   if (mode === 'raw') {
-    // base units string: integer in [0, 2^256)
+    // base units string: integer in [0, 2^256). The toggle boolean is stripped
+    // before /encode, so raw mode only checks structural range.
     let n: bigint;
     try {
       n = BigInt(String(value));
@@ -91,10 +114,28 @@ function validateTokenAmount(
     return [];
   }
 
-  // friendly: parseable human amount, decimal places <= token decimals
+  // friendly mode
+  const toggled = hasZeroToggle(schema);
+
+  // Toggle on ⇒ the amount is irrelevant (raw = 0), so it's always valid.
+  if (toggled && isZeroToggleOn(field, schema, params)) {
+    return [];
+  }
+
+  // Toggle off (or no toggle): the amount must be present.
+  if (isEmpty(value)) {
+    return [{ field, message: `${label} is required` }];
+  }
+
   const str = String(value).trim();
   if (!AMOUNT_RE.test(str)) {
     return [{ field, message: `${label} must be a valid amount` }];
+  }
+
+  // With a zero-toggle, an inactive toggle means a positive amount is required
+  // (US #17). Without a toggle (e.g. a threshold), 0 is allowed.
+  if (toggled && ZERO_AMOUNT_RE.test(str)) {
+    return [{ field, message: `${label} must be greater than 0` }];
   }
 
   const tokenField = schema['x-ui-amount-token-field'] as string | undefined;
@@ -169,13 +210,19 @@ export function validateParams(
     // Context-slot fields are auto-managed (allocated/initialised by the
     // editor + backend), never user-entered values — skip presence checks.
     const isAutoManaged = widget === 'context-slot';
+    // Zero-toggle token-amount fields own their own presence rule (toggle on
+    // suspends it), so the generic required check must not fire for them.
+    const zeroToggled = widget === 'token-amount' && hasZeroToggle(fieldSchema);
 
-    if (required.includes(field) && !isAutoManaged && isEmpty(value)) {
+    if (required.includes(field) && !isAutoManaged && !zeroToggled && isEmpty(value)) {
       errors.push({ field, message: `${fieldLabel(fieldSchema, field)} is required` });
       continue;
     }
 
-    if (isEmpty(value)) continue; // optional + empty → nothing more to check
+    // Empty optional fields need no further checks — except zero-toggle
+    // token-amount fields, whose rule must run even when empty (toggle off +
+    // empty is an error; toggle on + empty is fine).
+    if (isEmpty(value) && !zeroToggled) continue;
 
     if (widget === 'duration') {
       errors.push(...validateDuration(field, fieldSchema, value, options.mode));

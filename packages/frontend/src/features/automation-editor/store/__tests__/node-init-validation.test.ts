@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
+import { zeroToggleField } from 'shared';
 import {
   useEditorStore,
   materializeDefaultParams,
@@ -285,6 +286,119 @@ describe('TokenBalance amount + account default (Slice 5)', () => {
     useEditorStore.getState().runValidation();
     const paramErrors = useEditorStore.getState().validationErrors.filter((e) => e.fieldName);
     expect(paramErrors).toEqual([]);
+  });
+});
+
+// Action amount zero-toggle (Slice 6).
+const transferStepType: StepTypeOption = {
+  id: 'st-transfer',
+  name: 'ERC-20 Transfer',
+  description: '',
+  category: 'ACTION',
+  contractAddress: '0xccc',
+  selector: '0x24856bc3',
+  afterExecutionSelector: null,
+  paramSchema: {
+    type: 'object',
+    properties: {
+      token: { type: 'string', title: 'Token', 'x-ui-widget': 'token-selector' },
+      recipient: { type: 'string', title: 'Recipient' },
+      amount: {
+        type: 'string',
+        title: 'Amount',
+        'x-ui-widget': 'token-amount',
+        'x-ui-amount-token-field': 'token',
+        'x-ui-zero-toggle': { label: 'Full vault balance', default: false },
+      },
+    },
+    required: ['token', 'recipient', 'amount'],
+  },
+  abiFragment: {
+    type: 'tuple',
+    components: [
+      { name: 'token', type: 'address' },
+      { name: 'recipient', type: 'address' },
+      { name: 'amount', type: 'uint256' },
+    ],
+  },
+};
+
+const feeDepositStepType: StepTypeOption = {
+  ...transferStepType,
+  id: 'st-feedeposit',
+  name: 'Fee Deposit',
+  paramSchema: {
+    type: 'object',
+    properties: {
+      token: { type: 'string', 'x-ui-widget': 'token-selector' },
+      topUpAmount: {
+        type: 'string',
+        title: 'Top-up Amount',
+        'x-ui-widget': 'token-amount',
+        'x-ui-amount-token-field': 'token',
+        'x-ui-zero-toggle': { label: 'Fill to target', default: true },
+      },
+    },
+    required: ['token', 'topUpAmount'],
+  },
+};
+
+describe('Action amount zero-toggle node-init (Slice 6)', () => {
+  it('materializes the toggle boolean off by default (ERC20 transfer)', () => {
+    const params = materializeDefaultParams(transferStepType.paramSchema, 'a1');
+    expect(params[zeroToggleField('amount')]).toBe(false);
+  });
+
+  it('materializes the toggle boolean on when the schema default is true (FeeDeposit)', () => {
+    const params = materializeDefaultParams(feeDepositStepType.paramSchema, 'a2');
+    expect(params[zeroToggleField('topUpAmount')]).toBe(true);
+  });
+
+  it('toggle OFF + empty amount flags an error; toggle ON clears it', () => {
+    const setSchemas = () =>
+      useEditorStore.getState().setStepSchemas({
+        'st-transfer': {
+          paramSchema: transferStepType.paramSchema,
+          abiFragment: transferStepType.abiFragment,
+        },
+      });
+
+    function node(params: Record<string, unknown>) {
+      return {
+        id: 'a1',
+        type: 'ACTION' as const,
+        position: { x: 0, y: 0 },
+        data: {
+          stepTypeId: 'st-transfer',
+          stepTypeName: 'ERC-20 Transfer',
+          category: 'ACTION' as const,
+          contractAddress: '0x',
+          selector: '0x',
+          params,
+        },
+      };
+    }
+
+    setSchemas();
+    // toggle OFF, amount empty → error
+    useEditorStore.setState({
+      nodes: [node({ token: '0xtok', recipient: '0xrec', amount: '', [zeroToggleField('amount')]: false })],
+      edges: [],
+    });
+    useEditorStore.getState().runValidation();
+    expect(
+      useEditorStore.getState().validationErrors.some((e) => e.fieldName === 'amount'),
+    ).toBe(true);
+
+    // toggle ON → amount error cleared
+    useEditorStore.setState({
+      nodes: [node({ token: '0xtok', recipient: '0xrec', amount: '', [zeroToggleField('amount')]: true })],
+      edges: [],
+    });
+    useEditorStore.getState().runValidation();
+    expect(
+      useEditorStore.getState().validationErrors.some((e) => e.fieldName === 'amount'),
+    ).toBe(false);
   });
 });
 

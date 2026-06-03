@@ -9,7 +9,7 @@ import {
   applyEdgeChanges,
   addEdge,
 } from '@xyflow/react';
-import { validateParams, type ParamSchema } from 'shared';
+import { validateParams, zeroToggleField, type ParamSchema } from 'shared';
 import { validateGraph } from '../lib/validate-graph';
 import { autoLayout } from '../lib/auto-layout';
 import type { StepSchema, AbiFragment } from '../lib/encode-boundary';
@@ -61,6 +61,14 @@ export function materializeDefaultParams(
     // without the user opening the form, killing the latent zero-address bug.
     if (fieldSchema['x-ui-widget'] === 'account-selector' && vaultAddress) {
       params[name] = vaultAddress;
+    }
+    // zero-toggle: materialize the flat boolean (default off unless the schema
+    // says otherwise, e.g. FeeDeposit "fill to target" defaults on).
+    const zeroToggle = (fieldSchema as { 'x-ui-zero-toggle'?: { default?: boolean } })[
+      'x-ui-zero-toggle'
+    ];
+    if (fieldSchema['x-ui-widget'] === 'token-amount' && zeroToggle) {
+      params[zeroToggleField(name)] = zeroToggle.default ?? false;
     }
   }
   return params;
