@@ -5,6 +5,7 @@ export { AaveV3BorrowAction__factory } from './AaveV3BorrowAction__factory.js';
 export { AaveV3RepayAction__factory } from './AaveV3RepayAction__factory.js';
 export { AaveV3SupplyAction__factory } from './AaveV3SupplyAction__factory.js';
 export { AaveV3WithdrawAction__factory } from './AaveV3WithdrawAction__factory.js';
+export { PancakeSwapV3DecreaseLiquidityAction__factory } from './PancakeSwapV3DecreaseLiquidityAction__factory.js';
 export { PancakeSwapV3IncreaseLiquidityAction__factory } from './PancakeSwapV3IncreaseLiquidityAction__factory.js';
 export { PancakeSwapV3MintAction__factory } from './PancakeSwapV3MintAction__factory.js';
 export { PancakeSwapV3SwapAction__factory } from './PancakeSwapV3SwapAction__factory.js';

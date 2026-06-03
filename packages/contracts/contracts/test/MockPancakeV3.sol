@@ -95,6 +95,10 @@ contract MockNonfungiblePositionManager is ERC721, INonfungiblePositionManager {
         int24 tickLower;
         int24 tickUpper;
         uint128 liquidity;
+        uint256 deposited0; // principal still in the position
+        uint256 deposited1;
+        uint128 owed0; // freed/accrued, awaiting collect
+        uint128 owed1;
     }
     mapping(uint256 => Position) public positionOf;
 
@@ -115,14 +119,15 @@ contract MockNonfungiblePositionManager is ERC721, INonfungiblePositionManager {
 
         tokenId = nextId++;
         liquidity = uint128(amount0 + amount1);
-        positionOf[tokenId] = Position(
-            p.token0,
-            p.token1,
-            p.fee,
-            p.tickLower,
-            p.tickUpper,
-            liquidity
-        );
+        Position storage pos = positionOf[tokenId];
+        pos.token0 = p.token0;
+        pos.token1 = p.token1;
+        pos.fee = p.fee;
+        pos.tickLower = p.tickLower;
+        pos.tickUpper = p.tickUpper;
+        pos.liquidity = liquidity;
+        pos.deposited0 = amount0;
+        pos.deposited1 = amount1;
         _safeMint(p.recipient, tokenId); // exercises onERC721Received
     }
 
@@ -136,5 +141,73 @@ contract MockNonfungiblePositionManager is ERC721, INonfungiblePositionManager {
         if (amount1 > 0) IERC20(pos.token1).transferFrom(msg.sender, address(this), amount1);
         liquidity = uint128(amount0 + amount1);
         pos.liquidity += liquidity;
+        pos.deposited0 += amount0;
+        pos.deposited1 += amount1;
+    }
+
+    function decreaseLiquidity(
+        DecreaseLiquidityParams calldata p
+    ) external payable override returns (uint256 amount0, uint256 amount1) {
+        Position storage pos = positionOf[p.tokenId];
+        require(p.liquidity <= pos.liquidity, "too much");
+        // Free principal proportionally and accrue it to owed (NOT yet sent —
+        // the bundled collect is what delivers tokens).
+        amount0 = (pos.deposited0 * p.liquidity) / pos.liquidity;
+        amount1 = (pos.deposited1 * p.liquidity) / pos.liquidity;
+        pos.deposited0 -= amount0;
+        pos.deposited1 -= amount1;
+        pos.liquidity -= p.liquidity;
+        pos.owed0 += uint128(amount0);
+        pos.owed1 += uint128(amount1);
+    }
+
+    function collect(
+        CollectParams calldata p
+    ) external payable override returns (uint256 amount0, uint256 amount1) {
+        Position storage pos = positionOf[p.tokenId];
+        amount0 = pos.owed0 < p.amount0Max ? pos.owed0 : p.amount0Max;
+        amount1 = pos.owed1 < p.amount1Max ? pos.owed1 : p.amount1Max;
+        pos.owed0 -= uint128(amount0);
+        pos.owed1 -= uint128(amount1);
+        if (amount0 > 0) IERC20(pos.token0).transfer(p.recipient, amount0);
+        if (amount1 > 0) IERC20(pos.token1).transfer(p.recipient, amount1);
+    }
+
+    function positions(
+        uint256 tokenId
+    )
+        external
+        view
+        override
+        returns (
+            uint96,
+            address,
+            address token0,
+            address token1,
+            uint24 fee,
+            int24 tickLower,
+            int24 tickUpper,
+            uint128 liquidity,
+            uint256,
+            uint256,
+            uint128 tokensOwed0,
+            uint128 tokensOwed1
+        )
+    {
+        Position memory pos = positionOf[tokenId];
+        return (
+            0,
+            address(0),
+            pos.token0,
+            pos.token1,
+            pos.fee,
+            pos.tickLower,
+            pos.tickUpper,
+            pos.liquidity,
+            0,
+            0,
+            pos.owed0,
+            pos.owed1
+        );
     }
 }

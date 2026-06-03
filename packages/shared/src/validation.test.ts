@@ -437,3 +437,23 @@ describe('validateParams — tick-range guard', () => {
     expect(validateParams(schema, { rangeMode: 1, tickLower: 0, tickUpper: 0 }, { mode: 'raw' })).toEqual([]);
   });
 });
+
+describe('validateParams — percent guard', () => {
+  const schema: ParamSchema = {
+    type: 'object',
+    properties: { percent: { type: 'integer', title: 'Percentage', 'x-ui-widget': 'percent' } },
+    required: ['percent'],
+  };
+
+  it('accepts 1..100', () => {
+    for (const p of [1, 50, 100]) {
+      expect(validateParams(schema, { percent: p }, { mode: 'raw' })).toEqual([]);
+    }
+  });
+
+  it('rejects 0, 101, and non-integers', () => {
+    expect(validateParams(schema, { percent: 0 }, { mode: 'raw' })).toHaveLength(1);
+    expect(validateParams(schema, { percent: 101 }, { mode: 'friendly' })).toHaveLength(1);
+    expect(validateParams(schema, { percent: 12.5 }, { mode: 'raw' })).toHaveLength(1);
+  });
+});

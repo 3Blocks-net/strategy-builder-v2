@@ -6,6 +6,16 @@ import type { TypedContractEvent, TypedDeferredTopicFilter, TypedEventLog, Typed
   
 export declare namespace INonfungiblePositionManager {
       
+    export type CollectParamsStruct = {tokenId: BigNumberish, recipient: AddressLike, amount0Max: BigNumberish, amount1Max: BigNumberish}
+
+    export type CollectParamsStructOutput = [tokenId: bigint, recipient: string, amount0Max: bigint, amount1Max: bigint] & {tokenId: bigint, recipient: string, amount0Max: bigint, amount1Max: bigint }
+  
+
+    export type DecreaseLiquidityParamsStruct = {tokenId: BigNumberish, liquidity: BigNumberish, amount0Min: BigNumberish, amount1Min: BigNumberish, deadline: BigNumberish}
+
+    export type DecreaseLiquidityParamsStructOutput = [tokenId: bigint, liquidity: bigint, amount0Min: bigint, amount1Min: bigint, deadline: bigint] & {tokenId: bigint, liquidity: bigint, amount0Min: bigint, amount1Min: bigint, deadline: bigint }
+  
+
     export type IncreaseLiquidityParamsStruct = {tokenId: BigNumberish, amount0Desired: BigNumberish, amount1Desired: BigNumberish, amount0Min: BigNumberish, amount1Min: BigNumberish, deadline: BigNumberish}
 
     export type IncreaseLiquidityParamsStructOutput = [tokenId: bigint, amount0Desired: bigint, amount1Desired: bigint, amount0Min: bigint, amount1Min: bigint, deadline: bigint] & {tokenId: bigint, amount0Desired: bigint, amount1Desired: bigint, amount0Min: bigint, amount1Min: bigint, deadline: bigint }
@@ -18,12 +28,14 @@ export declare namespace INonfungiblePositionManager {
     }
 
   export interface MockNonfungiblePositionManagerInterface extends Interface {
-    getFunction(nameOrSignature: "approve" | "balanceOf" | "getApproved" | "increaseLiquidity" | "isApprovedForAll" | "mint" | "name" | "nextId" | "ownerOf" | "positionOf" | "safeTransferFrom(address,address,uint256)" | "safeTransferFrom(address,address,uint256,bytes)" | "setApprovalForAll" | "supportsInterface" | "symbol" | "tokenURI" | "transferFrom"): FunctionFragment;
+    getFunction(nameOrSignature: "approve" | "balanceOf" | "collect" | "decreaseLiquidity" | "getApproved" | "increaseLiquidity" | "isApprovedForAll" | "mint" | "name" | "nextId" | "ownerOf" | "positionOf" | "positions" | "safeTransferFrom(address,address,uint256)" | "safeTransferFrom(address,address,uint256,bytes)" | "setApprovalForAll" | "supportsInterface" | "symbol" | "tokenURI" | "transferFrom"): FunctionFragment;
 
     getEvent(nameOrSignatureOrTopic: "Approval" | "ApprovalForAll" | "Transfer"): EventFragment;
 
     encodeFunctionData(functionFragment: 'approve', values: [AddressLike, BigNumberish]): string;
 encodeFunctionData(functionFragment: 'balanceOf', values: [AddressLike]): string;
+encodeFunctionData(functionFragment: 'collect', values: [INonfungiblePositionManager.CollectParamsStruct]): string;
+encodeFunctionData(functionFragment: 'decreaseLiquidity', values: [INonfungiblePositionManager.DecreaseLiquidityParamsStruct]): string;
 encodeFunctionData(functionFragment: 'getApproved', values: [BigNumberish]): string;
 encodeFunctionData(functionFragment: 'increaseLiquidity', values: [INonfungiblePositionManager.IncreaseLiquidityParamsStruct]): string;
 encodeFunctionData(functionFragment: 'isApprovedForAll', values: [AddressLike, AddressLike]): string;
@@ -32,6 +44,7 @@ encodeFunctionData(functionFragment: 'name', values?: undefined): string;
 encodeFunctionData(functionFragment: 'nextId', values?: undefined): string;
 encodeFunctionData(functionFragment: 'ownerOf', values: [BigNumberish]): string;
 encodeFunctionData(functionFragment: 'positionOf', values: [BigNumberish]): string;
+encodeFunctionData(functionFragment: 'positions', values: [BigNumberish]): string;
 encodeFunctionData(functionFragment: 'safeTransferFrom(address,address,uint256)', values: [AddressLike, AddressLike, BigNumberish]): string;
 encodeFunctionData(functionFragment: 'safeTransferFrom(address,address,uint256,bytes)', values: [AddressLike, AddressLike, BigNumberish, BytesLike]): string;
 encodeFunctionData(functionFragment: 'setApprovalForAll', values: [AddressLike, boolean]): string;
@@ -42,6 +55,8 @@ encodeFunctionData(functionFragment: 'transferFrom', values: [AddressLike, Addre
 
     decodeFunctionResult(functionFragment: 'approve', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'balanceOf', data: BytesLike): Result;
+decodeFunctionResult(functionFragment: 'collect', data: BytesLike): Result;
+decodeFunctionResult(functionFragment: 'decreaseLiquidity', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'getApproved', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'increaseLiquidity', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'isApprovedForAll', data: BytesLike): Result;
@@ -50,6 +65,7 @@ decodeFunctionResult(functionFragment: 'name', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'nextId', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'ownerOf', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'positionOf', data: BytesLike): Result;
+decodeFunctionResult(functionFragment: 'positions', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'safeTransferFrom(address,address,uint256)', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'safeTransferFrom(address,address,uint256,bytes)', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'setApprovalForAll', data: BytesLike): Result;
@@ -146,6 +162,22 @@ decodeFunctionResult(functionFragment: 'transferFrom', data: BytesLike): Result;
     
 
     
+    collect: TypedContractMethod<
+      [p: INonfungiblePositionManager.CollectParamsStruct, ],
+      [[bigint, bigint] & {amount0: bigint, amount1: bigint }],
+      'payable'
+    >
+    
+
+    
+    decreaseLiquidity: TypedContractMethod<
+      [p: INonfungiblePositionManager.DecreaseLiquidityParamsStruct, ],
+      [[bigint, bigint] & {amount0: bigint, amount1: bigint }],
+      'payable'
+    >
+    
+
+    
     getApproved: TypedContractMethod<
       [tokenId: BigNumberish, ],
       [string],
@@ -204,7 +236,15 @@ decodeFunctionResult(functionFragment: 'transferFrom', data: BytesLike): Result;
     
     positionOf: TypedContractMethod<
       [arg0: BigNumberish, ],
-      [[string, string, bigint, bigint, bigint, bigint] & {token0: string, token1: string, fee: bigint, tickLower: bigint, tickUpper: bigint, liquidity: bigint }],
+      [[string, string, bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint] & {token0: string, token1: string, fee: bigint, tickLower: bigint, tickUpper: bigint, liquidity: bigint, deposited0: bigint, deposited1: bigint, owed0: bigint, owed1: bigint }],
+      'view'
+    >
+    
+
+    
+    positions: TypedContractMethod<
+      [tokenId: BigNumberish, ],
+      [[bigint, string, string, string, bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint] & {token0: string, token1: string, fee: bigint, tickLower: bigint, tickUpper: bigint, liquidity: bigint, tokensOwed0: bigint, tokensOwed1: bigint }],
       'view'
     >
     
@@ -278,6 +318,16 @@ getFunction(nameOrSignature: 'balanceOf'): TypedContractMethod<
       [bigint],
       'view'
     >;
+getFunction(nameOrSignature: 'collect'): TypedContractMethod<
+      [p: INonfungiblePositionManager.CollectParamsStruct, ],
+      [[bigint, bigint] & {amount0: bigint, amount1: bigint }],
+      'payable'
+    >;
+getFunction(nameOrSignature: 'decreaseLiquidity'): TypedContractMethod<
+      [p: INonfungiblePositionManager.DecreaseLiquidityParamsStruct, ],
+      [[bigint, bigint] & {amount0: bigint, amount1: bigint }],
+      'payable'
+    >;
 getFunction(nameOrSignature: 'getApproved'): TypedContractMethod<
       [tokenId: BigNumberish, ],
       [string],
@@ -315,7 +365,12 @@ getFunction(nameOrSignature: 'ownerOf'): TypedContractMethod<
     >;
 getFunction(nameOrSignature: 'positionOf'): TypedContractMethod<
       [arg0: BigNumberish, ],
-      [[string, string, bigint, bigint, bigint, bigint] & {token0: string, token1: string, fee: bigint, tickLower: bigint, tickUpper: bigint, liquidity: bigint }],
+      [[string, string, bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint] & {token0: string, token1: string, fee: bigint, tickLower: bigint, tickUpper: bigint, liquidity: bigint, deposited0: bigint, deposited1: bigint, owed0: bigint, owed1: bigint }],
+      'view'
+    >;
+getFunction(nameOrSignature: 'positions'): TypedContractMethod<
+      [tokenId: BigNumberish, ],
+      [[bigint, string, string, string, bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint] & {token0: string, token1: string, fee: bigint, tickLower: bigint, tickUpper: bigint, liquidity: bigint, tokensOwed0: bigint, tokensOwed1: bigint }],
       'view'
     >;
 getFunction(nameOrSignature: 'safeTransferFrom(address,address,uint256)'): TypedContractMethod<

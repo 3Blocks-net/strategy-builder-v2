@@ -254,6 +254,28 @@ const mockStepTypes = [
     },
   },
   {
+    id: 'st-pcs-decrease',
+    name: 'PancakeSwap V3 Decrease Liquidity',
+    category: 'ACTION',
+    contractAddress: '0x5555555555555555555555555555555555555555',
+    selector: EXECUTE_SELECTOR,
+    abiFragment: {
+      type: 'tuple',
+      components: [
+        { name: 'tokenIdFromSlot', type: 'uint32' },
+        { name: 'percent', type: 'uint16' },
+      ],
+    },
+    paramSchema: {
+      type: 'object',
+      properties: {
+        tokenIdFromSlot: { type: 'integer', 'x-ui-widget': 'context-slot', 'x-ui-slot-access': 'read', default: 4294967295 },
+        percent: { type: 'integer', 'x-ui-widget': 'percent', default: 100 },
+      },
+      required: ['tokenIdFromSlot', 'percent'],
+    },
+  },
+  {
     id: 'st-pcs-mint',
     name: 'PancakeSwap V3 LP Mint',
     category: 'ACTION',
@@ -740,6 +762,32 @@ describe('EncodingService', () => {
         edges: [],
       };
       await expect(service.encode('v1', '0xvault', 's1', graph)).rejects.toThrow(/Invalid step parameters/i);
+    });
+
+    it('encodes an LP Decrease Liquidity (token-id slot resolves; percent carried)', () => {
+      const abiFragment = mockStepTypes.find((s) => s.id === 'st-pcs-decrease')!.abiFragment;
+      const result = service.encodeParams(
+        { tokenIdFromSlot: 'lpId', percent: 50 },
+        abiFragment as any,
+        { lpId: 2 },
+      );
+      const decoded = abiCoder.decode(['uint32', 'uint16'], result);
+      expect(decoded[0]).toBe(2n); // tokenIdFromSlot resolved lpId → 2
+      expect(decoded[1]).toBe(50n); // percent
+    });
+
+    it('rejects a Decrease with percent > 100 (raw-mode guard, HTTP 400)', async () => {
+      const graph = {
+        nodes: [
+          {
+            id: 'd1',
+            type: 'ACTION' as const,
+            data: { stepTypeId: 'st-pcs-decrease', params: { tokenIdFromSlot: 'lpId', percent: 150 } },
+          },
+        ],
+        edges: [],
+      };
+      await expect(service.encode('v1', '0xvault', 'd1', graph)).rejects.toThrow(/Invalid step parameters/i);
     });
 
     it('encodes an LP Increase Liquidity (tokenId + amounts from slots resolve)', () => {

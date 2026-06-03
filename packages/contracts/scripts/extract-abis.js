@@ -48,6 +48,10 @@ const contracts = [
     artifact: 'actions/PancakeSwapV3IncreaseLiquidityAction.sol/PancakeSwapV3IncreaseLiquidityAction.json',
     name: 'PancakeSwapV3IncreaseLiquidityAction',
   },
+  {
+    artifact: 'actions/PancakeSwapV3DecreaseLiquidityAction.sol/PancakeSwapV3DecreaseLiquidityAction.json',
+    name: 'PancakeSwapV3DecreaseLiquidityAction',
+  },
 ];
 
 mkdirSync(outDir, { recursive: true });

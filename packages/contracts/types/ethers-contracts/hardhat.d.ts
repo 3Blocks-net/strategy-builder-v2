@@ -13,182 +13,186 @@ declare module "@nomicfoundation/hardhat-ethers/types" {
   getContractFactory(name: 'FeeRegistry', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.FeeRegistry__factory>
 getContractFactory(name: 'StrategyBuilderVault', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.StrategyBuilderVault__factory>
 getContractFactory(name: 'StrategyBuilderVaultFactory', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.StrategyBuilderVaultFactory__factory>
-getContractFactory(name: 'AaveV3RepayAction', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.AaveV3RepayAction__factory>
+getContractFactory(name: 'ActionLib', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.ActionLib__factory>
+getContractFactory(name: 'IAction', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.IAction__factory>
+getContractFactory(name: 'ICondition', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.ICondition__factory>
+getContractFactory(name: 'IVaultRegistry', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.IVaultRegistry__factory>
+getContractFactory(name: 'IUpdatableCondition', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.IUpdatableCondition__factory>
 getContractFactory(name: 'AaveV3BorrowAction', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.AaveV3BorrowAction__factory>
+getContractFactory(name: 'AaveV3RepayAction', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.AaveV3RepayAction__factory>
 getContractFactory(name: 'AaveV3SupplyAction', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.AaveV3SupplyAction__factory>
-getContractFactory(name: 'PancakeSwapV3IncreaseLiquidityAction', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.PancakeSwapV3IncreaseLiquidityAction__factory>
+getContractFactory(name: 'IFeeRegistry', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.IFeeRegistry__factory>
+getContractFactory(name: 'PancakeSwapV3DecreaseLiquidityAction', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.PancakeSwapV3DecreaseLiquidityAction__factory>
 getContractFactory(name: 'AaveV3WithdrawAction', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.AaveV3WithdrawAction__factory>
-getContractFactory(name: 'PancakeSwapV3MintAction', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.PancakeSwapV3MintAction__factory>
+getContractFactory(name: 'PancakeSwapV3IncreaseLiquidityAction', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.PancakeSwapV3IncreaseLiquidityAction__factory>
 getContractFactory(name: 'PancakeSwapV3SwapAction', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.PancakeSwapV3SwapAction__factory>
 getContractFactory(name: 'AaveV3Registry', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.AaveV3Registry__factory>
-getContractFactory(name: 'IAction', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.IAction__factory>
-getContractFactory(name: 'ActionLib', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.ActionLib__factory>
-getContractFactory(name: 'ICondition', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.ICondition__factory>
-getContractFactory(name: 'IFeeRegistry', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.IFeeRegistry__factory>
-getContractFactory(name: 'IUpdatableCondition', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.IUpdatableCondition__factory>
-getContractFactory(name: 'IVaultRegistry', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.IVaultRegistry__factory>
 getContractFactory(name: 'ActionLibHarness', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.ActionLibHarness__factory>
+getContractFactory(name: 'PancakeSwapV3MintAction', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.PancakeSwapV3MintAction__factory>
+getContractFactory(name: 'PancakeSwapV3Registry', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.PancakeSwapV3Registry__factory>
 getContractFactory(name: 'ERC1967ProxyHelper', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.ERC1967ProxyHelper__factory>
-getContractFactory(name: 'MockERC20', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.MockERC20__factory>
-getContractFactory(name: 'MockAToken', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.MockAToken__factory>
-getContractFactory(name: 'MockAaveOracle', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.MockAaveOracle__factory>
-getContractFactory(name: 'MockAaveV3Pool', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.MockAaveV3Pool__factory>
-getContractFactory(name: 'MockPoolAddressesProvider', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.MockPoolAddressesProvider__factory>
 getContractFactory(name: 'MockNonfungiblePositionManager', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.MockNonfungiblePositionManager__factory>
 getContractFactory(name: 'MockPancakeV3Factory', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.MockPancakeV3Factory__factory>
 getContractFactory(name: 'MockPancakeV3Pool', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.MockPancakeV3Pool__factory>
 getContractFactory(name: 'MockPancakeV3SwapRouter', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.MockPancakeV3SwapRouter__factory>
-getContractFactory(name: 'MockPriceOracle', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.MockPriceOracle__factory>
+getContractFactory(name: 'MockAToken', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.MockAToken__factory>
+getContractFactory(name: 'MockAaveOracle', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.MockAaveOracle__factory>
+getContractFactory(name: 'MockAaveV3Pool', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.MockAaveV3Pool__factory>
+getContractFactory(name: 'MockPoolAddressesProvider', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.MockPoolAddressesProvider__factory>
+getContractFactory(name: 'MockERC20', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.MockERC20__factory>
 getContractFactory(name: 'ERC20TransferAction', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.ERC20TransferAction__factory>
 getContractFactory(name: 'FeeDepositAction', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.FeeDepositAction__factory>
 getContractFactory(name: 'IVaultMinDeposit', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.IVaultMinDeposit__factory>
 getContractFactory(name: 'IntervalCondition', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.IntervalCondition__factory>
 getContractFactory(name: 'TimerCondition', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.TimerCondition__factory>
-getContractFactory(name: 'TokenBalanceCondition', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.TokenBalanceCondition__factory>
-getContractFactory(name: 'PancakeSwapV3Registry', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.PancakeSwapV3Registry__factory>
 getContractFactory(name: 'IAaveOracle', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.IAaveOracle__factory>
+getContractFactory(name: 'MockPriceOracle', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.MockPriceOracle__factory>
 getContractFactory(name: 'IAaveV3Pool', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.IAaveV3Pool__factory>
-getContractFactory(name: 'INonfungiblePositionManager', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.INonfungiblePositionManager__factory>
 getContractFactory(name: 'IPancakeV3Pool', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.IPancakeV3Pool__factory>
-getContractFactory(name: 'IPancakeV3SwapRouter', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.IPancakeV3SwapRouter__factory>
+getContractFactory(name: 'TokenBalanceCondition', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.TokenBalanceCondition__factory>
+getContractFactory(name: 'INonfungiblePositionManager', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.INonfungiblePositionManager__factory>
+getContractFactory(name: 'IPancakeV3Factory', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.IPancakeV3Factory__factory>
 getContractFactory(name: 'IPoolAddressesProvider', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.IPoolAddressesProvider__factory>
 getContractFactory(name: 'IPriceOracle', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.IPriceOracle__factory>
-getContractFactory(name: 'IPancakeV3Factory', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.IPancakeV3Factory__factory>
+getContractFactory(name: 'IPancakeV3SwapRouter', signerOrOptions?: ethers.Signer | FactoryOptions): Promise<Contracts.IPancakeV3SwapRouter__factory>
 
   getContractAt(name: 'FeeRegistry', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.FeeRegistry>
 getContractAt(name: 'StrategyBuilderVault', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.StrategyBuilderVault>
 getContractAt(name: 'StrategyBuilderVaultFactory', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.StrategyBuilderVaultFactory>
-getContractAt(name: 'AaveV3RepayAction', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.AaveV3RepayAction>
+getContractAt(name: 'ActionLib', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.ActionLib>
+getContractAt(name: 'IAction', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.IAction>
+getContractAt(name: 'ICondition', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.ICondition>
+getContractAt(name: 'IVaultRegistry', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.IVaultRegistry>
+getContractAt(name: 'IUpdatableCondition', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.IUpdatableCondition>
 getContractAt(name: 'AaveV3BorrowAction', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.AaveV3BorrowAction>
+getContractAt(name: 'AaveV3RepayAction', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.AaveV3RepayAction>
 getContractAt(name: 'AaveV3SupplyAction', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.AaveV3SupplyAction>
-getContractAt(name: 'PancakeSwapV3IncreaseLiquidityAction', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.PancakeSwapV3IncreaseLiquidityAction>
+getContractAt(name: 'IFeeRegistry', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.IFeeRegistry>
+getContractAt(name: 'PancakeSwapV3DecreaseLiquidityAction', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.PancakeSwapV3DecreaseLiquidityAction>
 getContractAt(name: 'AaveV3WithdrawAction', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.AaveV3WithdrawAction>
-getContractAt(name: 'PancakeSwapV3MintAction', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.PancakeSwapV3MintAction>
+getContractAt(name: 'PancakeSwapV3IncreaseLiquidityAction', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.PancakeSwapV3IncreaseLiquidityAction>
 getContractAt(name: 'PancakeSwapV3SwapAction', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.PancakeSwapV3SwapAction>
 getContractAt(name: 'AaveV3Registry', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.AaveV3Registry>
-getContractAt(name: 'IAction', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.IAction>
-getContractAt(name: 'ActionLib', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.ActionLib>
-getContractAt(name: 'ICondition', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.ICondition>
-getContractAt(name: 'IFeeRegistry', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.IFeeRegistry>
-getContractAt(name: 'IUpdatableCondition', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.IUpdatableCondition>
-getContractAt(name: 'IVaultRegistry', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.IVaultRegistry>
 getContractAt(name: 'ActionLibHarness', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.ActionLibHarness>
+getContractAt(name: 'PancakeSwapV3MintAction', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.PancakeSwapV3MintAction>
+getContractAt(name: 'PancakeSwapV3Registry', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.PancakeSwapV3Registry>
 getContractAt(name: 'ERC1967ProxyHelper', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.ERC1967ProxyHelper>
-getContractAt(name: 'MockERC20', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.MockERC20>
-getContractAt(name: 'MockAToken', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.MockAToken>
-getContractAt(name: 'MockAaveOracle', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.MockAaveOracle>
-getContractAt(name: 'MockAaveV3Pool', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.MockAaveV3Pool>
-getContractAt(name: 'MockPoolAddressesProvider', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.MockPoolAddressesProvider>
 getContractAt(name: 'MockNonfungiblePositionManager', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.MockNonfungiblePositionManager>
 getContractAt(name: 'MockPancakeV3Factory', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.MockPancakeV3Factory>
 getContractAt(name: 'MockPancakeV3Pool', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.MockPancakeV3Pool>
 getContractAt(name: 'MockPancakeV3SwapRouter', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.MockPancakeV3SwapRouter>
-getContractAt(name: 'MockPriceOracle', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.MockPriceOracle>
+getContractAt(name: 'MockAToken', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.MockAToken>
+getContractAt(name: 'MockAaveOracle', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.MockAaveOracle>
+getContractAt(name: 'MockAaveV3Pool', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.MockAaveV3Pool>
+getContractAt(name: 'MockPoolAddressesProvider', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.MockPoolAddressesProvider>
+getContractAt(name: 'MockERC20', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.MockERC20>
 getContractAt(name: 'ERC20TransferAction', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.ERC20TransferAction>
 getContractAt(name: 'FeeDepositAction', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.FeeDepositAction>
 getContractAt(name: 'IVaultMinDeposit', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.IVaultMinDeposit>
 getContractAt(name: 'IntervalCondition', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.IntervalCondition>
 getContractAt(name: 'TimerCondition', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.TimerCondition>
-getContractAt(name: 'TokenBalanceCondition', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.TokenBalanceCondition>
-getContractAt(name: 'PancakeSwapV3Registry', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.PancakeSwapV3Registry>
 getContractAt(name: 'IAaveOracle', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.IAaveOracle>
+getContractAt(name: 'MockPriceOracle', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.MockPriceOracle>
 getContractAt(name: 'IAaveV3Pool', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.IAaveV3Pool>
-getContractAt(name: 'INonfungiblePositionManager', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.INonfungiblePositionManager>
 getContractAt(name: 'IPancakeV3Pool', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.IPancakeV3Pool>
-getContractAt(name: 'IPancakeV3SwapRouter', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.IPancakeV3SwapRouter>
+getContractAt(name: 'TokenBalanceCondition', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.TokenBalanceCondition>
+getContractAt(name: 'INonfungiblePositionManager', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.INonfungiblePositionManager>
+getContractAt(name: 'IPancakeV3Factory', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.IPancakeV3Factory>
 getContractAt(name: 'IPoolAddressesProvider', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.IPoolAddressesProvider>
 getContractAt(name: 'IPriceOracle', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.IPriceOracle>
-getContractAt(name: 'IPancakeV3Factory', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.IPancakeV3Factory>
+getContractAt(name: 'IPancakeV3SwapRouter', address: string | ethers.Addressable, signer?: ethers.Signer): Promise<Contracts.IPancakeV3SwapRouter>
 
   deployContract(name: 'FeeRegistry', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.FeeRegistry>
 deployContract(name: 'StrategyBuilderVault', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.StrategyBuilderVault>
 deployContract(name: 'StrategyBuilderVaultFactory', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.StrategyBuilderVaultFactory>
-deployContract(name: 'AaveV3RepayAction', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.AaveV3RepayAction>
+deployContract(name: 'ActionLib', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.ActionLib>
+deployContract(name: 'IAction', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.IAction>
+deployContract(name: 'ICondition', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.ICondition>
+deployContract(name: 'IVaultRegistry', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.IVaultRegistry>
+deployContract(name: 'IUpdatableCondition', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.IUpdatableCondition>
 deployContract(name: 'AaveV3BorrowAction', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.AaveV3BorrowAction>
+deployContract(name: 'AaveV3RepayAction', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.AaveV3RepayAction>
 deployContract(name: 'AaveV3SupplyAction', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.AaveV3SupplyAction>
-deployContract(name: 'PancakeSwapV3IncreaseLiquidityAction', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.PancakeSwapV3IncreaseLiquidityAction>
+deployContract(name: 'IFeeRegistry', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.IFeeRegistry>
+deployContract(name: 'PancakeSwapV3DecreaseLiquidityAction', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.PancakeSwapV3DecreaseLiquidityAction>
 deployContract(name: 'AaveV3WithdrawAction', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.AaveV3WithdrawAction>
-deployContract(name: 'PancakeSwapV3MintAction', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.PancakeSwapV3MintAction>
+deployContract(name: 'PancakeSwapV3IncreaseLiquidityAction', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.PancakeSwapV3IncreaseLiquidityAction>
 deployContract(name: 'PancakeSwapV3SwapAction', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.PancakeSwapV3SwapAction>
 deployContract(name: 'AaveV3Registry', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.AaveV3Registry>
-deployContract(name: 'IAction', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.IAction>
-deployContract(name: 'ActionLib', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.ActionLib>
-deployContract(name: 'ICondition', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.ICondition>
-deployContract(name: 'IFeeRegistry', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.IFeeRegistry>
-deployContract(name: 'IUpdatableCondition', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.IUpdatableCondition>
-deployContract(name: 'IVaultRegistry', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.IVaultRegistry>
 deployContract(name: 'ActionLibHarness', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.ActionLibHarness>
+deployContract(name: 'PancakeSwapV3MintAction', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.PancakeSwapV3MintAction>
+deployContract(name: 'PancakeSwapV3Registry', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.PancakeSwapV3Registry>
 deployContract(name: 'ERC1967ProxyHelper', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.ERC1967ProxyHelper>
-deployContract(name: 'MockERC20', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.MockERC20>
-deployContract(name: 'MockAToken', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.MockAToken>
-deployContract(name: 'MockAaveOracle', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.MockAaveOracle>
-deployContract(name: 'MockAaveV3Pool', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.MockAaveV3Pool>
-deployContract(name: 'MockPoolAddressesProvider', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.MockPoolAddressesProvider>
 deployContract(name: 'MockNonfungiblePositionManager', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.MockNonfungiblePositionManager>
 deployContract(name: 'MockPancakeV3Factory', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.MockPancakeV3Factory>
 deployContract(name: 'MockPancakeV3Pool', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.MockPancakeV3Pool>
 deployContract(name: 'MockPancakeV3SwapRouter', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.MockPancakeV3SwapRouter>
-deployContract(name: 'MockPriceOracle', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.MockPriceOracle>
+deployContract(name: 'MockAToken', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.MockAToken>
+deployContract(name: 'MockAaveOracle', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.MockAaveOracle>
+deployContract(name: 'MockAaveV3Pool', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.MockAaveV3Pool>
+deployContract(name: 'MockPoolAddressesProvider', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.MockPoolAddressesProvider>
+deployContract(name: 'MockERC20', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.MockERC20>
 deployContract(name: 'ERC20TransferAction', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.ERC20TransferAction>
 deployContract(name: 'FeeDepositAction', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.FeeDepositAction>
 deployContract(name: 'IVaultMinDeposit', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.IVaultMinDeposit>
 deployContract(name: 'IntervalCondition', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.IntervalCondition>
 deployContract(name: 'TimerCondition', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.TimerCondition>
-deployContract(name: 'TokenBalanceCondition', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.TokenBalanceCondition>
-deployContract(name: 'PancakeSwapV3Registry', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.PancakeSwapV3Registry>
 deployContract(name: 'IAaveOracle', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.IAaveOracle>
+deployContract(name: 'MockPriceOracle', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.MockPriceOracle>
 deployContract(name: 'IAaveV3Pool', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.IAaveV3Pool>
-deployContract(name: 'INonfungiblePositionManager', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.INonfungiblePositionManager>
 deployContract(name: 'IPancakeV3Pool', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.IPancakeV3Pool>
-deployContract(name: 'IPancakeV3SwapRouter', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.IPancakeV3SwapRouter>
+deployContract(name: 'TokenBalanceCondition', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.TokenBalanceCondition>
+deployContract(name: 'INonfungiblePositionManager', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.INonfungiblePositionManager>
+deployContract(name: 'IPancakeV3Factory', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.IPancakeV3Factory>
 deployContract(name: 'IPoolAddressesProvider', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.IPoolAddressesProvider>
 deployContract(name: 'IPriceOracle', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.IPriceOracle>
-deployContract(name: 'IPancakeV3Factory', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.IPancakeV3Factory>
+deployContract(name: 'IPancakeV3SwapRouter', signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.IPancakeV3SwapRouter>
 
   deployContract(name: 'FeeRegistry', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.FeeRegistry>
 deployContract(name: 'StrategyBuilderVault', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.StrategyBuilderVault>
 deployContract(name: 'StrategyBuilderVaultFactory', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.StrategyBuilderVaultFactory>
-deployContract(name: 'AaveV3RepayAction', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.AaveV3RepayAction>
+deployContract(name: 'ActionLib', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.ActionLib>
+deployContract(name: 'IAction', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.IAction>
+deployContract(name: 'ICondition', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.ICondition>
+deployContract(name: 'IVaultRegistry', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.IVaultRegistry>
+deployContract(name: 'IUpdatableCondition', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.IUpdatableCondition>
 deployContract(name: 'AaveV3BorrowAction', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.AaveV3BorrowAction>
+deployContract(name: 'AaveV3RepayAction', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.AaveV3RepayAction>
 deployContract(name: 'AaveV3SupplyAction', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.AaveV3SupplyAction>
-deployContract(name: 'PancakeSwapV3IncreaseLiquidityAction', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.PancakeSwapV3IncreaseLiquidityAction>
+deployContract(name: 'IFeeRegistry', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.IFeeRegistry>
+deployContract(name: 'PancakeSwapV3DecreaseLiquidityAction', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.PancakeSwapV3DecreaseLiquidityAction>
 deployContract(name: 'AaveV3WithdrawAction', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.AaveV3WithdrawAction>
-deployContract(name: 'PancakeSwapV3MintAction', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.PancakeSwapV3MintAction>
+deployContract(name: 'PancakeSwapV3IncreaseLiquidityAction', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.PancakeSwapV3IncreaseLiquidityAction>
 deployContract(name: 'PancakeSwapV3SwapAction', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.PancakeSwapV3SwapAction>
 deployContract(name: 'AaveV3Registry', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.AaveV3Registry>
-deployContract(name: 'IAction', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.IAction>
-deployContract(name: 'ActionLib', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.ActionLib>
-deployContract(name: 'ICondition', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.ICondition>
-deployContract(name: 'IFeeRegistry', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.IFeeRegistry>
-deployContract(name: 'IUpdatableCondition', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.IUpdatableCondition>
-deployContract(name: 'IVaultRegistry', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.IVaultRegistry>
 deployContract(name: 'ActionLibHarness', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.ActionLibHarness>
+deployContract(name: 'PancakeSwapV3MintAction', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.PancakeSwapV3MintAction>
+deployContract(name: 'PancakeSwapV3Registry', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.PancakeSwapV3Registry>
 deployContract(name: 'ERC1967ProxyHelper', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.ERC1967ProxyHelper>
-deployContract(name: 'MockERC20', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.MockERC20>
-deployContract(name: 'MockAToken', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.MockAToken>
-deployContract(name: 'MockAaveOracle', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.MockAaveOracle>
-deployContract(name: 'MockAaveV3Pool', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.MockAaveV3Pool>
-deployContract(name: 'MockPoolAddressesProvider', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.MockPoolAddressesProvider>
 deployContract(name: 'MockNonfungiblePositionManager', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.MockNonfungiblePositionManager>
 deployContract(name: 'MockPancakeV3Factory', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.MockPancakeV3Factory>
 deployContract(name: 'MockPancakeV3Pool', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.MockPancakeV3Pool>
 deployContract(name: 'MockPancakeV3SwapRouter', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.MockPancakeV3SwapRouter>
-deployContract(name: 'MockPriceOracle', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.MockPriceOracle>
+deployContract(name: 'MockAToken', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.MockAToken>
+deployContract(name: 'MockAaveOracle', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.MockAaveOracle>
+deployContract(name: 'MockAaveV3Pool', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.MockAaveV3Pool>
+deployContract(name: 'MockPoolAddressesProvider', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.MockPoolAddressesProvider>
+deployContract(name: 'MockERC20', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.MockERC20>
 deployContract(name: 'ERC20TransferAction', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.ERC20TransferAction>
 deployContract(name: 'FeeDepositAction', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.FeeDepositAction>
 deployContract(name: 'IVaultMinDeposit', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.IVaultMinDeposit>
 deployContract(name: 'IntervalCondition', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.IntervalCondition>
 deployContract(name: 'TimerCondition', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.TimerCondition>
-deployContract(name: 'TokenBalanceCondition', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.TokenBalanceCondition>
-deployContract(name: 'PancakeSwapV3Registry', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.PancakeSwapV3Registry>
 deployContract(name: 'IAaveOracle', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.IAaveOracle>
+deployContract(name: 'MockPriceOracle', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.MockPriceOracle>
 deployContract(name: 'IAaveV3Pool', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.IAaveV3Pool>
-deployContract(name: 'INonfungiblePositionManager', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.INonfungiblePositionManager>
 deployContract(name: 'IPancakeV3Pool', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.IPancakeV3Pool>
-deployContract(name: 'IPancakeV3SwapRouter', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.IPancakeV3SwapRouter>
+deployContract(name: 'TokenBalanceCondition', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.TokenBalanceCondition>
+deployContract(name: 'INonfungiblePositionManager', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.INonfungiblePositionManager>
+deployContract(name: 'IPancakeV3Factory', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.IPancakeV3Factory>
 deployContract(name: 'IPoolAddressesProvider', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.IPoolAddressesProvider>
 deployContract(name: 'IPriceOracle', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.IPriceOracle>
-deployContract(name: 'IPancakeV3Factory', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.IPancakeV3Factory>
+deployContract(name: 'IPancakeV3SwapRouter', args: any[], signerOrOptions?: ethers.Signer | DeployContractOptions): Promise<Contracts.IPancakeV3SwapRouter>
 
     // default types
     getContractFactory(

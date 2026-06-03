@@ -242,6 +242,18 @@ function FormField({
     );
   }
 
+  if (widget === 'percent') {
+    return (
+      <PercentField
+        fieldName={fieldName}
+        schema={schema}
+        value={value}
+        onChange={onChange}
+        nodeId={nodeId}
+      />
+    );
+  }
+
   if (widget === 'fee-tier') {
     return (
       <FeeTierField
@@ -796,6 +808,46 @@ function TickRangeField({
           />
         </div>
       )}
+      <FieldError message={error} />
+    </div>
+  );
+}
+
+/** Percentage input (1–100), e.g. share of LP liquidity to remove. */
+function PercentField({
+  fieldName,
+  schema,
+  value,
+  onChange,
+  nodeId,
+}: {
+  fieldName: string;
+  schema: FieldSchema;
+  value: unknown;
+  onChange: (name: string, value: unknown) => void;
+  nodeId: string;
+}) {
+  const error = useFieldError(nodeId, fieldName);
+  const initial = value === undefined || value === null ? (schema.default as number) ?? 100 : Number(value);
+  const [pct, setPct] = useState<string>(String(initial));
+  return (
+    <div>
+      <FieldLabel schema={schema} />
+      <div className="flex items-center gap-2">
+        <input
+          type="number"
+          min="1"
+          max="100"
+          step="1"
+          className={`nodrag w-24 border rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 ${error ? 'border-red-400 focus:ring-red-500' : 'border-gray-300 focus:ring-blue-500'}`}
+          value={pct}
+          onChange={(e) => {
+            setPct(e.target.value);
+            onChange(fieldName, e.target.value === '' ? undefined : Number(e.target.value));
+          }}
+        />
+        <span className="text-sm text-gray-500">%</span>
+      </div>
       <FieldError message={error} />
     </div>
   );

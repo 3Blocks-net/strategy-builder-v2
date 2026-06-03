@@ -5,6 +5,7 @@ export type { AaveV3BorrowAction } from './AaveV3BorrowAction.js';
 export type { AaveV3RepayAction } from './AaveV3RepayAction.js';
 export type { AaveV3SupplyAction } from './AaveV3SupplyAction.js';
 export type { AaveV3WithdrawAction } from './AaveV3WithdrawAction.js';
+export type { PancakeSwapV3DecreaseLiquidityAction } from './PancakeSwapV3DecreaseLiquidityAction.js';
 export type { PancakeSwapV3IncreaseLiquidityAction } from './PancakeSwapV3IncreaseLiquidityAction.js';
 export type { PancakeSwapV3MintAction } from './PancakeSwapV3MintAction.js';
 export type { PancakeSwapV3SwapAction } from './PancakeSwapV3SwapAction.js';

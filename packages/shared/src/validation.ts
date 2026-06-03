@@ -271,6 +271,24 @@ function validateFeeTier(
     : [{ field, message: `${label} must be one of 100, 500, 2500, 10000` }];
 }
 
+/**
+ * `percent` guard: an integer percentage in [1, 100]. Mirrors the on-chain
+ * `InvalidPercent` revert (e.g. Decrease Liquidity removes percent% of the live
+ * liquidity). Applies in both modes — the friendly value is the same integer.
+ */
+function validatePercent(
+  field: string,
+  schema: FieldSchema,
+  value: unknown,
+): ParamValidationError[] {
+  const label = fieldLabel(schema, field);
+  const n = Number(value);
+  if (!Number.isInteger(n) || n < 1 || n > 100) {
+    return [{ field, message: `${label} must be a whole number between 1 and 100` }];
+  }
+  return [];
+}
+
 function validateDuration(
   field: string,
   schema: FieldSchema,
@@ -345,6 +363,8 @@ export function validateParams(
       errors.push(...validateFeeTier(field, fieldSchema, value, options.mode));
     } else if (widget === 'tick-range') {
       errors.push(...validateTickRange(fieldSchema, value, params));
+    } else if (widget === 'percent') {
+      errors.push(...validatePercent(field, fieldSchema, value));
     } else if (widget === 'duration') {
       errors.push(...validateDuration(field, fieldSchema, value, options.mode));
     } else if (widget === 'token-selector') {

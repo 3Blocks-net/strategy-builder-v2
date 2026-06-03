@@ -42,6 +42,9 @@ function loadContractAddresses(): Record<string, string> {
       PancakeSwapV3IncreaseLiquidityAction:
         data.PancakeSwapV3IncreaseLiquidityAction ??
         '0x0000000000000000000000000000000000000000',
+      PancakeSwapV3DecreaseLiquidityAction:
+        data.PancakeSwapV3DecreaseLiquidityAction ??
+        '0x0000000000000000000000000000000000000000',
     };
   }
 
@@ -81,6 +84,9 @@ function loadContractAddresses(): Record<string, string> {
       '0x0000000000000000000000000000000000000000',
     PancakeSwapV3IncreaseLiquidityAction:
       process.env.PANCAKESWAP_V3_INCREASE_ACTION_ADDRESS ??
+      '0x0000000000000000000000000000000000000000',
+    PancakeSwapV3DecreaseLiquidityAction:
+      process.env.PANCAKESWAP_V3_DECREASE_ACTION_ADDRESS ??
       '0x0000000000000000000000000000000000000000',
   };
 }
@@ -996,6 +1002,43 @@ async function main() {
           },
         },
         required: ['tokenA', 'tokenB', 'tokenIdFromSlot'],
+      },
+    },
+    {
+      name: 'PancakeSwap V3 Decrease Liquidity',
+      description:
+        'Removes a percentage of liquidity from an existing PancakeSwap V3 position and delivers the freed tokens (plus accrued fees) to the vault in one step (decrease + collect bundled). The position token-id comes from a context slot.',
+      category: StepCategory.ACTION,
+      contractAddress: addresses.PancakeSwapV3DecreaseLiquidityAction,
+      selector: EXECUTE_SELECTOR,
+      afterExecutionSelector: null,
+      abiFragment: {
+        type: 'tuple',
+        components: [
+          { name: 'tokenIdFromSlot', type: 'uint32' },
+          { name: 'percent', type: 'uint16' },
+        ],
+      },
+      paramSchema: {
+        type: 'object',
+        properties: {
+          tokenIdFromSlot: {
+            type: 'integer',
+            title: 'Position Token-ID from Context Slot',
+            description: 'Read the position NFT token-id from a context slot (written by a Mint step).',
+            'x-ui-widget': 'context-slot',
+            'x-ui-slot-access': 'read',
+            default: 4294967295,
+          },
+          percent: {
+            type: 'integer',
+            title: 'Percentage to Remove',
+            description: 'How much of the position liquidity to remove (1–100; 100 = all).',
+            'x-ui-widget': 'percent',
+            default: 100,
+          },
+        },
+        required: ['tokenIdFromSlot', 'percent'],
       },
     },
   ];

@@ -8,3 +8,4 @@ export { AaveV3RepayActionAbi } from './AaveV3RepayAction';
 export { PancakeSwapV3SwapActionAbi } from './PancakeSwapV3SwapAction';
 export { PancakeSwapV3MintActionAbi } from './PancakeSwapV3MintAction';
 export { PancakeSwapV3IncreaseLiquidityActionAbi } from './PancakeSwapV3IncreaseLiquidityAction';
+export { PancakeSwapV3DecreaseLiquidityActionAbi } from './PancakeSwapV3DecreaseLiquidityAction';
