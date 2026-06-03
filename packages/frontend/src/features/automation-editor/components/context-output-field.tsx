@@ -23,7 +23,10 @@ export function ContextOutputField({
   contextVariables,
   onCreateVariable,
 }: ContextOutputFieldProps) {
-  const isActive = value !== undefined && value !== NO_SLOT && value !== '';
+  // `''` is the active-but-no-variable-chosen-yet state (set when the checkbox
+  // is ticked), so it must count as active — otherwise ticking the box flips
+  // isActive back to false and the variable picker never renders.
+  const isActive = value !== undefined && value !== NO_SLOT;
   const selectedName = typeof value === 'string' ? value : undefined;
   const [showDropdown, setShowDropdown] = useState(false);
 
