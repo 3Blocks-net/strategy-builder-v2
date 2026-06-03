@@ -24,7 +24,15 @@ interface FieldSchema {
   'x-ui-time-slot-field'?: string;
   'x-ui-amount-token-field'?: string;
   'x-ui-zero-toggle'?: { label?: string };
+  // Per-protocol curated token list for token-selector (default: accepted).
+  'x-ui-token-source'?: string;
+  // aave-amount-mode composite: names of the sibling fields it drives.
+  'x-ui-amount-field'?: string;
+  'x-ui-slot-field'?: string;
+  'x-ui-target-hf-field'?: string;
 }
+
+export type TokenList = { address: string; symbol: string; decimals?: number }[];
 
 interface FormSchema {
   type: 'object';
@@ -36,7 +44,9 @@ interface DynamicFormProps {
   schema: FormSchema;
   values: Record<string, unknown>;
   onChange: (params: Record<string, unknown>) => void;
-  tokens: { address: string; symbol: string; decimals?: number }[];
+  tokens: TokenList;
+  /** Per-protocol curated token lists, keyed by `x-ui-token-source`. */
+  tokenSources?: Record<string, TokenList>;
   contextVariables: ContextVariable[];
   onCreateVariable: (variable: { name: string; type: string; description: string }) => void;
   vaultAddress: string;
@@ -48,6 +58,7 @@ export const DynamicForm = memo(function DynamicForm({
   values,
   onChange,
   tokens,
+  tokenSources,
   contextVariables,
   onCreateVariable,
   vaultAddress,
@@ -69,10 +80,12 @@ export const DynamicForm = memo(function DynamicForm({
           key={fieldName}
           fieldName={fieldName}
           schema={fieldSchema}
+          properties={properties}
           value={values[fieldName]}
           allValues={values}
           onChange={handleFieldChange}
           tokens={tokens}
+          tokenSources={tokenSources}
           contextVariables={contextVariables}
           onCreateVariable={onCreateVariable}
           vaultAddress={vaultAddress}
@@ -86,23 +99,37 @@ export const DynamicForm = memo(function DynamicForm({
 interface FormFieldProps {
   fieldName: string;
   schema: FieldSchema;
+  properties: Record<string, FieldSchema>;
   value: unknown;
   allValues: Record<string, unknown>;
   onChange: (name: string, value: unknown) => void;
-  tokens: { address: string; symbol: string; decimals?: number }[];
+  tokens: TokenList;
+  tokenSources?: Record<string, TokenList>;
   contextVariables: ContextVariable[];
   onCreateVariable: (variable: { name: string; type: string; description: string }) => void;
   vaultAddress: string;
   nodeId: string;
 }
 
+function resolveTokenList(
+  schema: FieldSchema,
+  tokens: TokenList,
+  tokenSources?: Record<string, TokenList>,
+): TokenList {
+  const source = schema['x-ui-token-source'];
+  if (source && tokenSources?.[source]) return tokenSources[source];
+  return tokens;
+}
+
 function FormField({
   fieldName,
   schema,
+  properties,
   value,
   allValues,
   onChange,
   tokens,
+  tokenSources,
   contextVariables,
   onCreateVariable,
   vaultAddress,
@@ -152,7 +179,25 @@ function FormField({
         schema={schema}
         value={value as string | undefined}
         onChange={onChange}
+        tokens={resolveTokenList(schema, tokens, tokenSources)}
+      />
+    );
+  }
+
+  if (widget === 'aave-amount-mode') {
+    return (
+      <AaveAmountModeField
+        fieldName={fieldName}
+        schema={schema}
+        properties={properties}
+        value={value}
+        allValues={allValues}
+        onChange={onChange}
         tokens={tokens}
+        tokenSources={tokenSources}
+        contextVariables={contextVariables}
+        onCreateVariable={onCreateVariable}
+        nodeId={nodeId}
       />
     );
   }
@@ -413,6 +458,100 @@ function TokenAmountField({
           </p>
         ))}
       <FieldError message={error} />
+    </div>
+  );
+}
+
+const AAVE_AMOUNT_MODES: { value: number; label: string; disabled?: boolean }[] = [
+  { value: 0, label: 'Fixed amount' },
+  { value: 1, label: 'From a previous step (context slot)' },
+  { value: 2, label: 'Full vault balance' },
+  { value: 3, label: 'Target health factor (coming soon)', disabled: true },
+];
+
+/**
+ * `aave-amount-mode` composite: a mode selector that conditionally reveals the
+ * matching sub-input — the fixed amount (FIXED), the context-slot picker
+ * (FROM_SLOT), an info note (MAX_AVAILABLE = full vault balance), or a disabled
+ * TARGET_HF option (HF/oracle slice). The driven sibling fields (`amount`,
+ * `amountFromSlot`) are `x-ui-hidden` in the schema so they render only here.
+ */
+function AaveAmountModeField({
+  fieldName,
+  schema,
+  properties,
+  value,
+  allValues,
+  onChange,
+  tokens,
+  tokenSources,
+  contextVariables,
+  onCreateVariable,
+  nodeId,
+}: {
+  fieldName: string;
+  schema: FieldSchema;
+  properties: Record<string, FieldSchema>;
+  value: unknown;
+  allValues: Record<string, unknown>;
+  onChange: (name: string, value: unknown) => void;
+  tokens: TokenList;
+  tokenSources?: Record<string, TokenList>;
+  contextVariables: ContextVariable[];
+  onCreateVariable: (variable: { name: string; type: string; description: string }) => void;
+  nodeId: string;
+}) {
+  const mode = value === undefined || value === null ? 0 : Number(value);
+  const amountField = schema['x-ui-amount-field'] ?? 'amount';
+  const slotField = schema['x-ui-slot-field'] ?? 'amountFromSlot';
+
+  const mergedTokens: TokenList = [tokens, ...Object.values(tokenSources ?? {})].flat();
+
+  return (
+    <div>
+      <FieldLabel schema={schema} />
+      <select
+        className="nodrag w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+        value={String(mode)}
+        onChange={(e) => onChange(fieldName, Number(e.target.value))}
+      >
+        {AAVE_AMOUNT_MODES.map((m) => (
+          <option key={m.value} value={m.value} disabled={m.disabled}>
+            {m.label}
+          </option>
+        ))}
+      </select>
+
+      <div className="mt-2">
+        {mode === 0 && properties[amountField] && (
+          <TokenAmountField
+            fieldName={amountField}
+            schema={properties[amountField]}
+            value={allValues[amountField]}
+            onChange={onChange}
+            nodeId={nodeId}
+            tokens={mergedTokens}
+            allValues={allValues}
+          />
+        )}
+        {mode === 1 && (
+          <ContextInputField
+            fieldName={slotField}
+            title={properties[slotField]?.title}
+            description={properties[slotField]?.description}
+            value={allValues[slotField]}
+            onChange={onChange}
+            contextVariables={contextVariables}
+            onCreateVariable={onCreateVariable}
+            isOptional={false}
+          />
+        )}
+        {mode === 2 && (
+          <p className="text-xs text-gray-500">
+            Supplies the vault's entire balance of the selected token.
+          </p>
+        )}
+      </div>
     </div>
   );
 }

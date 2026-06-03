@@ -158,6 +158,34 @@ function validateTokenAmount(
   return [];
 }
 
+const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
+const ADDRESS_RE = /^0x[0-9a-fA-F]{40}$/;
+
+/**
+ * A `token-selector` field must carry a real, non-zero ERC-20 address. In raw
+ * mode (the defensive backend guard) a zero/missing token is rejected — it
+ * mirrors the on-chain `ZeroToken`/`ZeroAsset` reverts so a misconfigured step
+ * is caught at /encode (HTTP 400) rather than as a runtime revert. In friendly
+ * mode the generic `required` rule already covers presence.
+ */
+function validateTokenSelector(
+  field: string,
+  schema: FieldSchema,
+  value: unknown,
+  mode: ValidationMode,
+): ParamValidationError[] {
+  if (mode !== 'raw') return [];
+  const label = fieldLabel(schema, field);
+  const str = typeof value === 'string' ? value : '';
+  if (!ADDRESS_RE.test(str)) {
+    return [{ field, message: `${label} must be a valid token address` }];
+  }
+  if (str.toLowerCase() === ZERO_ADDRESS) {
+    return [{ field, message: `${label} must not be the zero address` }];
+  }
+  return [];
+}
+
 function validateDuration(
   field: string,
   schema: FieldSchema,
@@ -226,6 +254,10 @@ export function validateParams(
 
     if (widget === 'duration') {
       errors.push(...validateDuration(field, fieldSchema, value, options.mode));
+    } else if (widget === 'token-selector') {
+      errors.push(
+        ...validateTokenSelector(field, fieldSchema, value, options.mode),
+      );
     } else if (widget === 'token-amount') {
       errors.push(
         ...validateTokenAmount(

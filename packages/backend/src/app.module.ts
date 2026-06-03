@@ -8,6 +8,7 @@ import { BlockchainModule } from './blockchain/blockchain.module';
 import { PortfolioModule } from './portfolio/portfolio.module';
 import { StepRegistryModule } from './step-registry/step-registry.module';
 import { AutomationModule } from './automation/automation.module';
+import { TokensModule } from './tokens/tokens.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { AutomationModule } from './automation/automation.module';
     PortfolioModule,
     StepRegistryModule,
     AutomationModule,
+    TokensModule,
   ],
 })
 export class AppModule {}

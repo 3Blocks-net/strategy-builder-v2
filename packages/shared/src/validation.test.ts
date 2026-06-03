@@ -293,3 +293,43 @@ describe('validateParams — required', () => {
     expect(errors.map((e) => e.message).join()).toMatch(/greater than 0/);
   });
 });
+
+describe('validateParams — token-selector (raw-mode zero-token guard)', () => {
+  const supplySchema: ParamSchema = {
+    type: 'object',
+    properties: {
+      asset: {
+        type: 'string',
+        title: 'Token',
+        'x-ui-widget': 'token-selector',
+      },
+    },
+    required: ['asset'],
+  };
+
+  const real = '0x55d398326f99059fF775485246999027B3197955';
+  const zero = '0x0000000000000000000000000000000000000000';
+
+  it('accepts a real token address in raw mode', () => {
+    const errors = validateParams(supplySchema, { asset: real }, { mode: 'raw' });
+    expect(errors).toEqual([]);
+  });
+
+  it('rejects the zero address in raw mode', () => {
+    const errors = validateParams(supplySchema, { asset: zero }, { mode: 'raw' });
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toMatchObject({ field: 'asset' });
+    expect(errors[0].message).toMatch(/zero address/);
+  });
+
+  it('rejects a malformed token address in raw mode', () => {
+    const errors = validateParams(supplySchema, { asset: '0x123' }, { mode: 'raw' });
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toMatch(/valid token address/);
+  });
+
+  it('does not enforce the address shape in friendly mode (presence only)', () => {
+    const errors = validateParams(supplySchema, { asset: zero }, { mode: 'friendly' });
+    expect(errors).toEqual([]);
+  });
+});

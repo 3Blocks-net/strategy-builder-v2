@@ -71,21 +71,27 @@ export function AutomationEditorPage() {
     if (vaultAddress) setVaultAddress(vaultAddress);
   }, [vaultAddress]);
 
-  // Load accepted-token decimals into the store for token-amount validation
+  // Load token decimals into the store for token-amount validation
   // (over-precision) and the encode-boundary mapper (human → base units).
+  // Merges the accepted fee tokens with the curated per-protocol lists (Aave
+  // reserves) so protocol-token amounts convert with the right decimals too.
   useEffect(() => {
-    apiFetch('/tokens/accepted')
-      .then((r) => r.json())
-      .then((data) => {
-        const map: Record<string, number> = {};
-        for (const t of data.tokens ?? []) {
-          if (t.address && typeof t.decimals === 'number') {
-            map[t.address.toLowerCase()] = t.decimals;
-          }
+    Promise.all([
+      apiFetch('/tokens/accepted')
+        .then((r) => r.json())
+        .catch(() => ({ tokens: [] })),
+      apiFetch('/tokens?protocol=aave')
+        .then((r) => r.json())
+        .catch(() => ({ tokens: [] })),
+    ]).then(([accepted, aave]) => {
+      const map: Record<string, number> = {};
+      for (const t of [...(accepted.tokens ?? []), ...(aave.tokens ?? [])]) {
+        if (t.address && typeof t.decimals === 'number') {
+          map[t.address.toLowerCase()] = t.decimals;
         }
-        setTokenDecimals(map);
-      })
-      .catch(() => {});
+      }
+      setTokenDecimals(map);
+    });
   }, []);
 
   // Create draft immediately for new automations.

@@ -273,3 +273,66 @@ describe('buildContextOverrides', () => {
     expect(overrides).toEqual({});
   });
 });
+
+const aaveSupplySchema: StepSchema = {
+  paramSchema: {
+    properties: {
+      asset: { type: 'string', 'x-ui-widget': 'token-selector', 'x-ui-token-source': 'aave' },
+      mode: { type: 'integer', 'x-ui-widget': 'aave-amount-mode' },
+      amount: {
+        type: 'string',
+        'x-ui-widget': 'token-amount',
+        'x-ui-amount-token-field': 'asset',
+      },
+      amountFromSlot: { type: 'integer', 'x-ui-widget': 'context-slot' },
+      targetHealthFactor: { type: 'string', 'x-ui-hidden': true },
+      amountToSlot: { type: 'integer', 'x-ui-widget': 'context-slot' },
+    },
+    required: ['asset', 'mode'],
+  },
+  abiFragment: {
+    type: 'tuple',
+    components: [
+      { name: 'asset', type: 'address' },
+      { name: 'mode', type: 'uint8' },
+      { name: 'amount', type: 'uint256' },
+      { name: 'amountFromSlot', type: 'uint32' },
+      { name: 'targetHealthFactor', type: 'uint256' },
+      { name: 'amountToSlot', type: 'uint32' },
+    ],
+  },
+};
+
+const USDT = '0x55d398326f99059fF775485246999027B3197955';
+const aaveDecimals = { [USDT.toLowerCase()]: 18 };
+
+describe('mapParamsToRaw — Aave Supply (aave-amount-mode)', () => {
+  it('passes the integer mode enum through unchanged', () => {
+    const raw = mapParamsToRaw(
+      { asset: USDT, mode: 2, amount: '0', amountFromSlot: 4294967295, amountToSlot: 4294967295 },
+      aaveSupplySchema,
+      aaveDecimals,
+    );
+    expect(raw.mode).toBe(2);
+  });
+
+  it('converts a FIXED amount to base units using the asset decimals', () => {
+    const raw = mapParamsToRaw(
+      { asset: USDT, mode: 0, amount: '1.5', amountFromSlot: 4294967295, amountToSlot: 4294967295 },
+      aaveSupplySchema,
+      aaveDecimals,
+    );
+    expect(raw.amount).toBe('1500000000000000000');
+    expect(raw.asset).toBe(USDT);
+  });
+
+  it('carries the FROM_SLOT variable name through for backend resolution', () => {
+    const raw = mapParamsToRaw(
+      { asset: USDT, mode: 1, amount: '0', amountFromSlot: 'swapOutput', amountToSlot: 4294967295 },
+      aaveSupplySchema,
+      aaveDecimals,
+    );
+    expect(raw.mode).toBe(1);
+    expect(raw.amountFromSlot).toBe('swapOutput');
+  });
+});

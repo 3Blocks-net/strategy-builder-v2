@@ -17,6 +17,10 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const USDT = "0x55d398326f99059fF775485246999027B3197955";
 const WBNB = "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c";
 
+// Aave V3 BSC PoolAddressesProvider — canonical input for AaveV3Registry. The
+// fork already has live Aave state, so the registry resolves the real Pool.
+const AAVE_POOL_ADDRESSES_PROVIDER = "0xff75B6da14FfbbfD355Daf7a2731456b3562Ba6D";
+
 const TEST_WALLET = "0xBcd4042DE499D14e55001CcbB24a551F3b954096";
 
 // ─── Configurable parameters ──────────────────────────────────────────────
@@ -123,6 +127,20 @@ async function main() {
   const feeDepositActionAddr = await feeDepositAction.getAddress();
   console.log(`  FeeDepositAction: ${feeDepositActionAddr}`);
 
+  // 7b. Deploy Aave V3 registry + actions (DeFi actions Epic, slice #1).
+  console.log("Deploying Aave V3 registry + actions...");
+  const aaveRegistry = await ethers.deployContract("AaveV3Registry", [
+    AAVE_POOL_ADDRESSES_PROVIDER,
+  ]);
+  const aaveRegistryAddr = await aaveRegistry.getAddress();
+  console.log(`  AaveV3Registry: ${aaveRegistryAddr} (provider ${AAVE_POOL_ADDRESSES_PROVIDER})`);
+
+  const aaveSupplyAction = await ethers.deployContract("AaveV3SupplyAction", [
+    aaveRegistryAddr,
+  ]);
+  const aaveSupplyActionAddr = await aaveSupplyAction.getAddress();
+  console.log(`  AaveV3SupplyAction: ${aaveSupplyActionAddr}`);
+
   // 8. Seed test wallet with tokens via impersonation
   //    Use a raw JsonRpcProvider to bypass Hardhat's local account signing
   console.log(`\nSeeding test wallet ${TEST_WALLET}...`);
@@ -182,6 +200,8 @@ async function main() {
     TimerCondition: timerConditionAddr,
     ERC20TransferAction: erc20TransferActionAddr,
     FeeDepositAction: feeDepositActionAddr,
+    AaveV3Registry: aaveRegistryAddr,
+    AaveV3SupplyAction: aaveSupplyActionAddr,
     config: {
       depositFeeBps: DEPOSIT_FEE_BPS,
       withdrawFeeBps: WITHDRAW_FEE_BPS,
@@ -218,6 +238,8 @@ IntervalCondition:           ${intervalConditionAddr}
 TimerCondition:              ${timerConditionAddr}
 ERC20TransferAction:         ${erc20TransferActionAddr}
 FeeDepositAction:            ${feeDepositActionAddr}
+AaveV3Registry:              ${aaveRegistryAddr}
+AaveV3SupplyAction:          ${aaveSupplyActionAddr}
 
 ${"═".repeat(55)}
  Backend .env  (packages/backend/.env)

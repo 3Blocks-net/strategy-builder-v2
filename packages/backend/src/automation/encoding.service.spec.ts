@@ -144,6 +144,46 @@ const mockStepTypes = [
       required: ['delta', 'timeSlot'],
     },
   },
+  {
+    id: 'st-aave-supply',
+    name: 'Aave V3 Supply',
+    category: 'ACTION',
+    contractAddress: '0x1111111111111111111111111111111111111111',
+    selector: EXECUTE_SELECTOR,
+    abiFragment: {
+      type: 'tuple',
+      components: [
+        { name: 'asset', type: 'address' },
+        { name: 'mode', type: 'uint8' },
+        { name: 'amount', type: 'uint256' },
+        { name: 'amountFromSlot', type: 'uint32' },
+        { name: 'targetHealthFactor', type: 'uint256' },
+        { name: 'amountToSlot', type: 'uint32' },
+      ],
+    },
+    paramSchema: {
+      type: 'object',
+      properties: {
+        asset: { type: 'string', 'x-ui-widget': 'token-selector' },
+        mode: { type: 'integer', 'x-ui-widget': 'aave-amount-mode', default: 0 },
+        amount: { type: 'string', 'x-ui-widget': 'token-amount', 'x-ui-amount-token-field': 'asset' },
+        amountFromSlot: {
+          type: 'integer',
+          'x-ui-widget': 'context-slot',
+          'x-ui-slot-access': 'read',
+          default: 4294967295,
+        },
+        targetHealthFactor: { type: 'string', 'x-ui-hidden': true, default: '0' },
+        amountToSlot: {
+          type: 'integer',
+          'x-ui-widget': 'context-slot',
+          'x-ui-slot-access': 'write',
+          default: 4294967295,
+        },
+      },
+      required: ['asset', 'mode'],
+    },
+  },
 ];
 
 describe('EncodingService', () => {
@@ -396,6 +436,33 @@ describe('EncodingService', () => {
             data: {
               stepTypeId: 'st-interval',
               params: { interval: '0', timeSlot: 'dailyTimer' },
+            },
+          },
+        ],
+        edges: [],
+      };
+
+      await expect(
+        service.encode('v1', '0xvault', 'a1', graph),
+      ).rejects.toThrow(/Invalid step parameters/i);
+    });
+
+    it('rejects an Aave supply with a zero asset (raw-mode zero-token guard, HTTP 400)', async () => {
+      const graph = {
+        nodes: [
+          {
+            id: 'a1',
+            type: 'ACTION' as const,
+            data: {
+              stepTypeId: 'st-aave-supply',
+              params: {
+                asset: '0x0000000000000000000000000000000000000000',
+                mode: 0,
+                amount: '1000',
+                amountFromSlot: 4294967295,
+                targetHealthFactor: '0',
+                amountToSlot: 4294967295,
+              },
             },
           },
         ],

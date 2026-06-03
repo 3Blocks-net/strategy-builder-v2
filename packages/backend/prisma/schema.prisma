@@ -87,6 +87,23 @@ model Automation {
   @@unique([vaultId, onChainId])
 }
 
+/// Curated per-protocol token allowlist (Aave reserves, PancakeSwap pairs).
+/// Only standard ERC-20s — no fee-on-transfer / rebasing tokens, which would
+/// break context-slot amount accounting. `decimals` feeds the frontend
+/// tokenDecimals map so token-amount → base-units conversion is correct.
+model ProtocolToken {
+  id        String   @id @default(uuid())
+  protocol  String
+  address   String
+  symbol    String
+  decimals  Int
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([protocol, address])
+}
+
 model StepType {
   id                     String       @id @default(uuid())
   name                   String

@@ -24,6 +24,9 @@ export function SidePanel() {
 
   const [stepTypeDetail, setStepTypeDetail] = useState<StepTypeDetail | null>(null);
   const [tokens, setTokens] = useState<{ address: string; symbol: string; decimals?: number }[]>([]);
+  const [tokenSources, setTokenSources] = useState<
+    Record<string, { address: string; symbol: string; decimals?: number }[]>
+  >({});
 
   const selectedNode = nodes.find((n) => n.id === selectedNodeId);
 
@@ -31,6 +34,12 @@ export function SidePanel() {
     apiFetch('/tokens/accepted')
       .then((r) => r.json())
       .then((data) => setTokens(data.tokens ?? []))
+      .catch(() => {});
+    // Curated per-protocol lists for token-selector fields with an
+    // `x-ui-token-source` hint (e.g. the Aave reserve list).
+    apiFetch('/tokens?protocol=aave')
+      .then((r) => r.json())
+      .then((data) => setTokenSources((prev) => ({ ...prev, aave: data.tokens ?? [] })))
       .catch(() => {});
   }, []);
 
@@ -105,6 +114,7 @@ export function SidePanel() {
                     values={selectedNode.data.params}
                     onChange={(params) => updateNodeParams(selectedNodeId, params)}
                     tokens={tokens}
+                    tokenSources={tokenSources}
                     contextVariables={contextVariables}
                     onCreateVariable={addContextVariable}
                     vaultAddress={vaultAddress ?? ''}

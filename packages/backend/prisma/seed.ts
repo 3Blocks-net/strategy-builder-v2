@@ -18,6 +18,12 @@ function loadContractAddresses(): Record<string, string> {
       TimerCondition: data.TimerCondition,
       ERC20TransferAction: data.ERC20TransferAction,
       FeeDepositAction: data.FeeDepositAction,
+      // Newer deployments add this; coalesce so a pre-existing fork-latest.json
+      // (written before this action shipped) still seeds. Re-deploy + re-seed
+      // to populate the real address (existing gotcha).
+      AaveV3SupplyAction:
+        data.AaveV3SupplyAction ??
+        '0x0000000000000000000000000000000000000000',
     };
   }
 
@@ -37,8 +43,24 @@ function loadContractAddresses(): Record<string, string> {
     FeeDepositAction:
       process.env.FEE_DEPOSIT_ACTION_ADDRESS ??
       '0x0000000000000000000000000000000000000000',
+    AaveV3SupplyAction:
+      process.env.AAVE_V3_SUPPLY_ACTION_ADDRESS ??
+      '0x0000000000000000000000000000000000000000',
   };
 }
+
+// Curated Aave V3 BSC reserves (all 18 decimals on BSC). `decimals` feeds the
+// frontend tokenDecimals map for correct token-amount → base-units conversion.
+const AAVE_BSC_TOKENS = [
+  { symbol: 'WBNB', address: '0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c', decimals: 18 },
+  { symbol: 'USDT', address: '0x55d398326f99059fF775485246999027B3197955', decimals: 18 },
+  { symbol: 'USDC', address: '0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d', decimals: 18 },
+  { symbol: 'BTCB', address: '0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c', decimals: 18 },
+  { symbol: 'ETH', address: '0x2170Ed0880ac9A755fd29B2688956BD959F933F8', decimals: 18 },
+  { symbol: 'CAKE', address: '0x0E09FaBB73Bd3Ade0a17ECC321fD13a19e81cE82', decimals: 18 },
+  { symbol: 'FDUSD', address: '0xc5f0f7b66764F6ec8C8Dff7BA683102295E16409', decimals: 18 },
+  { symbol: 'wstETH', address: '0x26c5e01524d2E6280A48F2c50fF6De7e52E9611C', decimals: 18 },
+];
 
 const CHECK_SELECTOR = '0xd89f1e36';
 const EXECUTE_SELECTOR = '0x24856bc3';
@@ -323,6 +345,90 @@ async function main() {
         required: ['feeRegistry', 'token', 'topUpAmount'],
       },
     },
+    {
+      name: 'Aave V3 Supply',
+      description:
+        'Supplies a token from the vault to Aave V3 as collateral. Choose the amount as a fixed value, from a context slot, or the full vault balance.',
+      category: StepCategory.ACTION,
+      contractAddress: addresses.AaveV3SupplyAction,
+      selector: EXECUTE_SELECTOR,
+      afterExecutionSelector: null,
+      abiFragment: {
+        type: 'tuple',
+        components: [
+          { name: 'asset', type: 'address' },
+          { name: 'mode', type: 'uint8' },
+          { name: 'amount', type: 'uint256' },
+          { name: 'amountFromSlot', type: 'uint32' },
+          { name: 'targetHealthFactor', type: 'uint256' },
+          { name: 'amountToSlot', type: 'uint32' },
+        ],
+      },
+      paramSchema: {
+        type: 'object',
+        properties: {
+          asset: {
+            type: 'string',
+            title: 'Token',
+            description: 'The Aave V3 reserve to supply',
+            'x-ui-widget': 'token-selector',
+            'x-ui-token-source': 'aave',
+          },
+          mode: {
+            type: 'integer',
+            title: 'Amount',
+            description:
+              'How the supplied amount is determined: a fixed value, a value from a previous step, or the full vault balance.',
+            'x-ui-widget': 'aave-amount-mode',
+            'x-ui-amount-field': 'amount',
+            'x-ui-amount-token-field': 'asset',
+            'x-ui-slot-field': 'amountFromSlot',
+            'x-ui-target-hf-field': 'targetHealthFactor',
+            default: 0,
+          },
+          amount: {
+            type: 'string',
+            title: 'Amount',
+            description: 'Amount to supply in human units (e.g. 1.5). Used when mode is FIXED.',
+            'x-ui-widget': 'token-amount',
+            'x-ui-amount-token-field': 'asset',
+            // Rendered by the aave-amount-mode composite (FIXED mode), so hidden
+            // from the generic field loop to avoid a double render.
+            'x-ui-hidden': true,
+            default: '0',
+          },
+          amountFromSlot: {
+            type: 'integer',
+            title: 'Amount from Context Slot',
+            description:
+              'Read the amount from a context slot. Used when mode is FROM_SLOT. Max uint32 = unset.',
+            'x-ui-widget': 'context-slot',
+            'x-ui-slot-access': 'read',
+            // Rendered by the aave-amount-mode composite (FROM_SLOT mode).
+            'x-ui-hidden': true,
+            default: 4294967295,
+          },
+          targetHealthFactor: {
+            type: 'string',
+            title: 'Target Health Factor',
+            description:
+              'Reserved for the TARGET_HF mode (not yet available). Stored in 1e18 units.',
+            'x-ui-hidden': true,
+            default: '0',
+          },
+          amountToSlot: {
+            type: 'integer',
+            title: 'Supplied Amount to Context Slot',
+            description:
+              'Write the actual supplied amount to a context slot for later steps. Max uint32 = skip.',
+            'x-ui-widget': 'context-slot',
+            'x-ui-slot-access': 'write',
+            default: 4294967295,
+          },
+        },
+        required: ['asset', 'mode'],
+      },
+    },
   ];
 
   for (const stepType of stepTypes) {
@@ -346,6 +452,22 @@ async function main() {
   }
 
   console.log(`Seeded ${stepTypes.length} step types`);
+
+  // Curated per-protocol token allowlists (Aave reserves).
+  for (const t of AAVE_BSC_TOKENS) {
+    await prisma.protocolToken.upsert({
+      where: { protocol_address: { protocol: 'aave', address: t.address } },
+      update: { symbol: t.symbol, decimals: t.decimals, enabled: true },
+      create: {
+        protocol: 'aave',
+        address: t.address,
+        symbol: t.symbol,
+        decimals: t.decimals,
+        enabled: true,
+      },
+    });
+  }
+  console.log(`Seeded ${AAVE_BSC_TOKENS.length} Aave protocol tokens`);
 }
 
 main()

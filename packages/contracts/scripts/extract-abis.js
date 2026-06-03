@@ -20,6 +20,10 @@ const contracts = [
     artifact: 'FeeRegistry.sol/FeeRegistry.json',
     name: 'FeeRegistry',
   },
+  {
+    artifact: 'actions/AaveV3SupplyAction.sol/AaveV3SupplyAction.json',
+    name: 'AaveV3SupplyAction',
+  },
 ];
 
 mkdirSync(outDir, { recursive: true });
