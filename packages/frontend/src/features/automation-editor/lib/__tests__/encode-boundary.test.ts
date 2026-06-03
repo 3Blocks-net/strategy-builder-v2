@@ -420,3 +420,58 @@ describe('mapParamsToRaw — LP mint (carry ticks, strip friendly prices)', () =
     expect('maxPrice' in raw).toBe(false);
   });
 });
+
+describe('mapParamsToRaw — LP Increase Liquidity (amounts + full-balance toggle)', () => {
+  const schema: StepSchema = {
+    paramSchema: {
+      properties: {
+        tokenA: { type: 'string', 'x-ui-widget': 'token-selector', 'x-ui-token-source': 'pancakeswap' },
+        tokenB: { type: 'string', 'x-ui-widget': 'token-selector', 'x-ui-token-source': 'pancakeswap' },
+        tokenIdFromSlot: { type: 'integer', 'x-ui-widget': 'context-slot' },
+        amountADesired: {
+          type: 'string',
+          'x-ui-widget': 'token-amount',
+          'x-ui-amount-token-field': 'tokenA',
+          'x-ui-zero-toggle': { label: 'full' },
+        },
+        amountBDesired: {
+          type: 'string',
+          'x-ui-widget': 'token-amount',
+          'x-ui-amount-token-field': 'tokenB',
+          'x-ui-zero-toggle': { label: 'full' },
+        },
+      },
+    },
+    abiFragment: {
+      type: 'tuple',
+      components: [
+        { name: 'tokenA', type: 'address' },
+        { name: 'tokenB', type: 'address' },
+        { name: 'tokenIdFromSlot', type: 'uint32' },
+        { name: 'amountADesired', type: 'uint256' },
+        { name: 'amountBDesired', type: 'uint256' },
+      ],
+    },
+  };
+  const A = '0x55d398326f99059fF775485246999027B3197955';
+  const B = '0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c';
+  const decimals = { [A.toLowerCase()]: 18, [B.toLowerCase()]: 18 };
+
+  it('converts amount A and emits 0 for the full-balance toggle on B', () => {
+    const raw = mapParamsToRaw(
+      {
+        tokenA: A,
+        tokenB: B,
+        tokenIdFromSlot: 'lpId',
+        amountADesired: '1.5',
+        amountBDesired: '',
+        [zeroToggleField('amountBDesired')]: true,
+      },
+      schema,
+      decimals,
+    );
+    expect(raw.amountADesired).toBe('1500000000000000000');
+    expect(raw.amountBDesired).toBe('0'); // full-balance toggle
+    expect(raw.tokenIdFromSlot).toBe('lpId'); // resolved to an index backend-side
+  });
+});

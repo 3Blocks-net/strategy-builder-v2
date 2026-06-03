@@ -125,4 +125,16 @@ contract MockNonfungiblePositionManager is ERC721, INonfungiblePositionManager {
         );
         _safeMint(p.recipient, tokenId); // exercises onERC721Received
     }
+
+    function increaseLiquidity(
+        IncreaseLiquidityParams calldata p
+    ) external payable override returns (uint128 liquidity, uint256 amount0, uint256 amount1) {
+        Position storage pos = positionOf[p.tokenId];
+        amount0 = p.amount0Desired;
+        amount1 = p.amount1Desired;
+        if (amount0 > 0) IERC20(pos.token0).transferFrom(msg.sender, address(this), amount0);
+        if (amount1 > 0) IERC20(pos.token1).transferFrom(msg.sender, address(this), amount1);
+        liquidity = uint128(amount0 + amount1);
+        pos.liquidity += liquidity;
+    }
 }

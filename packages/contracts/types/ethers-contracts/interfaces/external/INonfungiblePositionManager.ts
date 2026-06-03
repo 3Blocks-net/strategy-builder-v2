@@ -6,6 +6,11 @@ import type { TypedContractEvent, TypedDeferredTopicFilter, TypedEventLog, Typed
   
 export declare namespace INonfungiblePositionManager {
       
+    export type IncreaseLiquidityParamsStruct = {tokenId: BigNumberish, amount0Desired: BigNumberish, amount1Desired: BigNumberish, amount0Min: BigNumberish, amount1Min: BigNumberish, deadline: BigNumberish}
+
+    export type IncreaseLiquidityParamsStructOutput = [tokenId: bigint, amount0Desired: bigint, amount1Desired: bigint, amount0Min: bigint, amount1Min: bigint, deadline: bigint] & {tokenId: bigint, amount0Desired: bigint, amount1Desired: bigint, amount0Min: bigint, amount1Min: bigint, deadline: bigint }
+  
+
     export type MintParamsStruct = {token0: AddressLike, token1: AddressLike, fee: BigNumberish, tickLower: BigNumberish, tickUpper: BigNumberish, amount0Desired: BigNumberish, amount1Desired: BigNumberish, amount0Min: BigNumberish, amount1Min: BigNumberish, recipient: AddressLike, deadline: BigNumberish}
 
     export type MintParamsStructOutput = [token0: string, token1: string, fee: bigint, tickLower: bigint, tickUpper: bigint, amount0Desired: bigint, amount1Desired: bigint, amount0Min: bigint, amount1Min: bigint, recipient: string, deadline: bigint] & {token0: string, token1: string, fee: bigint, tickLower: bigint, tickUpper: bigint, amount0Desired: bigint, amount1Desired: bigint, amount0Min: bigint, amount1Min: bigint, recipient: string, deadline: bigint }
@@ -13,13 +18,15 @@ export declare namespace INonfungiblePositionManager {
     }
 
   export interface INonfungiblePositionManagerInterface extends Interface {
-    getFunction(nameOrSignature: "mint"): FunctionFragment;
+    getFunction(nameOrSignature: "increaseLiquidity" | "mint"): FunctionFragment;
 
     
 
-    encodeFunctionData(functionFragment: 'mint', values: [INonfungiblePositionManager.MintParamsStruct]): string;
+    encodeFunctionData(functionFragment: 'increaseLiquidity', values: [INonfungiblePositionManager.IncreaseLiquidityParamsStruct]): string;
+encodeFunctionData(functionFragment: 'mint', values: [INonfungiblePositionManager.MintParamsStruct]): string;
 
-    decodeFunctionResult(functionFragment: 'mint', data: BytesLike): Result;
+    decodeFunctionResult(functionFragment: 'increaseLiquidity', data: BytesLike): Result;
+decodeFunctionResult(functionFragment: 'mint', data: BytesLike): Result;
   }
 
   
@@ -58,6 +65,14 @@ export declare namespace INonfungiblePositionManager {
 
     
     
+    increaseLiquidity: TypedContractMethod<
+      [params: INonfungiblePositionManager.IncreaseLiquidityParamsStruct, ],
+      [[bigint, bigint, bigint] & {liquidity: bigint, amount0: bigint, amount1: bigint }],
+      'payable'
+    >
+    
+
+    
     mint: TypedContractMethod<
       [params: INonfungiblePositionManager.MintParamsStruct, ],
       [[bigint, bigint, bigint, bigint] & {tokenId: bigint, liquidity: bigint, amount0: bigint, amount1: bigint }],
@@ -68,7 +83,12 @@ export declare namespace INonfungiblePositionManager {
 
     getFunction<T extends ContractMethod = ContractMethod>(key: string | FunctionFragment): T;
 
-    getFunction(nameOrSignature: 'mint'): TypedContractMethod<
+    getFunction(nameOrSignature: 'increaseLiquidity'): TypedContractMethod<
+      [params: INonfungiblePositionManager.IncreaseLiquidityParamsStruct, ],
+      [[bigint, bigint, bigint] & {liquidity: bigint, amount0: bigint, amount1: bigint }],
+      'payable'
+    >;
+getFunction(nameOrSignature: 'mint'): TypedContractMethod<
       [params: INonfungiblePositionManager.MintParamsStruct, ],
       [[bigint, bigint, bigint, bigint] & {tokenId: bigint, liquidity: bigint, amount0: bigint, amount1: bigint }],
       'payable'

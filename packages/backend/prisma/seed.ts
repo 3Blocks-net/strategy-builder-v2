@@ -39,6 +39,9 @@ function loadContractAddresses(): Record<string, string> {
       PancakeSwapV3MintAction:
         data.PancakeSwapV3MintAction ??
         '0x0000000000000000000000000000000000000000',
+      PancakeSwapV3IncreaseLiquidityAction:
+        data.PancakeSwapV3IncreaseLiquidityAction ??
+        '0x0000000000000000000000000000000000000000',
     };
   }
 
@@ -75,6 +78,9 @@ function loadContractAddresses(): Record<string, string> {
       '0x0000000000000000000000000000000000000000',
     PancakeSwapV3MintAction:
       process.env.PANCAKESWAP_V3_MINT_ACTION_ADDRESS ??
+      '0x0000000000000000000000000000000000000000',
+    PancakeSwapV3IncreaseLiquidityAction:
+      process.env.PANCAKESWAP_V3_INCREASE_ACTION_ADDRESS ??
       '0x0000000000000000000000000000000000000000',
   };
 }
@@ -909,6 +915,87 @@ async function main() {
           },
         },
         required: ['tokenA', 'tokenB', 'fee', 'tokenIdToSlot'],
+      },
+    },
+    {
+      name: 'PancakeSwap V3 Increase Liquidity',
+      description:
+        'Adds liquidity to an existing PancakeSwap V3 position identified by a token-id from a context slot (written by an earlier Mint). Configure the amount of each token to add.',
+      category: StepCategory.ACTION,
+      contractAddress: addresses.PancakeSwapV3IncreaseLiquidityAction,
+      selector: EXECUTE_SELECTOR,
+      afterExecutionSelector: null,
+      abiFragment: {
+        type: 'tuple',
+        components: [
+          { name: 'tokenA', type: 'address' },
+          { name: 'tokenB', type: 'address' },
+          { name: 'tokenIdFromSlot', type: 'uint32' },
+          { name: 'amountADesired', type: 'uint256' },
+          { name: 'amountAFromSlot', type: 'uint32' },
+          { name: 'amountBDesired', type: 'uint256' },
+          { name: 'amountBFromSlot', type: 'uint32' },
+        ],
+      },
+      paramSchema: {
+        type: 'object',
+        properties: {
+          tokenA: {
+            type: 'string',
+            title: 'Token A',
+            description: 'First token of the position pair',
+            'x-ui-widget': 'token-selector',
+            'x-ui-token-source': 'pancakeswap',
+          },
+          tokenB: {
+            type: 'string',
+            title: 'Token B',
+            description: 'Second token of the position pair',
+            'x-ui-widget': 'token-selector',
+            'x-ui-token-source': 'pancakeswap',
+          },
+          tokenIdFromSlot: {
+            type: 'integer',
+            title: 'Position Token-ID from Context Slot',
+            description: 'Read the position NFT token-id from a context slot (written by a Mint step).',
+            'x-ui-widget': 'context-slot',
+            'x-ui-slot-access': 'read',
+            default: 4294967295,
+          },
+          amountADesired: {
+            type: 'string',
+            title: 'Amount A',
+            description: 'Amount of Token A to add (human units). Toggle to use the full vault balance.',
+            'x-ui-widget': 'token-amount',
+            'x-ui-amount-token-field': 'tokenA',
+            'x-ui-zero-toggle': { label: 'Volles Guthaben', default: false },
+          },
+          amountAFromSlot: {
+            type: 'integer',
+            title: 'Amount A from Context Slot',
+            description: 'Read amount A from a context slot. Max uint32 = unset.',
+            'x-ui-widget': 'context-slot',
+            'x-ui-slot-access': 'read',
+            default: 4294967295,
+          },
+          amountBDesired: {
+            type: 'string',
+            title: 'Amount B',
+            description: 'Amount of Token B to add (human units). Toggle to use the full vault balance.',
+            'x-ui-widget': 'token-amount',
+            'x-ui-amount-token-field': 'tokenB',
+            'x-ui-zero-toggle': { label: 'Volles Guthaben', default: false },
+          },
+          amountBFromSlot: {
+            type: 'integer',
+            title: 'Amount B from Context Slot',
+            description: 'Read amount B from a context slot. Max uint32 = unset.',
+            'x-ui-widget': 'context-slot',
+            'x-ui-slot-access': 'read',
+            default: 4294967295,
+          },
+        },
+        required: ['tokenA', 'tokenB', 'tokenIdFromSlot'],
       },
     },
   ];

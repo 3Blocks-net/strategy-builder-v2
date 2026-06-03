@@ -23,6 +23,15 @@ interface INonfungiblePositionManager {
         uint256 deadline;
     }
 
+    struct IncreaseLiquidityParams {
+        uint256 tokenId;
+        uint256 amount0Desired;
+        uint256 amount1Desired;
+        uint256 amount0Min;
+        uint256 amount1Min;
+        uint256 deadline;
+    }
+
     function mint(
         MintParams calldata params
     )
@@ -34,4 +43,8 @@ interface INonfungiblePositionManager {
             uint256 amount0,
             uint256 amount1
         );
+
+    function increaseLiquidity(
+        IncreaseLiquidityParams calldata params
+    ) external payable returns (uint128 liquidity, uint256 amount0, uint256 amount1);
 }

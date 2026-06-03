@@ -742,6 +742,44 @@ describe('EncodingService', () => {
       await expect(service.encode('v1', '0xvault', 's1', graph)).rejects.toThrow(/Invalid step parameters/i);
     });
 
+    it('encodes an LP Increase Liquidity (tokenId + amounts from slots resolve)', () => {
+      const tokenA = '0x55d398326f99059fF775485246999027B3197955';
+      const tokenB = '0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c';
+      const abiFragment = {
+        type: 'tuple',
+        components: [
+          { name: 'tokenA', type: 'address' },
+          { name: 'tokenB', type: 'address' },
+          { name: 'tokenIdFromSlot', type: 'uint32' },
+          { name: 'amountADesired', type: 'uint256' },
+          { name: 'amountAFromSlot', type: 'uint32' },
+          { name: 'amountBDesired', type: 'uint256' },
+          { name: 'amountBFromSlot', type: 'uint32' },
+        ],
+      };
+      const result = service.encodeParams(
+        {
+          tokenA,
+          tokenB,
+          tokenIdFromSlot: 'lpId',
+          amountADesired: '1000000000000000000',
+          amountAFromSlot: 4294967295,
+          amountBDesired: '2000000000000000000',
+          amountBFromSlot: 4294967295,
+        },
+        abiFragment as any,
+        { lpId: 1 },
+      );
+      const decoded = abiCoder.decode(
+        ['address', 'address', 'uint32', 'uint256', 'uint32', 'uint256', 'uint32'],
+        result,
+      );
+      expect(decoded[0]).toBe(tokenA);
+      expect(decoded[2]).toBe(1n); // tokenIdFromSlot resolved lpId → 1
+      expect(decoded[3]).toBe(1000000000000000000n);
+      expect(decoded[5]).toBe(2000000000000000000n);
+    });
+
     it('encodes an LP mint carrying rangeMode + explicit ticks (incl. negative)', () => {
       const tokenA = '0x55d398326f99059fF775485246999027B3197955';
       const tokenB = '0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c';
