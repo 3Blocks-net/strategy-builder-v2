@@ -52,8 +52,22 @@ execSync('npx prisma migrate dev --skip-generate', {
 });
 console.log('');
 
-// 5. Start backend and frontend in parallel
+// 5. Build the shared package once (frontend + backend consume its dist/),
+//    then keep it rebuilding in watch mode alongside the dev servers.
+console.log('Building shared package...');
+execSync('pnpm --filter shared build', { cwd: root, stdio: 'inherit' });
+console.log('');
+
+// 6. Start shared watch + backend and frontend in parallel
 const procs = [];
+
+const sharedWatch = spawn('pnpm', ['shared:build:watch'], {
+  cwd: root,
+  stdio: 'inherit',
+  env: { ...process.env, FORCE_COLOR: '1' },
+});
+sharedWatch.on('error', (e) => console.error('Shared watch error:', e.message));
+procs.push(sharedWatch);
 
 const backend = spawn('pnpm', ['backend:dev'], {
   cwd: root,

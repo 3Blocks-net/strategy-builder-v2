@@ -23,7 +23,9 @@ pnpm workspaces with packages in `packages/`:
 **Root (workspace scripts):**
 ```bash
 pnpm install                 # Install all workspace dependencies
-pnpm dev                     # Start DB + backend + frontend (unified dev)
+pnpm dev                     # Start DB + backend + frontend (unified dev; builds shared first, then watches it)
+pnpm shared:build            # Build shared package → single-CJS dist/ (consumed by backend + frontend)
+pnpm shared:build:watch      # Rebuild shared on change (used by pnpm dev)
 pnpm db:up                   # Start PostgreSQL via Docker
 pnpm db:down                 # Stop PostgreSQL
 pnpm db:migrate              # Run Prisma migrations
@@ -35,12 +37,14 @@ pnpm contracts:deploy:fork   # Deploy all contracts to fork (incl. MockPriceOrac
 pnpm contracts:execute:fork  # Keeper: execute all externally-runnable automations
 pnpm backend:dev             # Start backend in watch mode
 pnpm backend:build           # Build backend
-pnpm backend:test            # Run backend unit tests
-pnpm backend:test:e2e        # Run backend e2e tests
+pnpm backend:test            # Run backend unit tests (builds shared first via pnpm topology)
+pnpm backend:test:e2e        # Run backend e2e tests (builds shared first via pnpm topology)
 pnpm frontend:dev            # Start frontend dev server
 pnpm frontend:build          # Build frontend for production
-pnpm frontend:test           # Run frontend tests
+pnpm frontend:test           # Run frontend tests (builds shared first via pnpm topology)
 ```
+
+**`shared` package** (`packages/shared`) — framework-free, IO-free pure helpers (unit conversion, validation) consumed by **both** backend (ts-jest/CJS) and frontend (Vite/ESM). Built to a **single-CJS `dist/`** (no dual output) via `tsc`, exposed through an `exports` map; **`shared/dist` must be built before backend/frontend type-check, test, or build**. The `backend:test`/`frontend:test` root scripts and `pnpm dev` handle this automatically (`pnpm --filter "<pkg>^..." build` builds workspace deps topologically; `dev` builds once then watches). Backend Jest `transformIgnorePatterns` includes `/shared/dist/` so ts-jest requires the built CJS directly instead of recompiling it. No `zod` (validation is hand-written and generic over `paramSchema` metadata).
 
 **From `packages/contracts/`:**
 ```bash
@@ -64,6 +68,9 @@ npx hardhat ignition deploy --network bscMainnet ignition/modules/StrategyBuilde
 # Terminal 1: pnpm contracts:fork:bsc    (BSC fork node)
 # Terminal 2: pnpm contracts:deploy:fork (deploy contracts → copy addresses to .env files)
 # Terminal 3: pnpm dev                   (DB + backend + frontend, after .env is filled)
+#             ↳ pnpm dev builds packages/shared first, then keeps it rebuilding in watch.
+#               Running backend/frontend test or build standalone? They build shared first
+#               via pnpm topology, but a manual `pnpm shared:build` is the fallback if dist/ is missing.
 ```
 **After a fresh redeploy, re-seed the backend StepType table** (`pnpm --filter backend prisma:seed`) — it reads condition/action addresses from `deployments/fork-latest.json`. Skipping this leaves stale addresses, so newly built automations encode dead contract addresses and revert (`ConditionCallFailed`). The seed upserts by `(contractAddress, selector)`, so delete old `StepType` rows first if addresses changed.
 
