@@ -93,6 +93,109 @@ describe('validateParams — duration (raw mode)', () => {
   });
 });
 
+const balanceSchema: ParamSchema = {
+  type: 'object',
+  properties: {
+    token: { type: 'string', title: 'Token', 'x-ui-widget': 'token-selector' },
+    account: { type: 'string', title: 'Account', 'x-ui-widget': 'account-selector' },
+    minBalance: {
+      type: 'string',
+      title: 'Minimum Balance',
+      'x-ui-widget': 'token-amount',
+      'x-ui-amount-token-field': 'token',
+    },
+    aboveOrEqual: { type: 'boolean', title: 'Above or Equal', default: true },
+  },
+  required: ['token', 'account', 'minBalance', 'aboveOrEqual'],
+};
+
+const TOKEN_18 = '0xAAaAaAaaAaAaAaaAaAAAAAAAAaaaAaAaAaaAaaAa';
+const TOKEN_6 = '0xBbBBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB';
+const tokenDecimals = {
+  [TOKEN_18.toLowerCase()]: 18,
+  [TOKEN_6.toLowerCase()]: 6,
+};
+
+describe('validateParams — token-amount (friendly mode)', () => {
+  it('accepts an in-precision amount for an 18-decimal token', () => {
+    const errors = validateParams(
+      balanceSchema,
+      { token: TOKEN_18, account: '0x1', minBalance: '1.5', aboveOrEqual: true },
+      { mode: 'friendly', tokenDecimals },
+    );
+    expect(errors).toEqual([]);
+  });
+
+  it('allows 0 (no toggle)', () => {
+    const errors = validateParams(
+      balanceSchema,
+      { token: TOKEN_18, account: '0x1', minBalance: '0', aboveOrEqual: true },
+      { mode: 'friendly', tokenDecimals },
+    );
+    expect(errors).toEqual([]);
+  });
+
+  it('flags over-precision for a 6-decimal token', () => {
+    const errors = validateParams(
+      balanceSchema,
+      { token: TOKEN_6, account: '0x1', minBalance: '1.1234567', aboveOrEqual: true },
+      { mode: 'friendly', tokenDecimals },
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toMatchObject({ field: 'minBalance' });
+    expect(errors[0].message).toMatch(/6 decimal places/);
+  });
+
+  it('flags an unparseable amount', () => {
+    const errors = validateParams(
+      balanceSchema,
+      { token: TOKEN_18, account: '0x1', minBalance: 'abc', aboveOrEqual: true },
+      { mode: 'friendly', tokenDecimals },
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0].field).toBe('minBalance');
+  });
+
+  it('skips the decimals check when no token is selected (still parses)', () => {
+    const errors = validateParams(
+      balanceSchema,
+      { token: TOKEN_18, account: '0x1', minBalance: '1.123456789', aboveOrEqual: true },
+      { mode: 'friendly' }, // no tokenDecimals → over-precision not checkable
+    );
+    expect(errors).toEqual([]);
+  });
+});
+
+describe('validateParams — token-amount (raw mode)', () => {
+  it('accepts base units within range and 0', () => {
+    expect(
+      validateParams(
+        balanceSchema,
+        { token: TOKEN_18, account: '0x1', minBalance: '1500000000000000000', aboveOrEqual: true },
+        { mode: 'raw' },
+      ),
+    ).toEqual([]);
+    expect(
+      validateParams(
+        balanceSchema,
+        { token: TOKEN_18, account: '0x1', minBalance: '0', aboveOrEqual: true },
+        { mode: 'raw' },
+      ),
+    ).toEqual([]);
+  });
+
+  it('rejects base units >= 2^256', () => {
+    const tooBig = (1n << 256n).toString();
+    const errors = validateParams(
+      balanceSchema,
+      { token: TOKEN_18, account: '0x1', minBalance: tooBig, aboveOrEqual: true },
+      { mode: 'raw' },
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toMatchObject({ field: 'minBalance' });
+  });
+});
+
 describe('validateParams — required', () => {
   it('flags a missing required scalar field', () => {
     const schema: ParamSchema = {

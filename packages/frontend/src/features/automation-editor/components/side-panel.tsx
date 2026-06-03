@@ -23,7 +23,7 @@ export function SidePanel() {
   const setActiveTab = useEditorStore((s) => s.setActiveTab);
 
   const [stepTypeDetail, setStepTypeDetail] = useState<StepTypeDetail | null>(null);
-  const [tokens, setTokens] = useState<{ address: string; symbol: string }[]>([]);
+  const [tokens, setTokens] = useState<{ address: string; symbol: string; decimals?: number }[]>([]);
 
   const selectedNode = nodes.find((n) => n.id === selectedNodeId);
 

@@ -92,6 +92,75 @@ describe('mapGraphToRaw', () => {
   });
 });
 
+const TOKEN_18 = '0xAAaAaAaaAaAaAaaAaAAAAAAAAaaaAaAaAaaAaaAa';
+const TOKEN_6 = '0xBbBBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB';
+
+const balanceSchema: StepSchema = {
+  paramSchema: {
+    properties: {
+      token: { type: 'string', 'x-ui-widget': 'token-selector' },
+      account: { type: 'string', 'x-ui-widget': 'account-selector' },
+      minBalance: { type: 'string', 'x-ui-widget': 'token-amount', 'x-ui-amount-token-field': 'token' },
+      aboveOrEqual: { type: 'boolean' },
+      minBalanceFromSlot: { type: 'integer', 'x-ui-widget': 'context-slot' },
+    },
+  },
+  abiFragment: {
+    type: 'tuple',
+    components: [
+      { name: 'token', type: 'address' },
+      { name: 'account', type: 'address' },
+      { name: 'minBalance', type: 'uint256' },
+      { name: 'aboveOrEqual', type: 'bool' },
+      { name: 'minBalanceFromSlot', type: 'uint32' },
+    ],
+  },
+};
+
+const tokenDecimals = {
+  [TOKEN_18.toLowerCase()]: 18,
+  [TOKEN_6.toLowerCase()]: 6,
+};
+
+describe('mapParamsToRaw — token-amount', () => {
+  it('converts a human amount to base units using the token decimals (18)', () => {
+    const raw = mapParamsToRaw(
+      { token: TOKEN_18, account: '0xacc', minBalance: '1.5', aboveOrEqual: true },
+      balanceSchema,
+      tokenDecimals,
+    );
+    expect(raw.minBalance).toBe('1500000000000000000');
+  });
+
+  it('uses the token-specific decimals (6)', () => {
+    const raw = mapParamsToRaw(
+      { token: TOKEN_6, account: '0xacc', minBalance: '1.5', aboveOrEqual: true },
+      balanceSchema,
+      tokenDecimals,
+    );
+    expect(raw.minBalance).toBe('1500000');
+  });
+
+  it('allows 0', () => {
+    const raw = mapParamsToRaw(
+      { token: TOKEN_18, account: '0xacc', minBalance: '0', aboveOrEqual: true },
+      balanceSchema,
+      tokenDecimals,
+    );
+    expect(raw.minBalance).toBe('0');
+  });
+
+  it('throws when the token decimals are unknown', () => {
+    expect(() =>
+      mapParamsToRaw(
+        { token: '0xUnknown', account: '0xacc', minBalance: '1.5', aboveOrEqual: true },
+        balanceSchema,
+        tokenDecimals,
+      ),
+    ).toThrow(/decimals/i);
+  });
+});
+
 describe('buildContextOverrides', () => {
   it('routes startTime → name-keyed override for the referenced slot', () => {
     const overrides = buildContextOverrides(

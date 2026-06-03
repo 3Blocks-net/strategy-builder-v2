@@ -22,6 +22,7 @@ interface FieldSchema {
   'x-ui-slot-access'?: string;
   'x-ui-hidden'?: boolean;
   'x-ui-time-slot-field'?: string;
+  'x-ui-amount-token-field'?: string;
 }
 
 interface FormSchema {
@@ -34,7 +35,7 @@ interface DynamicFormProps {
   schema: FormSchema;
   values: Record<string, unknown>;
   onChange: (params: Record<string, unknown>) => void;
-  tokens: { address: string; symbol: string }[];
+  tokens: { address: string; symbol: string; decimals?: number }[];
   contextVariables: ContextVariable[];
   onCreateVariable: (variable: { name: string; type: string; description: string }) => void;
   vaultAddress: string;
@@ -68,6 +69,7 @@ export const DynamicForm = memo(function DynamicForm({
           fieldName={fieldName}
           schema={fieldSchema}
           value={values[fieldName]}
+          allValues={values}
           onChange={handleFieldChange}
           tokens={tokens}
           contextVariables={contextVariables}
@@ -84,8 +86,9 @@ interface FormFieldProps {
   fieldName: string;
   schema: FieldSchema;
   value: unknown;
+  allValues: Record<string, unknown>;
   onChange: (name: string, value: unknown) => void;
-  tokens: { address: string; symbol: string }[];
+  tokens: { address: string; symbol: string; decimals?: number }[];
   contextVariables: ContextVariable[];
   onCreateVariable: (variable: { name: string; type: string; description: string }) => void;
   vaultAddress: string;
@@ -96,6 +99,7 @@ function FormField({
   fieldName,
   schema,
   value,
+  allValues,
   onChange,
   tokens,
   contextVariables,
@@ -184,6 +188,20 @@ function FormField({
         value={value}
         onChange={onChange}
         nodeId={nodeId}
+      />
+    );
+  }
+
+  if (widget === 'token-amount') {
+    return (
+      <TokenAmountField
+        fieldName={fieldName}
+        schema={schema}
+        value={value}
+        onChange={onChange}
+        nodeId={nodeId}
+        tokens={tokens}
+        allValues={allValues}
       />
     );
   }
@@ -320,6 +338,67 @@ function DurationField({
   );
 }
 
+function TokenAmountField({
+  fieldName,
+  schema,
+  value,
+  onChange,
+  nodeId,
+  tokens,
+  allValues,
+}: {
+  fieldName: string;
+  schema: FieldSchema;
+  value: unknown;
+  onChange: (name: string, value: unknown) => void;
+  nodeId: string;
+  tokens: { address: string; symbol: string; decimals?: number }[];
+  allValues: Record<string, unknown>;
+}) {
+  const error = useFieldError(nodeId, fieldName);
+  const [amount, setAmount] = useState<string>(
+    typeof value === 'string' ? value : value != null ? String(value) : '',
+  );
+
+  const amountTokenField = schema['x-ui-amount-token-field'];
+  const tokenAddr =
+    amountTokenField && typeof allValues[amountTokenField] === 'string'
+      ? (allValues[amountTokenField] as string)
+      : undefined;
+  const token = tokenAddr
+    ? tokens.find((t) => t.address.toLowerCase() === tokenAddr.toLowerCase())
+    : undefined;
+
+  return (
+    <div>
+      <FieldLabel schema={schema} />
+      <input
+        type="text"
+        inputMode="decimal"
+        className={`nodrag w-full border rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 ${
+          error ? 'border-red-400 focus:ring-red-500' : 'border-gray-300 focus:ring-blue-500'
+        }`}
+        value={amount}
+        onChange={(e) => {
+          setAmount(e.target.value);
+          onChange(fieldName, e.target.value);
+        }}
+        placeholder="0.0"
+      />
+      {token ? (
+        <p className="mt-0.5 text-xs text-gray-400">
+          {token.symbol} · converts using {token.decimals ?? '?'} decimals
+        </p>
+      ) : (
+        <p className="mt-0.5 text-xs text-amber-600">
+          Select a token to set the conversion decimals
+        </p>
+      )}
+      <FieldError message={error} />
+    </div>
+  );
+}
+
 function unixToLocalInput(unixSeconds: number): string {
   const d = new Date(unixSeconds * 1000);
   const pad = (n: number) => String(n).padStart(2, '0');
@@ -449,7 +528,7 @@ function TokenSelectorField({
   schema: FieldSchema;
   value: string | undefined;
   onChange: (name: string, value: unknown) => void;
-  tokens: { address: string; symbol: string }[];
+  tokens: { address: string; symbol: string; decimals?: number }[];
 }) {
   return (
     <div>

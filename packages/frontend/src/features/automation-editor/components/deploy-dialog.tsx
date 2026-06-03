@@ -47,6 +47,7 @@ export function DeployDialog({ automationId, label, isEdit = false, onClose }: D
   const nodes = useEditorStore((s) => s.nodes);
   const edges = useEditorStore((s) => s.edges);
   const stepSchemas = useEditorStore((s) => s.stepSchemas);
+  const tokenDecimals = useEditorStore((s) => s.tokenDecimals);
 
   const { sendTransactionAsync } = useSendTransaction();
 
@@ -59,7 +60,7 @@ export function DeployDialog({ automationId, label, isEdit = false, onClose }: D
       // Encode-boundary mapper: convert the friendly editor params to raw
       // values (and strip friendly-only fields) right before POST /encode, and
       // derive the name-keyed contextOverrides (e.g. start-time → time slot).
-      const graph = mapGraphToRaw(nodes, edges, stepSchemas);
+      const graph = mapGraphToRaw(nodes, edges, stepSchemas, tokenDecimals);
       const builtOverrides = buildContextOverrides(nodes, stepSchemas);
       const overrides = Object.keys(builtOverrides).length > 0 ? builtOverrides : undefined;
 

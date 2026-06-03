@@ -12,7 +12,7 @@
  * contextOverrides). The generic backend encoder stays unchanged.
  */
 
-import { toSeconds, encodeTimestamp, type Duration } from 'shared';
+import { toSeconds, encodeTimestamp, toBaseUnits, type Duration } from 'shared';
 
 export interface AbiFragment {
   type: string;
@@ -63,12 +63,34 @@ function isDuration(value: unknown): value is Duration {
 }
 
 /** Convert one friendly field value to its raw representation. */
-function mapFieldToRaw(widget: string | undefined, value: unknown): unknown {
+function mapFieldToRaw(
+  widget: string | undefined,
+  value: unknown,
+  fieldSchema: FieldSchema | undefined,
+  params: Record<string, unknown>,
+  tokenDecimals?: Record<string, number>,
+): unknown {
   if (widget === 'duration') {
     if (isDuration(value)) return String(toSeconds(value));
     // Already raw (string seconds) or unset — pass through untouched.
     return value;
   }
+
+  if (widget === 'token-amount') {
+    const tokenField = fieldSchema?.['x-ui-amount-token-field'] as string | undefined;
+    const tokenAddr = tokenField ? params[tokenField] : undefined;
+    const decimals =
+      typeof tokenAddr === 'string'
+        ? tokenDecimals?.[tokenAddr.toLowerCase()]
+        : undefined;
+    if (decimals === undefined) {
+      throw new Error(
+        `Cannot convert amount: unknown decimals for token ${String(tokenAddr)}. Select an accepted token.`,
+      );
+    }
+    return toBaseUnits(String(value), decimals);
+  }
+
   return value;
 }
 
@@ -76,20 +98,25 @@ function mapFieldToRaw(widget: string | undefined, value: unknown): unknown {
  * Map a single node's friendly params to raw params, keeping only the keys that
  * appear in the step type's `abiFragment`. Returns `{}` if the abiFragment is
  * unknown (the backend will fall back to its own defaults / guard).
+ *
+ * `tokenDecimals` (lowercased address → decimals, from the loaded accepted-token
+ * list) is used to convert `token-amount` fields — no extra network call.
  */
 export function mapParamsToRaw(
   params: Record<string, unknown>,
   schema: StepSchema | undefined,
+  tokenDecimals?: Record<string, number>,
 ): Record<string, unknown> {
   const components = schema?.abiFragment?.components ?? [];
   const properties = schema?.paramSchema?.properties ?? {};
   const raw: Record<string, unknown> = {};
 
   for (const { name } of components) {
-    const widget = properties[name]?.['x-ui-widget'];
+    const fieldSchema = properties[name];
+    const widget = fieldSchema?.['x-ui-widget'];
     const value = params[name];
     if (value === undefined) continue; // let the backend apply schema defaults
-    raw[name] = mapFieldToRaw(widget, value);
+    raw[name] = mapFieldToRaw(widget, value, fieldSchema, params, tokenDecimals);
   }
 
   return raw;
@@ -149,6 +176,7 @@ export function mapGraphToRaw(
   nodes: EditorNodeLike[],
   edges: EditorEdgeLike[],
   stepSchemas: Record<string, StepSchema>,
+  tokenDecimals?: Record<string, number>,
 ): RawGraph {
   return {
     nodes: nodes.map((n) => ({
@@ -156,7 +184,7 @@ export function mapGraphToRaw(
       type: (n.type as 'CONDITION' | 'ACTION') ?? 'ACTION',
       data: {
         stepTypeId: n.data.stepTypeId,
-        params: mapParamsToRaw(n.data.params ?? {}, stepSchemas[n.data.stepTypeId]),
+        params: mapParamsToRaw(n.data.params ?? {}, stepSchemas[n.data.stepTypeId], tokenDecimals),
       },
     })),
     edges: edges.map((e) => ({

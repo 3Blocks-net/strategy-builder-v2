@@ -54,6 +54,8 @@ export function AutomationEditorPage() {
     mergeEditorContextVariables,
     mergeVaultContextSlots,
     setStepSchemas,
+    setTokenDecimals,
+    setVaultAddress,
   } = useEditorStore();
 
   useAutoSave(vaultAddress, automationId);
@@ -62,6 +64,28 @@ export function AutomationEditorPage() {
   useEffect(() => {
     loadEditorState({ nodes: [], edges: [], label: '', description: '' });
     setContextVariables([]);
+  }, []);
+
+  // Make the vault address available to node-init (account = vault default).
+  useEffect(() => {
+    if (vaultAddress) setVaultAddress(vaultAddress);
+  }, [vaultAddress]);
+
+  // Load accepted-token decimals into the store for token-amount validation
+  // (over-precision) and the encode-boundary mapper (human → base units).
+  useEffect(() => {
+    apiFetch('/tokens/accepted')
+      .then((r) => r.json())
+      .then((data) => {
+        const map: Record<string, number> = {};
+        for (const t of data.tokens ?? []) {
+          if (t.address && typeof t.decimals === 'number') {
+            map[t.address.toLowerCase()] = t.decimals;
+          }
+        }
+        setTokenDecimals(map);
+      })
+      .catch(() => {});
   }, []);
 
   // Create draft immediately for new automations.

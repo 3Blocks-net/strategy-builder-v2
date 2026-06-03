@@ -65,6 +65,58 @@ function isDuration(value: unknown): value is Duration {
   );
 }
 
+const MAX_UINT256 = 1n << 256n;
+const AMOUNT_RE = /^\d+(\.\d+)?$/;
+
+function validateTokenAmount(
+  field: string,
+  schema: FieldSchema,
+  value: unknown,
+  mode: ValidationMode,
+  params: Record<string, unknown>,
+  tokenDecimals?: Record<string, number>,
+): ParamValidationError[] {
+  const label = fieldLabel(schema, field);
+
+  if (mode === 'raw') {
+    // base units string: integer in [0, 2^256)
+    let n: bigint;
+    try {
+      n = BigInt(String(value));
+    } catch {
+      return [{ field, message: `${label} must be a whole number of base units` }];
+    }
+    if (n < 0n) return [{ field, message: `${label} must be at least 0` }];
+    if (n >= MAX_UINT256) return [{ field, message: `${label} is too large` }];
+    return [];
+  }
+
+  // friendly: parseable human amount, decimal places <= token decimals
+  const str = String(value).trim();
+  if (!AMOUNT_RE.test(str)) {
+    return [{ field, message: `${label} must be a valid amount` }];
+  }
+
+  const tokenField = schema['x-ui-amount-token-field'] as string | undefined;
+  const tokenAddr = tokenField ? params[tokenField] : undefined;
+  const decimals =
+    typeof tokenAddr === 'string'
+      ? tokenDecimals?.[tokenAddr.toLowerCase()]
+      : undefined;
+
+  if (decimals !== undefined) {
+    const dot = str.indexOf('.');
+    const places = dot === -1 ? 0 : str.length - dot - 1;
+    if (places > decimals) {
+      return [
+        { field, message: `${label} allows at most ${decimals} decimal places` },
+      ];
+    }
+  }
+
+  return [];
+}
+
 function validateDuration(
   field: string,
   schema: FieldSchema,
@@ -127,6 +179,17 @@ export function validateParams(
 
     if (widget === 'duration') {
       errors.push(...validateDuration(field, fieldSchema, value, options.mode));
+    } else if (widget === 'token-amount') {
+      errors.push(
+        ...validateTokenAmount(
+          field,
+          fieldSchema,
+          value,
+          options.mode,
+          params,
+          options.tokenDecimals,
+        ),
+      );
     }
   }
 

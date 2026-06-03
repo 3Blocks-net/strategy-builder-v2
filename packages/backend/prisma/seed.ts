@@ -84,8 +84,12 @@ async function main() {
           minBalance: {
             type: 'string',
             title: 'Minimum Balance',
-            description: 'The threshold amount (in token base units)',
-            'x-ui-widget': 'amount',
+            description:
+              'The threshold amount in human units (e.g. 1.5). Converted to base units using the selected token\'s decimals.',
+            'x-ui-widget': 'token-amount',
+            // Links to the token field so the friendly amount can be converted
+            // with the right decimals (no toggle — 0 is a valid threshold).
+            'x-ui-amount-token-field': 'token',
           },
           aboveOrEqual: {
             type: 'boolean',

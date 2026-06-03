@@ -38,6 +38,7 @@ export interface StepTypeOption {
 export function materializeDefaultParams(
   paramSchema: ParamSchema | undefined,
   nodeId: string,
+  vaultAddress?: string,
 ): Record<string, unknown> {
   const params: Record<string, unknown> = {};
   const properties = paramSchema?.properties ?? {};
@@ -56,6 +57,11 @@ export function materializeDefaultParams(
     if (fieldSchema['x-ui-widget'] === 'start-time' && fieldSchema.default === undefined) {
       params[name] = Math.floor(Date.now() / 1000);
     }
+    // account-selector fields default to the vault address (US #11) — effective
+    // without the user opening the form, killing the latent zero-address bug.
+    if (fieldSchema['x-ui-widget'] === 'account-selector' && vaultAddress) {
+      params[name] = vaultAddress;
+    }
   }
   return params;
 }
@@ -63,6 +69,7 @@ export function materializeDefaultParams(
 function validateNodeParams(
   nodes: Node<EditorNodeData>[],
   stepSchemas: Record<string, StepSchema>,
+  tokenDecimals: Record<string, number>,
 ): ValidationError[] {
   const errors: ValidationError[] = [];
   for (const node of nodes) {
@@ -72,6 +79,7 @@ function validateNodeParams(
     if (!schema) continue;
     const paramErrors = validateParams(schema, node.data.params ?? {}, {
       mode: 'friendly',
+      tokenDecimals,
     });
     for (const e of paramErrors) {
       errors.push({ message: e.message, nodeId: node.id, fieldName: e.field });
@@ -145,6 +153,8 @@ export interface EditorState {
   contextVariables: ContextVariable[];
   activeTab: 'config' | 'context';
   stepSchemas: Record<string, StepSchema>;
+  tokenDecimals: Record<string, number>;
+  vaultAddress: string;
 
   onNodesChange: OnNodesChange<Node<EditorNodeData>>;
   onEdgesChange: OnEdgesChange;
@@ -170,6 +180,8 @@ export interface EditorState {
   updateContextVariable: (slotIndex: number, updates: Partial<ContextVariable>) => void;
   setContextVariables: (variables: ContextVariable[]) => void;
   setStepSchemas: (schemas: Record<string, StepSchema>) => void;
+  setTokenDecimals: (decimals: Record<string, number>) => void;
+  setVaultAddress: (address: string) => void;
   mergeEditorContextVariables: (variables: ContextVariable[]) => void;
   mergeVaultContextSlots: (slots: ContextVariable[]) => void;
 }
@@ -241,6 +253,8 @@ export const useEditorStore = create<EditorState>((set, get) => {
   contextVariables: [] as ContextVariable[],
   activeTab: 'config' as 'config' | 'context',
   stepSchemas: {} as Record<string, StepSchema>,
+  tokenDecimals: {} as Record<string, number>,
+  vaultAddress: '',
 
   onNodesChange: (changes) => {
     set({ nodes: applyNodeChanges(changes, get().nodes) });
@@ -308,8 +322,9 @@ export const useEditorStore = create<EditorState>((set, get) => {
         contractAddress: stepType.contractAddress,
         selector: stepType.selector,
         // Node-init: materialize the full default param set so the node is
-        // self-complete from creation (no latent unset-field bugs).
-        params: materializeDefaultParams(stepType.paramSchema, id),
+        // self-complete from creation (no latent unset-field bugs, incl. the
+        // account = vault default).
+        params: materializeDefaultParams(stepType.paramSchema, id, get().vaultAddress),
       },
     };
     set({ nodes: [...get().nodes, newNode], isDirty: true });
@@ -353,7 +368,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
   },
 
   runValidation: () => {
-    const { nodes, edges, stepSchemas } = get();
+    const { nodes, edges, stepSchemas, tokenDecimals } = get();
     const oo = inferOwnerOnly(nodes, edges);
     const graphNodes = toGraphNodes(nodes);
     const graphEdges = toGraphEdges(edges);
@@ -362,7 +377,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
     // never opened) merged into the same list, so the Deploy gate engages
     // purely via validationErrors.length and the panel + inline errors share
     // one source of truth.
-    const paramErrors = validateNodeParams(nodes, stepSchemas);
+    const paramErrors = validateNodeParams(nodes, stepSchemas, tokenDecimals);
     set({ validationErrors: [...graphErrors, ...paramErrors], ownerOnly: oo });
   },
 
@@ -488,6 +503,14 @@ export const useEditorStore = create<EditorState>((set, get) => {
     // for never-opened nodes show up once their schema is known.
     scheduleValidation();
   },
+
+  setTokenDecimals: (decimals) => {
+    set({ tokenDecimals: decimals });
+    // Token decimals gate the token-amount over-precision check.
+    scheduleValidation();
+  },
+
+  setVaultAddress: (address) => set({ vaultAddress: address }),
 
   // Auto-saved draft variables are the source of truth for editing, so they
   // win on slotIndex conflicts (overlay = incoming).

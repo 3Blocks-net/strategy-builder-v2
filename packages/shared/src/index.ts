@@ -3,6 +3,8 @@ export { toSeconds, fromSeconds } from './duration';
 
 export { encodeTimestamp } from './timestamp';
 
+export { toBaseUnits, fromBaseUnits } from './amount';
+
 export type {
   ValidationMode,
   FieldSchema,
