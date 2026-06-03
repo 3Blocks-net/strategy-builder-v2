@@ -179,12 +179,26 @@ describe("AaveV3SupplyAction", function () {
     );
   });
 
-  it("reverts on the unsupported TARGET_HF mode (this slice)", async function () {
-    const { vault, asset, action } = await fixture();
+  it("TARGET_HF no-ops when there is no debt (HF infinite) — step proceeds", async function () {
+    const { vault, asset, aToken, action } = await fixture();
     await vault.createOwnerAutomation([
       actionStep(
         await action.getAddress(),
         encodeSupplyParams(await asset.getAddress(), Mode.TARGET_HF, 0n, NO_SLOT, ethers.parseEther("1.5")),
+      ),
+    ]);
+    // No revert; nothing supplied (no debt ⇒ HF already ≥ target).
+    await vault.executeAutomation(0);
+    expect(await aToken.balanceOf(await vault.getAddress())).to.equal(0n);
+    expect(await asset.balanceOf(await vault.getAddress())).to.equal(ethers.parseEther("100"));
+  });
+
+  it("TARGET_HF rejects a target at/below the 1.05 floor", async function () {
+    const { vault, asset, action } = await fixture();
+    await vault.createOwnerAutomation([
+      actionStep(
+        await action.getAddress(),
+        encodeSupplyParams(await asset.getAddress(), Mode.TARGET_HF, 0n, NO_SLOT, ethers.parseEther("1.05")),
       ),
     ]);
     await expect(vault.executeAutomation(0)).to.be.revertedWithCustomError(

@@ -473,7 +473,7 @@ const AAVE_AMOUNT_MODES: { value: number; label: string; disabled?: boolean }[] 
   { value: 0, label: 'Fixed amount' },
   { value: 1, label: 'From a previous step (context slot)' },
   { value: 2, label: 'Full vault balance' },
-  { value: 3, label: 'Target health factor (coming soon)', disabled: true },
+  { value: 3, label: 'Target health factor' },
 ];
 
 const DEFAULT_MAX_NOTE = "Supplies the vault's entire balance of the selected token.";
@@ -513,6 +513,7 @@ function AaveAmountModeField({
   const mode = value === undefined || value === null ? 0 : Number(value);
   const amountField = schema['x-ui-amount-field'] ?? 'amount';
   const slotField = schema['x-ui-slot-field'] ?? 'amountFromSlot';
+  const hfField = schema['x-ui-target-hf-field'] ?? 'targetHealthFactor';
   const maxLabel = schema['x-ui-max-label'];
   const maxNote = schema['x-ui-max-note'] ?? DEFAULT_MAX_NOTE;
   const allowedModes = schema['x-ui-modes'];
@@ -562,7 +563,55 @@ function AaveAmountModeField({
           />
         )}
         {mode === 2 && <p className="text-xs text-gray-500">{maxNote}</p>}
+        {mode === 3 && (
+          <HealthFactorField
+            fieldName={hfField}
+            value={allValues[hfField]}
+            onChange={onChange}
+            nodeId={nodeId}
+          />
+        )}
       </div>
+    </div>
+  );
+}
+
+/** Friendly target health-factor input (e.g. 1.5). Mapped → 1.5e18 at encode. */
+function HealthFactorField({
+  fieldName,
+  value,
+  onChange,
+  nodeId,
+}: {
+  fieldName: string;
+  value: unknown;
+  onChange: (name: string, value: unknown) => void;
+  nodeId: string;
+}) {
+  const error = useFieldError(nodeId, fieldName);
+  const [hf, setHf] = useState<string>(
+    typeof value === 'string' && value !== '0' ? value : value && value !== 0 ? String(value) : '',
+  );
+  return (
+    <div>
+      <label className="text-xs font-medium text-gray-700">Target health factor</label>
+      <p className="text-xs text-gray-400 mt-0.5 mb-1">
+        Move the position toward this health factor (must be above 1.05). No-op if already past it.
+      </p>
+      <input
+        type="text"
+        inputMode="decimal"
+        className={`nodrag w-full border rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 ${
+          error ? 'border-red-400 focus:ring-red-500' : 'border-gray-300 focus:ring-blue-500'
+        }`}
+        value={hf}
+        onChange={(e) => {
+          setHf(e.target.value);
+          onChange(fieldName, e.target.value);
+        }}
+        placeholder="1.5"
+      />
+      <FieldError message={error} />
     </div>
   );
 }

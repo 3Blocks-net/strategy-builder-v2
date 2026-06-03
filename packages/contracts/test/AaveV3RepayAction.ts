@@ -174,12 +174,26 @@ describe("AaveV3RepayAction", function () {
     await expect(vault.executeAutomation(0)).to.be.revertedWithCustomError(vault, "ActionExecutionFailed");
   });
 
-  it("reverts on TARGET_HF (later slice)", async function () {
+  it("TARGET_HF no-ops when getUserAccountData reports no debt — step proceeds", async function () {
     const { vault, asset, action } = await fixture(ethers.parseEther("10"), ethers.parseEther("10"));
+    // accountData unset ⇒ totalDebtBase = 0 ⇒ no-op (no oracle read).
     await vault.createOwnerAutomation([
       actionStep(
         await action.getAddress(),
         encodeRepayParams(await asset.getAddress(), Mode.TARGET_HF, 0n, NO_SLOT, ethers.parseEther("1.5")),
+      ),
+    ]);
+    await vault.executeAutomation(0);
+    expect(await asset.balanceOf(await vault.getAddress())).to.equal(ethers.parseEther("10"));
+  });
+
+  it("TARGET_HF rejects a target at/below the 1.05 floor", async function () {
+    const { vault, asset, pool, action } = await fixture(ethers.parseEther("10"), ethers.parseEther("10"));
+    await pool.setUserAccountData(await vault.getAddress(), 1000n * 10n ** 8n, 500n * 10n ** 8n, 0n, 8000n);
+    await vault.createOwnerAutomation([
+      actionStep(
+        await action.getAddress(),
+        encodeRepayParams(await asset.getAddress(), Mode.TARGET_HF, 0n, NO_SLOT, ethers.parseEther("1.0")),
       ),
     ]);
     await expect(vault.executeAutomation(0)).to.be.revertedWithCustomError(vault, "ActionExecutionFailed");

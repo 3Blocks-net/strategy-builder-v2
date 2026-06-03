@@ -90,12 +90,12 @@ describe('AaveAmountModeField widget', () => {
     expect(onChange).toHaveBeenCalledWith({ mode: 2 });
   });
 
-  it('disables the TARGET_HF option (coming soon)', () => {
+  it('offers TARGET_HF as a selectable option by default', () => {
     renderForm({ asset: USDT, mode: 0 });
     const option = screen.getByRole('option', {
       name: /Target health factor/i,
     }) as HTMLOptionElement;
-    expect(option.disabled).toBe(true);
+    expect(option.disabled).toBe(false);
   });
 
   it('overrides the MAX option label + note via x-ui-max-label / x-ui-max-note', () => {
@@ -128,6 +128,42 @@ describe('AaveAmountModeField widget', () => {
     );
     expect(screen.getByRole('option', { name: 'Withdraw everything' })).toBeInTheDocument();
     expect(screen.getByText(/entire supplied balance/i)).toBeInTheDocument();
+  });
+
+  it('shows the target-HF input in TARGET_HF mode (3) and emits the entered value', () => {
+    const onChange = vi.fn();
+    const hfSchema = {
+      type: 'object' as const,
+      properties: {
+        asset: { type: 'string', title: 'Token', 'x-ui-widget': 'token-selector', 'x-ui-token-source': 'aave' },
+        mode: {
+          type: 'integer',
+          title: 'Amount',
+          'x-ui-widget': 'aave-amount-mode',
+          'x-ui-target-hf-field': 'targetHealthFactor',
+          'x-ui-modes': [0, 1, 2, 3],
+        },
+        targetHealthFactor: { type: 'string', 'x-ui-widget': 'health-factor', 'x-ui-hidden': true },
+      },
+      required: ['asset', 'mode'],
+    };
+    render(
+      <DynamicForm
+        schema={hfSchema as any}
+        values={{ asset: USDT, mode: 3, targetHealthFactor: '' }}
+        onChange={onChange}
+        tokens={[]}
+        tokenSources={{ aave: [{ address: USDT, symbol: 'USDT', decimals: 18 }] }}
+        contextVariables={[]}
+        onCreateVariable={() => {}}
+        vaultAddress="0x0000000000000000000000000000000000000000"
+        nodeId="h1"
+      />,
+    );
+    expect(screen.getByRole('option', { name: 'Target health factor' })).toBeInTheDocument();
+    const input = screen.getByPlaceholderText('1.5');
+    fireEvent.change(input, { target: { value: '2.0' } });
+    expect(onChange).toHaveBeenCalledWith({ targetHealthFactor: '2.0' });
   });
 
   it('restricts the offered modes via x-ui-modes (Borrow = FIXED + FROM_SLOT only)', () => {

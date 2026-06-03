@@ -138,20 +138,60 @@ describe("AaveV3BorrowAction", function () {
     await expect(vault.executeAutomation(0)).to.be.revertedWithCustomError(vault, "ActionExecutionFailed");
   });
 
-  it("reverts on MAX_AVAILABLE (oracle-bound, later slice)", async function () {
+  it("MAX_AVAILABLE no-ops with no borrowing power (availableBorrows = 0)", async function () {
     const { vault, asset, action } = await fixture();
     await vault.createOwnerAutomation([
       actionStep(await action.getAddress(), encodeBorrowParams(await asset.getAddress(), Mode.MAX_AVAILABLE, 0n)),
     ]);
-    await expect(vault.executeAutomation(0)).to.be.revertedWithCustomError(vault, "ActionExecutionFailed");
+    await vault.executeAutomation(0);
+    expect(await asset.balanceOf(await vault.getAddress())).to.equal(0n);
   });
 
-  it("reverts on TARGET_HF (later slice)", async function () {
+  it("MAX_AVAILABLE borrows availableBorrows minus the haircut", async function () {
+    const { vault, asset, pool, action } = await fixture();
+    const oracle = await ethers.deployContract("MockAaveOracle");
+    await oracle.setPrice(await asset.getAddress(), 1n * 10n ** 8n); // $1 (8-dec)
+    // availableBorrowsBase = $100 (8-dec); LT 8000.
+    await pool.setUserAccountData(await vault.getAddress(), 0n, 0n, 100n * 10n ** 8n, 8000n);
+
+    // Point the registry's provider oracle at the mock by redeploying via a
+    // provider that returns it.
+    const provider = await ethers.deployContract("MockPoolAddressesProvider", [
+      await pool.getAddress(),
+      await oracle.getAddress(),
+    ]);
+    const registry = await ethers.deployContract("AaveV3Registry", [await provider.getAddress()]);
+    const action2 = await ethers.deployContract("AaveV3BorrowAction", [await registry.getAddress()]);
+
+    await vault.createOwnerAutomation([
+      actionStep(await action2.getAddress(), encodeBorrowParams(await asset.getAddress(), Mode.MAX_AVAILABLE, 0n)),
+    ]);
+    await vault.executeAutomation(0);
+
+    // 100 - 0.5% haircut = 99.5 tokens (18-dec, price $1).
+    expect(await asset.balanceOf(await vault.getAddress())).to.equal(ethers.parseEther("99.5"));
+  });
+
+  it("TARGET_HF no-ops when there is no collateral (no borrowing power)", async function () {
     const { vault, asset, action } = await fixture();
     await vault.createOwnerAutomation([
       actionStep(
         await action.getAddress(),
         encodeBorrowParams(await asset.getAddress(), Mode.TARGET_HF, 0n, NO_SLOT, ethers.parseEther("1.5")),
+      ),
+    ]);
+    await vault.executeAutomation(0);
+    expect(await asset.balanceOf(await vault.getAddress())).to.equal(0n);
+  });
+
+  it("TARGET_HF rejects a target at/below the 1.05 floor", async function () {
+    const { vault, asset, pool, action } = await fixture();
+    // Give some collateral/debt so it would otherwise compute an amount.
+    await pool.setUserAccountData(await vault.getAddress(), 1000n * 10n ** 8n, 0n, 0n, 8000n);
+    await vault.createOwnerAutomation([
+      actionStep(
+        await action.getAddress(),
+        encodeBorrowParams(await asset.getAddress(), Mode.TARGET_HF, 0n, NO_SLOT, ethers.parseEther("1.0")),
       ),
     ]);
     await expect(vault.executeAutomation(0)).to.be.revertedWithCustomError(vault, "ActionExecutionFailed");

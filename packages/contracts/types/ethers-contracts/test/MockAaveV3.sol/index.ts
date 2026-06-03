@@ -2,5 +2,6 @@
 /* tslint:disable */
 /* eslint-disable */
 export type { MockAToken } from './MockAToken.js';
+export type { MockAaveOracle } from './MockAaveOracle.js';
 export type { MockAaveV3Pool } from './MockAaveV3Pool.js';
 export type { MockPoolAddressesProvider } from './MockPoolAddressesProvider.js';

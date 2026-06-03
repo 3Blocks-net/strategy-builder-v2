@@ -165,7 +165,12 @@ const mockStepTypes = [
       type: 'object',
       properties: {
         asset: { type: 'string', 'x-ui-widget': 'token-selector' },
-        mode: { type: 'integer', 'x-ui-widget': 'aave-amount-mode', default: 0 },
+        mode: {
+          type: 'integer',
+          'x-ui-widget': 'aave-amount-mode',
+          'x-ui-target-hf-field': 'targetHealthFactor',
+          default: 0,
+        },
         amount: { type: 'string', 'x-ui-widget': 'token-amount', 'x-ui-amount-token-field': 'asset' },
         amountFromSlot: {
           type: 'integer',
@@ -550,6 +555,56 @@ describe('EncodingService', () => {
         edges: [],
       };
 
+      await expect(
+        service.encode('v1', '0xvault', 'a1', graph),
+      ).rejects.toThrow(/Invalid step parameters/i);
+    });
+
+    it('encodes TARGET_HF with targetHealthFactor in 1e18 wad (mode → raw enum)', async () => {
+      const asset = '0x55d398326f99059fF775485246999027B3197955';
+      const abiFragment = mockStepTypes.find((s) => s.id === 'st-aave-supply')!
+        .abiFragment;
+      const result = service.encodeParams(
+        {
+          asset,
+          mode: 3, // TARGET_HF
+          amount: '0',
+          amountFromSlot: 4294967295,
+          targetHealthFactor: '1500000000000000000', // 1.5e18 (mapped frontend-side)
+          amountToSlot: 4294967295,
+        },
+        abiFragment as any,
+        {},
+      );
+      const decoded = abiCoder.decode(
+        ['address', 'uint8', 'uint256', 'uint32', 'uint256', 'uint32'],
+        result,
+      );
+      expect(decoded[1]).toBe(3n); // TARGET_HF
+      expect(decoded[4]).toBe(1500000000000000000n); // 1.5e18
+    });
+
+    it('rejects TARGET_HF with targetHealthFactor ≤ 1.05e18 (raw-mode guard, HTTP 400)', async () => {
+      const graph = {
+        nodes: [
+          {
+            id: 'a1',
+            type: 'ACTION' as const,
+            data: {
+              stepTypeId: 'st-aave-supply',
+              params: {
+                asset: '0x55d398326f99059fF775485246999027B3197955',
+                mode: 3,
+                amount: '0',
+                amountFromSlot: 4294967295,
+                targetHealthFactor: '1050000000000000000', // exactly 1.05e18 → rejected
+                amountToSlot: 4294967295,
+              },
+            },
+          },
+        ],
+        edges: [],
+      };
       await expect(
         service.encode('v1', '0xvault', 'a1', graph),
       ).rejects.toThrow(/Invalid step parameters/i);

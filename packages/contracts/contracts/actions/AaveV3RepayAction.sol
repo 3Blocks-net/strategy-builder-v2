@@ -3,8 +3,10 @@ pragma solidity ^0.8.28;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import "../interfaces/IAction.sol";
 import "../interfaces/external/IAaveV3Pool.sol";
+import "../interfaces/external/IAaveOracle.sol";
 import "../registries/AaveV3Registry.sol";
 import "../libraries/ActionLib.sol";
 
@@ -75,6 +77,9 @@ contract AaveV3RepayAction is IAction {
         uint256 actual;
         if (mode == ActionLib.AmountMode.MAX_AVAILABLE) {
             actual = _repayMax(pool, p.asset);
+        } else if (mode == ActionLib.AmountMode.TARGET_HF) {
+            uint256 amount = _targetHfRepay(pool, p.asset, p.targetHealthFactor);
+            if (amount > 0) actual = _repay(pool, p.asset, amount, amount);
         } else {
             uint256 amount;
             if (mode == ActionLib.AmountMode.FIXED) {
@@ -128,5 +133,37 @@ contract AaveV3RepayAction is IAction {
         address debtToken = pool.getReserveData(asset).variableDebtTokenAddress;
         if (debtToken == address(0)) return 0;
         return IERC20(debtToken).balanceOf(address(this));
+    }
+
+    /// Repay to RAISE the health factor to `targetHF`. No-op when there is no
+    /// debt or the current HF is already ≥ target (wrong direction). Capped at
+    /// the vault's token balance (best-effort).
+    function _targetHfRepay(
+        IAaveV3Pool pool,
+        address asset,
+        uint256 targetHF
+    ) private view returns (uint256) {
+        ActionLib.requireValidTargetHF(targetHF);
+        (uint256 c, uint256 d, , uint256 lt, , ) = pool.getUserAccountData(address(this));
+        if (d == 0) return 0; // nothing to repay
+
+        uint256 targetDebt = ActionLib.targetDebtBase(
+            ActionLib.normalizeBase(c),
+            lt,
+            targetHF
+        );
+        uint256 curDebt = ActionLib.normalizeBase(d);
+        if (targetDebt >= curDebt) return 0; // already ≥ target HF
+        uint256 reduceBase = curDebt - targetDebt;
+        uint256 price = ActionLib.normalizeBase(
+            IAaveOracle(registry.priceOracle()).getAssetPrice(asset)
+        );
+        uint256 tokens = ActionLib.baseToToken(
+            reduceBase,
+            price,
+            IERC20Metadata(asset).decimals()
+        );
+        uint256 balance = IERC20(asset).balanceOf(address(this));
+        return tokens < balance ? tokens : balance; // best-effort cap
     }
 }

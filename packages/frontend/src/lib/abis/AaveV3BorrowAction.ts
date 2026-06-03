@@ -13,6 +13,17 @@ export const AaveV3BorrowActionAbi = [
   {
     "inputs": [
       {
+        "internalType": "uint256",
+        "name": "target",
+        "type": "uint256"
+      }
+    ],
+    "name": "InvalidTargetHealthFactor",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "uint32",
         "name": "slot",
         "type": "uint32"

@@ -5,6 +5,7 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "../interfaces/external/IAaveV3Pool.sol";
 import "../interfaces/external/IPoolAddressesProvider.sol";
+import "../interfaces/external/IAaveOracle.sol";
 
 /// @dev Mintable ERC-20 standing in for an Aave aToken. Test-only.
 contract MockAToken is ERC20 {
@@ -25,10 +26,50 @@ contract MockAToken is ERC20 {
  *      resolves the registered aToken. Other Pool methods are interface stubs.
  *      Test-only.
  */
+/// @dev Aave price oracle stand-in. `getAssetPrice` returns the configured
+///      8-decimal USD price. Test-only.
+contract MockAaveOracle is IAaveOracle {
+    mapping(address => uint256) public priceOf;
+
+    function setPrice(address asset, uint256 price8) external {
+        priceOf[asset] = price8;
+    }
+
+    function getAssetPrice(address asset) external view override returns (uint256) {
+        return priceOf[asset];
+    }
+}
+
 contract MockAaveV3Pool is IAaveV3Pool {
     mapping(address => address) public aTokenOf;
     mapping(address => address) public debtTokenOf;
     mapping(address => mapping(address => uint256)) public debtOf;
+
+    // Configurable account data for the oracle-bound mode tests (8-dec base).
+    struct Account {
+        uint256 totalCollateralBase;
+        uint256 totalDebtBase;
+        uint256 availableBorrowsBase;
+        uint256 liquidationThresholdBps;
+        bool set;
+    }
+    mapping(address => Account) public accountData;
+
+    function setUserAccountData(
+        address user,
+        uint256 totalCollateralBase,
+        uint256 totalDebtBase,
+        uint256 availableBorrowsBase,
+        uint256 liquidationThresholdBps
+    ) external {
+        accountData[user] = Account(
+            totalCollateralBase,
+            totalDebtBase,
+            availableBorrowsBase,
+            liquidationThresholdBps,
+            true
+        );
+    }
 
     function setAToken(address asset, address aToken) external {
         aTokenOf[asset] = aToken;
@@ -103,14 +144,23 @@ contract MockAaveV3Pool is IAaveV3Pool {
     }
 
     function getUserAccountData(
-        address
+        address user
     )
         external
-        pure
+        view
         override
         returns (uint256, uint256, uint256, uint256, uint256, uint256)
     {
-        return (0, 0, 0, 0, 0, 0);
+        Account memory a = accountData[user];
+        // healthFactor (last) left 0 — the actions derive HF from the inputs.
+        return (
+            a.totalCollateralBase,
+            a.totalDebtBase,
+            a.availableBorrowsBase,
+            a.liquidationThresholdBps,
+            0,
+            0
+        );
     }
 
     function getReserveData(

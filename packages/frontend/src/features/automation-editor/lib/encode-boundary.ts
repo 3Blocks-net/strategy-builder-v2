@@ -77,6 +77,12 @@ function mapFieldToRaw(
     return value;
   }
 
+  if (widget === 'health-factor') {
+    // Friendly human HF (e.g. "1.5") → wad (1.5e18). Unused/"0" → "0".
+    const s = value === undefined || value === null || value === '' ? '0' : String(value);
+    return toBaseUnits(s, 18);
+  }
+
   if (widget === 'token-amount') {
     // Zero-toggle on ⇒ the contract's "0 means special" path (full balance /
     // fill-to-target). The friendly boolean is friendly-only and gets stripped.

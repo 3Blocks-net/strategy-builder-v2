@@ -336,3 +336,35 @@ describe('mapParamsToRaw — Aave Supply (aave-amount-mode)', () => {
     expect(raw.amountFromSlot).toBe('swapOutput');
   });
 });
+
+describe('mapParamsToRaw — health-factor (TARGET_HF)', () => {
+  const schema: StepSchema = {
+    paramSchema: {
+      properties: {
+        asset: { type: 'string', 'x-ui-widget': 'token-selector', 'x-ui-token-source': 'aave' },
+        mode: { type: 'integer', 'x-ui-widget': 'aave-amount-mode' },
+        targetHealthFactor: { type: 'string', 'x-ui-widget': 'health-factor' },
+      },
+    },
+    abiFragment: {
+      type: 'tuple',
+      components: [
+        { name: 'asset', type: 'address' },
+        { name: 'mode', type: 'uint8' },
+        { name: 'targetHealthFactor', type: 'uint256' },
+      ],
+    },
+  };
+  const USDT = '0x55d398326f99059fF775485246999027B3197955';
+
+  it('maps a friendly target HF 1.5 → 1.5e18 wad', () => {
+    const raw = mapParamsToRaw({ asset: USDT, mode: 3, targetHealthFactor: '1.5' }, schema);
+    expect(raw.targetHealthFactor).toBe('1500000000000000000');
+    expect(raw.mode).toBe(3);
+  });
+
+  it('maps an unused "0" target HF → "0"', () => {
+    const raw = mapParamsToRaw({ asset: USDT, mode: 0, targetHealthFactor: '0' }, schema);
+    expect(raw.targetHealthFactor).toBe('0');
+  });
+});

@@ -2,5 +2,6 @@
 /* tslint:disable */
 /* eslint-disable */
 export { MockAToken__factory } from './MockAToken__factory.js';
+export { MockAaveOracle__factory } from './MockAaveOracle__factory.js';
 export { MockAaveV3Pool__factory } from './MockAaveV3Pool__factory.js';
 export { MockPoolAddressesProvider__factory } from './MockPoolAddressesProvider__factory.js';

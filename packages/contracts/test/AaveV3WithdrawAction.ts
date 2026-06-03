@@ -168,17 +168,17 @@ describe("AaveV3WithdrawAction", function () {
     );
   });
 
-  it("reverts on the unsupported TARGET_HF mode (this slice)", async function () {
-    const { vault, asset, action } = await fixture();
+  it("TARGET_HF no-ops when there is no debt — nothing withdrawn, step proceeds", async function () {
+    const { vault, asset, aToken, action } = await fixture();
     await vault.createOwnerAutomation([
       actionStep(
         await action.getAddress(),
         encodeWithdrawParams(await asset.getAddress(), Mode.TARGET_HF, 0n, NO_SLOT, ethers.parseEther("1.5")),
       ),
     ]);
-    await expect(vault.executeAutomation(0)).to.be.revertedWithCustomError(
-      vault,
-      "ActionExecutionFailed",
-    );
+    await vault.executeAutomation(0);
+    // Position unchanged.
+    expect(await aToken.balanceOf(await vault.getAddress())).to.equal(SUPPLIED);
+    expect(await asset.balanceOf(await vault.getAddress())).to.equal(0n);
   });
 });

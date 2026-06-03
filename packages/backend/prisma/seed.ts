@@ -402,6 +402,7 @@ async function main() {
             'x-ui-amount-token-field': 'asset',
             'x-ui-slot-field': 'amountFromSlot',
             'x-ui-target-hf-field': 'targetHealthFactor',
+            'x-ui-modes': [0, 1, 2, 3],
             default: 0,
           },
           amount: {
@@ -429,6 +430,7 @@ async function main() {
           targetHealthFactor: {
             type: 'string',
             title: 'Target Health Factor',
+            'x-ui-widget': 'health-factor',
             description:
               'Reserved for the TARGET_HF mode (not yet available). Stored in 1e18 units.',
             'x-ui-hidden': true,
@@ -513,6 +515,7 @@ async function main() {
           targetHealthFactor: {
             type: 'string',
             title: 'Target Health Factor',
+            'x-ui-widget': 'health-factor',
             description:
               'Reserved for the TARGET_HF mode (not yet available). Stored in 1e18 units.',
             'x-ui-hidden': true,
@@ -569,9 +572,8 @@ async function main() {
             'x-ui-amount-field': 'amount',
             'x-ui-amount-token-field': 'asset',
             'x-ui-slot-field': 'amountFromSlot',
-            // Simple modes only this slice — MAX_AVAILABLE / TARGET_HF are
-            // oracle-bound (HF engine slice).
-            'x-ui-modes': [0, 1],
+            'x-ui-target-hf-field': 'targetHealthFactor',
+            'x-ui-modes': [0, 1, 2, 3],
             default: 0,
           },
           amount: {
@@ -596,6 +598,7 @@ async function main() {
           targetHealthFactor: {
             type: 'string',
             title: 'Target Health Factor',
+            'x-ui-widget': 'health-factor',
             description: 'Reserved for the TARGET_HF mode (not yet available). 1e18 units.',
             'x-ui-hidden': true,
             default: '0',
@@ -651,8 +654,8 @@ async function main() {
             'x-ui-amount-field': 'amount',
             'x-ui-amount-token-field': 'asset',
             'x-ui-slot-field': 'amountFromSlot',
-            // FIXED / FROM_SLOT / MAX_AVAILABLE (full debt). TARGET_HF deferred.
-            'x-ui-modes': [0, 1, 2],
+            'x-ui-target-hf-field': 'targetHealthFactor',
+            'x-ui-modes': [0, 1, 2, 3],
             'x-ui-max-label': 'Repay full debt',
             'x-ui-max-note':
               'Repays as much of your loan as your balance allows (capped at the outstanding debt).',
@@ -680,6 +683,7 @@ async function main() {
           targetHealthFactor: {
             type: 'string',
             title: 'Target Health Factor',
+            'x-ui-widget': 'health-factor',
             description: 'Reserved for the TARGET_HF mode (not yet available). 1e18 units.',
             'x-ui-hidden': true,
             default: '0',

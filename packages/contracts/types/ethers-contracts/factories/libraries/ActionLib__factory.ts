@@ -11,6 +11,17 @@ import type { NonPayableOverrides } from "../../common.js"
   {
     "inputs": [
       {
+        "internalType": "uint256",
+        "name": "target",
+        "type": "uint256"
+      }
+    ],
+    "name": "InvalidTargetHealthFactor",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "uint32",
         "name": "slot",
         "type": "uint32"
@@ -21,7 +32,7 @@ import type { NonPayableOverrides } from "../../common.js"
   }
 ] as const;
 
-  const _bytecode = "0x608060405234601d57600e6021565b603e602c823930815050603e90f35b6027565b60405190565b5f80fdfe60806040525f80fdfea26469706673582212207409af09ee6620c0609cc54c8d751a179c4a79bd5bb9241c1a9bee3b67ea382b64736f6c634300081c0033";
+  const _bytecode = "0x6080806040523460175760399081601c823930815050f35b5f80fdfe5f80fdfea264697066735822122052859b1c500d260592a7db5f90bd24acb5a8b97fdf9db8f59442cfe82664a93164736f6c634300081c0033";
 
   
       type ActionLibConstructorParams = [signer?: Signer] | ConstructorParameters<typeof ContractFactory>;

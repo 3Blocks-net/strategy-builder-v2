@@ -6,19 +6,39 @@ import type { TypedContractEvent, TypedDeferredTopicFilter, TypedEventLog, Typed
   
 
   export interface ActionLibHarnessInterface extends Interface {
-    getFunction(nameOrSignature: "NO_SLOT" | "fullBalance" | "readUint256Slot" | "singleSlotDiff"): FunctionFragment;
+    getFunction(nameOrSignature: "HAIRCUT_BPS" | "MIN_TARGET_HF" | "NO_SLOT" | "applyHaircut" | "baseToToken" | "fullBalance" | "maxSafeWithdrawBase" | "normalizeBase" | "readUint256Slot" | "requireValidTargetHF" | "singleSlotDiff" | "targetCollateralBase" | "targetDebtBase" | "tokenToBase"): FunctionFragment;
 
     
 
-    encodeFunctionData(functionFragment: 'NO_SLOT', values?: undefined): string;
+    encodeFunctionData(functionFragment: 'HAIRCUT_BPS', values?: undefined): string;
+encodeFunctionData(functionFragment: 'MIN_TARGET_HF', values?: undefined): string;
+encodeFunctionData(functionFragment: 'NO_SLOT', values?: undefined): string;
+encodeFunctionData(functionFragment: 'applyHaircut', values: [BigNumberish]): string;
+encodeFunctionData(functionFragment: 'baseToToken', values: [BigNumberish, BigNumberish, BigNumberish]): string;
 encodeFunctionData(functionFragment: 'fullBalance', values: [AddressLike]): string;
+encodeFunctionData(functionFragment: 'maxSafeWithdrawBase', values: [BigNumberish, BigNumberish, BigNumberish]): string;
+encodeFunctionData(functionFragment: 'normalizeBase', values: [BigNumberish]): string;
 encodeFunctionData(functionFragment: 'readUint256Slot', values: [BytesLike[], BigNumberish]): string;
+encodeFunctionData(functionFragment: 'requireValidTargetHF', values: [BigNumberish]): string;
 encodeFunctionData(functionFragment: 'singleSlotDiff', values: [BigNumberish, BigNumberish]): string;
+encodeFunctionData(functionFragment: 'targetCollateralBase', values: [BigNumberish, BigNumberish, BigNumberish]): string;
+encodeFunctionData(functionFragment: 'targetDebtBase', values: [BigNumberish, BigNumberish, BigNumberish]): string;
+encodeFunctionData(functionFragment: 'tokenToBase', values: [BigNumberish, BigNumberish, BigNumberish]): string;
 
-    decodeFunctionResult(functionFragment: 'NO_SLOT', data: BytesLike): Result;
+    decodeFunctionResult(functionFragment: 'HAIRCUT_BPS', data: BytesLike): Result;
+decodeFunctionResult(functionFragment: 'MIN_TARGET_HF', data: BytesLike): Result;
+decodeFunctionResult(functionFragment: 'NO_SLOT', data: BytesLike): Result;
+decodeFunctionResult(functionFragment: 'applyHaircut', data: BytesLike): Result;
+decodeFunctionResult(functionFragment: 'baseToToken', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'fullBalance', data: BytesLike): Result;
+decodeFunctionResult(functionFragment: 'maxSafeWithdrawBase', data: BytesLike): Result;
+decodeFunctionResult(functionFragment: 'normalizeBase', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'readUint256Slot', data: BytesLike): Result;
+decodeFunctionResult(functionFragment: 'requireValidTargetHF', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'singleSlotDiff', data: BytesLike): Result;
+decodeFunctionResult(functionFragment: 'targetCollateralBase', data: BytesLike): Result;
+decodeFunctionResult(functionFragment: 'targetDebtBase', data: BytesLike): Result;
+decodeFunctionResult(functionFragment: 'tokenToBase', data: BytesLike): Result;
   }
 
   
@@ -57,8 +77,40 @@ decodeFunctionResult(functionFragment: 'singleSlotDiff', data: BytesLike): Resul
 
     
     
+    HAIRCUT_BPS: TypedContractMethod<
+      [],
+      [bigint],
+      'view'
+    >
+    
+
+    
+    MIN_TARGET_HF: TypedContractMethod<
+      [],
+      [bigint],
+      'view'
+    >
+    
+
+    
     NO_SLOT: TypedContractMethod<
       [],
+      [bigint],
+      'view'
+    >
+    
+
+    
+    applyHaircut: TypedContractMethod<
+      [base18: BigNumberish, ],
+      [bigint],
+      'view'
+    >
+    
+
+    
+    baseToToken: TypedContractMethod<
+      [base18: BigNumberish, price: BigNumberish, dec: BigNumberish, ],
       [bigint],
       'view'
     >
@@ -73,9 +125,33 @@ decodeFunctionResult(functionFragment: 'singleSlotDiff', data: BytesLike): Resul
     
 
     
+    maxSafeWithdrawBase: TypedContractMethod<
+      [collateral18: BigNumberish, debt18: BigNumberish, ltBps: BigNumberish, ],
+      [bigint],
+      'view'
+    >
+    
+
+    
+    normalizeBase: TypedContractMethod<
+      [v8: BigNumberish, ],
+      [bigint],
+      'view'
+    >
+    
+
+    
     readUint256Slot: TypedContractMethod<
       [ctx: BytesLike[], slot: BigNumberish, ],
       [bigint],
+      'view'
+    >
+    
+
+    
+    requireValidTargetHF: TypedContractMethod<
+      [targetHF: BigNumberish, ],
+      [void],
       'view'
     >
     
@@ -88,11 +164,55 @@ decodeFunctionResult(functionFragment: 'singleSlotDiff', data: BytesLike): Resul
     >
     
 
+    
+    targetCollateralBase: TypedContractMethod<
+      [debt18: BigNumberish, ltBps: BigNumberish, targetHF: BigNumberish, ],
+      [bigint],
+      'view'
+    >
+    
+
+    
+    targetDebtBase: TypedContractMethod<
+      [collateral18: BigNumberish, ltBps: BigNumberish, targetHF: BigNumberish, ],
+      [bigint],
+      'view'
+    >
+    
+
+    
+    tokenToBase: TypedContractMethod<
+      [amount: BigNumberish, price: BigNumberish, dec: BigNumberish, ],
+      [bigint],
+      'view'
+    >
+    
+
 
     getFunction<T extends ContractMethod = ContractMethod>(key: string | FunctionFragment): T;
 
-    getFunction(nameOrSignature: 'NO_SLOT'): TypedContractMethod<
+    getFunction(nameOrSignature: 'HAIRCUT_BPS'): TypedContractMethod<
       [],
+      [bigint],
+      'view'
+    >;
+getFunction(nameOrSignature: 'MIN_TARGET_HF'): TypedContractMethod<
+      [],
+      [bigint],
+      'view'
+    >;
+getFunction(nameOrSignature: 'NO_SLOT'): TypedContractMethod<
+      [],
+      [bigint],
+      'view'
+    >;
+getFunction(nameOrSignature: 'applyHaircut'): TypedContractMethod<
+      [base18: BigNumberish, ],
+      [bigint],
+      'view'
+    >;
+getFunction(nameOrSignature: 'baseToToken'): TypedContractMethod<
+      [base18: BigNumberish, price: BigNumberish, dec: BigNumberish, ],
       [bigint],
       'view'
     >;
@@ -101,14 +221,44 @@ getFunction(nameOrSignature: 'fullBalance'): TypedContractMethod<
       [bigint],
       'view'
     >;
+getFunction(nameOrSignature: 'maxSafeWithdrawBase'): TypedContractMethod<
+      [collateral18: BigNumberish, debt18: BigNumberish, ltBps: BigNumberish, ],
+      [bigint],
+      'view'
+    >;
+getFunction(nameOrSignature: 'normalizeBase'): TypedContractMethod<
+      [v8: BigNumberish, ],
+      [bigint],
+      'view'
+    >;
 getFunction(nameOrSignature: 'readUint256Slot'): TypedContractMethod<
       [ctx: BytesLike[], slot: BigNumberish, ],
       [bigint],
       'view'
     >;
+getFunction(nameOrSignature: 'requireValidTargetHF'): TypedContractMethod<
+      [targetHF: BigNumberish, ],
+      [void],
+      'view'
+    >;
 getFunction(nameOrSignature: 'singleSlotDiff'): TypedContractMethod<
       [slot: BigNumberish, value: BigNumberish, ],
       [[bigint[], string[]] & {slots: bigint[], values: string[] }],
+      'view'
+    >;
+getFunction(nameOrSignature: 'targetCollateralBase'): TypedContractMethod<
+      [debt18: BigNumberish, ltBps: BigNumberish, targetHF: BigNumberish, ],
+      [bigint],
+      'view'
+    >;
+getFunction(nameOrSignature: 'targetDebtBase'): TypedContractMethod<
+      [collateral18: BigNumberish, ltBps: BigNumberish, targetHF: BigNumberish, ],
+      [bigint],
+      'view'
+    >;
+getFunction(nameOrSignature: 'tokenToBase'): TypedContractMethod<
+      [amount: BigNumberish, price: BigNumberish, dec: BigNumberish, ],
+      [bigint],
       'view'
     >;
 

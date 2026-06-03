@@ -13,6 +13,17 @@ export const AaveV3SupplyActionAbi = [
   {
     "inputs": [
       {
+        "internalType": "uint256",
+        "name": "target",
+        "type": "uint256"
+      }
+    ],
+    "name": "InvalidTargetHealthFactor",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "address",
         "name": "token",
         "type": "address"

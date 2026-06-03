@@ -30,4 +30,66 @@ contract ActionLibHarness {
     ) external pure returns (uint32[] memory slots, bytes[] memory values) {
         return ActionLib.singleSlotDiff(slot, value);
     }
+
+    // ── Aave HF/oracle engine (hard-fixture surface) ──────────────────────
+
+    function MIN_TARGET_HF() external pure returns (uint256) {
+        return ActionLib.MIN_TARGET_HF;
+    }
+
+    function HAIRCUT_BPS() external pure returns (uint256) {
+        return ActionLib.HAIRCUT_BPS;
+    }
+
+    function normalizeBase(uint256 v8) external pure returns (uint256) {
+        return ActionLib.normalizeBase(v8);
+    }
+
+    function baseToToken(
+        uint256 base18,
+        uint256 price,
+        uint8 dec
+    ) external pure returns (uint256) {
+        return ActionLib.baseToToken(base18, price, dec);
+    }
+
+    function tokenToBase(
+        uint256 amount,
+        uint256 price,
+        uint8 dec
+    ) external pure returns (uint256) {
+        return ActionLib.tokenToBase(amount, price, dec);
+    }
+
+    function applyHaircut(uint256 base18) external pure returns (uint256) {
+        return ActionLib.applyHaircut(base18);
+    }
+
+    function targetDebtBase(
+        uint256 collateral18,
+        uint256 ltBps,
+        uint256 targetHF
+    ) external pure returns (uint256) {
+        return ActionLib.targetDebtBase(collateral18, ltBps, targetHF);
+    }
+
+    function targetCollateralBase(
+        uint256 debt18,
+        uint256 ltBps,
+        uint256 targetHF
+    ) external pure returns (uint256) {
+        return ActionLib.targetCollateralBase(debt18, ltBps, targetHF);
+    }
+
+    function maxSafeWithdrawBase(
+        uint256 collateral18,
+        uint256 debt18,
+        uint256 ltBps
+    ) external pure returns (uint256) {
+        return ActionLib.maxSafeWithdrawBase(collateral18, debt18, ltBps);
+    }
+
+    function requireValidTargetHF(uint256 targetHF) external pure {
+        ActionLib.requireValidTargetHF(targetHF);
+    }
 }

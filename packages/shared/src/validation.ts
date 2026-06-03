@@ -186,6 +186,45 @@ function validateTokenSelector(
   return [];
 }
 
+const TARGET_HF_MODE = 3;
+const MIN_TARGET_HF_WAD = 1_050_000_000_000_000_000n; // 1.05e18
+const MIN_TARGET_HF = 1.05;
+
+/**
+ * `aave-amount-mode` cross-field rule: when TARGET_HF (mode 3) is selected, the
+ * sibling target-health-factor field (named by `x-ui-target-hf-field`) must be
+ * above the 1.05 floor. Mirrors the on-chain `requireValidTargetHF` guard so a
+ * bad target is caught at /encode (raw, in 1e18 wad) and in the editor
+ * (friendly, a human number like 1.5). Other modes don't use the field.
+ */
+function validateAaveAmountMode(
+  schema: FieldSchema,
+  value: unknown,
+  mode: ValidationMode,
+  params: Record<string, unknown>,
+): ParamValidationError[] {
+  if (Number(value) !== TARGET_HF_MODE) return [];
+  const hfField = schema['x-ui-target-hf-field'] as string | undefined;
+  if (!hfField) return [];
+  const hf = params[hfField];
+  const msg = `Target health factor must be greater than ${MIN_TARGET_HF}`;
+
+  if (mode === 'raw') {
+    let n: bigint;
+    try {
+      n = BigInt(String(hf));
+    } catch {
+      return [{ field: hfField, message: msg }];
+    }
+    return n <= MIN_TARGET_HF_WAD ? [{ field: hfField, message: msg }] : [];
+  }
+
+  const num = Number(hf);
+  return !Number.isFinite(num) || num <= MIN_TARGET_HF
+    ? [{ field: hfField, message: msg }]
+    : [];
+}
+
 function validateDuration(
   field: string,
   schema: FieldSchema,
@@ -252,7 +291,11 @@ export function validateParams(
     // empty is an error; toggle on + empty is fine).
     if (isEmpty(value) && !zeroToggled) continue;
 
-    if (widget === 'duration') {
+    if (widget === 'aave-amount-mode') {
+      errors.push(
+        ...validateAaveAmountMode(fieldSchema, value, options.mode, params),
+      );
+    } else if (widget === 'duration') {
       errors.push(...validateDuration(field, fieldSchema, value, options.mode));
     } else if (widget === 'token-selector') {
       errors.push(

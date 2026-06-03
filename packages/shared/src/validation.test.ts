@@ -333,3 +333,51 @@ describe('validateParams — token-selector (raw-mode zero-token guard)', () => 
     expect(errors).toEqual([]);
   });
 });
+
+describe('validateParams — aave-amount-mode TARGET_HF guard', () => {
+  const schema: ParamSchema = {
+    type: 'object',
+    properties: {
+      mode: {
+        type: 'integer',
+        title: 'Amount',
+        'x-ui-widget': 'aave-amount-mode',
+        'x-ui-target-hf-field': 'targetHealthFactor',
+      },
+      targetHealthFactor: { type: 'string', 'x-ui-hidden': true },
+    },
+    required: ['mode'],
+  };
+
+  it('ignores the target HF for non-TARGET_HF modes', () => {
+    expect(validateParams(schema, { mode: 0, targetHealthFactor: '0' }, { mode: 'raw' })).toEqual([]);
+    expect(validateParams(schema, { mode: 2, targetHealthFactor: '0' }, { mode: 'friendly' })).toEqual([]);
+  });
+
+  it('rejects a raw target ≤ 1.05e18 in TARGET_HF mode', () => {
+    const errors = validateParams(
+      schema,
+      { mode: 3, targetHealthFactor: '1050000000000000000' },
+      { mode: 'raw' },
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toMatchObject({ field: 'targetHealthFactor' });
+    expect(errors[0].message).toMatch(/greater than 1.05/);
+  });
+
+  it('accepts a raw target > 1.05e18 in TARGET_HF mode', () => {
+    expect(
+      validateParams(schema, { mode: 3, targetHealthFactor: '1500000000000000000' }, { mode: 'raw' }),
+    ).toEqual([]);
+  });
+
+  it('rejects a friendly target ≤ 1.05 in TARGET_HF mode', () => {
+    const errors = validateParams(schema, { mode: 3, targetHealthFactor: '1.05' }, { mode: 'friendly' });
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toMatch(/greater than 1.05/);
+  });
+
+  it('accepts a friendly target > 1.05 in TARGET_HF mode', () => {
+    expect(validateParams(schema, { mode: 3, targetHealthFactor: '1.5' }, { mode: 'friendly' })).toEqual([]);
+  });
+});
