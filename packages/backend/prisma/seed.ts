@@ -27,6 +27,9 @@ function loadContractAddresses(): Record<string, string> {
       AaveV3WithdrawAction:
         data.AaveV3WithdrawAction ??
         '0x0000000000000000000000000000000000000000',
+      AaveV3BorrowAction:
+        data.AaveV3BorrowAction ??
+        '0x0000000000000000000000000000000000000000',
     };
   }
 
@@ -51,6 +54,9 @@ function loadContractAddresses(): Record<string, string> {
       '0x0000000000000000000000000000000000000000',
     AaveV3WithdrawAction:
       process.env.AAVE_V3_WITHDRAW_ACTION_ADDRESS ??
+      '0x0000000000000000000000000000000000000000',
+    AaveV3BorrowAction:
+      process.env.AAVE_V3_BORROW_ACTION_ADDRESS ??
       '0x0000000000000000000000000000000000000000',
   };
 }
@@ -511,6 +517,88 @@ async function main() {
             title: 'Actual Withdrawn Amount to Context Slot',
             description:
               'Write the actual withdrawn amount (which differs from a "withdraw everything" request) to a context slot for later steps. Max uint32 = skip.',
+            'x-ui-widget': 'context-slot',
+            'x-ui-slot-access': 'write',
+            default: 4294967295,
+          },
+        },
+        required: ['asset', 'mode'],
+      },
+    },
+    {
+      name: 'Aave V3 Borrow',
+      description:
+        'Borrows a token from Aave V3 against the vault’s collateral (always variable rate). The borrowed amount is written to a context slot so it can feed a later swap or transfer.',
+      category: StepCategory.ACTION,
+      contractAddress: addresses.AaveV3BorrowAction,
+      selector: EXECUTE_SELECTOR,
+      afterExecutionSelector: null,
+      abiFragment: {
+        type: 'tuple',
+        components: [
+          { name: 'asset', type: 'address' },
+          { name: 'mode', type: 'uint8' },
+          { name: 'amount', type: 'uint256' },
+          { name: 'amountFromSlot', type: 'uint32' },
+          { name: 'targetHealthFactor', type: 'uint256' },
+          { name: 'amountToSlot', type: 'uint32' },
+        ],
+      },
+      paramSchema: {
+        type: 'object',
+        properties: {
+          asset: {
+            type: 'string',
+            title: 'Token',
+            description: 'The Aave V3 reserve to borrow',
+            'x-ui-widget': 'token-selector',
+            'x-ui-token-source': 'aave',
+          },
+          mode: {
+            type: 'integer',
+            title: 'Amount',
+            description:
+              'How the borrowed amount is determined: a fixed value or a value from a previous step.',
+            'x-ui-widget': 'aave-amount-mode',
+            'x-ui-amount-field': 'amount',
+            'x-ui-amount-token-field': 'asset',
+            'x-ui-slot-field': 'amountFromSlot',
+            // Simple modes only this slice — MAX_AVAILABLE / TARGET_HF are
+            // oracle-bound (HF engine slice).
+            'x-ui-modes': [0, 1],
+            default: 0,
+          },
+          amount: {
+            type: 'string',
+            title: 'Amount',
+            description: 'Amount to borrow in human units (e.g. 1.5). Used when mode is FIXED.',
+            'x-ui-widget': 'token-amount',
+            'x-ui-amount-token-field': 'asset',
+            'x-ui-hidden': true,
+            default: '0',
+          },
+          amountFromSlot: {
+            type: 'integer',
+            title: 'Amount from Context Slot',
+            description:
+              'Read the amount from a context slot. Used when mode is FROM_SLOT. Max uint32 = unset.',
+            'x-ui-widget': 'context-slot',
+            'x-ui-slot-access': 'read',
+            'x-ui-hidden': true,
+            default: 4294967295,
+          },
+          targetHealthFactor: {
+            type: 'string',
+            title: 'Target Health Factor',
+            description: 'Reserved for the TARGET_HF mode (not yet available). 1e18 units.',
+            'x-ui-hidden': true,
+            default: '0',
+          },
+          amountToSlot: {
+            type: 'integer',
+            title: 'Borrowed Amount to Context Slot',
+            description:
+              'Write the borrowed amount to a context slot for later steps (e.g. a swap). Max uint32 = skip.',
             'x-ui-widget': 'context-slot',
             'x-ui-slot-access': 'write',
             default: 4294967295,

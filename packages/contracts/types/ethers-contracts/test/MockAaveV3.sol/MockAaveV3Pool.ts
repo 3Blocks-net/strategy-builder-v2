@@ -18,12 +18,13 @@ export declare namespace IAaveV3Pool {
     }
 
   export interface MockAaveV3PoolInterface extends Interface {
-    getFunction(nameOrSignature: "aTokenOf" | "borrow" | "getReserveData" | "getUserAccountData" | "repay" | "setAToken" | "supply" | "withdraw"): FunctionFragment;
+    getFunction(nameOrSignature: "aTokenOf" | "borrow" | "debtOf" | "getReserveData" | "getUserAccountData" | "repay" | "setAToken" | "supply" | "withdraw"): FunctionFragment;
 
     
 
     encodeFunctionData(functionFragment: 'aTokenOf', values: [AddressLike]): string;
 encodeFunctionData(functionFragment: 'borrow', values: [AddressLike, BigNumberish, BigNumberish, BigNumberish, AddressLike]): string;
+encodeFunctionData(functionFragment: 'debtOf', values: [AddressLike, AddressLike]): string;
 encodeFunctionData(functionFragment: 'getReserveData', values: [AddressLike]): string;
 encodeFunctionData(functionFragment: 'getUserAccountData', values: [AddressLike]): string;
 encodeFunctionData(functionFragment: 'repay', values: [AddressLike, BigNumberish, BigNumberish, AddressLike]): string;
@@ -33,6 +34,7 @@ encodeFunctionData(functionFragment: 'withdraw', values: [AddressLike, BigNumber
 
     decodeFunctionResult(functionFragment: 'aTokenOf', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'borrow', data: BytesLike): Result;
+decodeFunctionResult(functionFragment: 'debtOf', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'getReserveData', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'getUserAccountData', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'repay', data: BytesLike): Result;
@@ -86,8 +88,16 @@ decodeFunctionResult(functionFragment: 'withdraw', data: BytesLike): Result;
 
     
     borrow: TypedContractMethod<
-      [arg0: AddressLike, arg1: BigNumberish, arg2: BigNumberish, arg3: BigNumberish, arg4: AddressLike, ],
+      [asset: AddressLike, amount: BigNumberish, arg2: BigNumberish, arg3: BigNumberish, onBehalfOf: AddressLike, ],
       [void],
+      'nonpayable'
+    >
+    
+
+    
+    debtOf: TypedContractMethod<
+      [arg0: AddressLike, arg1: AddressLike, ],
+      [bigint],
       'view'
     >
     
@@ -149,8 +159,13 @@ decodeFunctionResult(functionFragment: 'withdraw', data: BytesLike): Result;
       'view'
     >;
 getFunction(nameOrSignature: 'borrow'): TypedContractMethod<
-      [arg0: AddressLike, arg1: BigNumberish, arg2: BigNumberish, arg3: BigNumberish, arg4: AddressLike, ],
+      [asset: AddressLike, amount: BigNumberish, arg2: BigNumberish, arg3: BigNumberish, onBehalfOf: AddressLike, ],
       [void],
+      'nonpayable'
+    >;
+getFunction(nameOrSignature: 'debtOf'): TypedContractMethod<
+      [arg0: AddressLike, arg1: AddressLike, ],
+      [bigint],
       'view'
     >;
 getFunction(nameOrSignature: 'getReserveData'): TypedContractMethod<

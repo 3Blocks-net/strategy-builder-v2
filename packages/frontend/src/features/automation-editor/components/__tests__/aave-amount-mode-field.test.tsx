@@ -129,4 +129,39 @@ describe('AaveAmountModeField widget', () => {
     expect(screen.getByRole('option', { name: 'Withdraw everything' })).toBeInTheDocument();
     expect(screen.getByText(/entire supplied balance/i)).toBeInTheDocument();
   });
+
+  it('restricts the offered modes via x-ui-modes (Borrow = FIXED + FROM_SLOT only)', () => {
+    const borrowSchema = {
+      type: 'object' as const,
+      properties: {
+        asset: { type: 'string', title: 'Token', 'x-ui-widget': 'token-selector', 'x-ui-token-source': 'aave' },
+        mode: {
+          type: 'integer',
+          title: 'Amount',
+          'x-ui-widget': 'aave-amount-mode',
+          'x-ui-modes': [0, 1],
+        },
+      },
+      required: ['asset', 'mode'],
+    };
+    render(
+      <DynamicForm
+        schema={borrowSchema as any}
+        values={{ asset: USDT, mode: 0 }}
+        onChange={() => {}}
+        tokens={[]}
+        tokenSources={{ aave: [{ address: USDT, symbol: 'USDT', decimals: 18 }] }}
+        contextVariables={[]}
+        onCreateVariable={() => {}}
+        vaultAddress="0x0000000000000000000000000000000000000000"
+        nodeId="b1"
+      />,
+    );
+    expect(screen.getByRole('option', { name: 'Fixed amount' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('option', { name: /From a previous step/i }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: /Full vault balance/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: /Target health factor/i })).not.toBeInTheDocument();
+  });
 });

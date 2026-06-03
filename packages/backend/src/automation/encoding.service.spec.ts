@@ -184,6 +184,36 @@ const mockStepTypes = [
       required: ['asset', 'mode'],
     },
   },
+  {
+    id: 'st-aave-borrow',
+    name: 'Aave V3 Borrow',
+    category: 'ACTION',
+    contractAddress: '0x2222222222222222222222222222222222222222',
+    selector: EXECUTE_SELECTOR,
+    abiFragment: {
+      type: 'tuple',
+      components: [
+        { name: 'asset', type: 'address' },
+        { name: 'mode', type: 'uint8' },
+        { name: 'amount', type: 'uint256' },
+        { name: 'amountFromSlot', type: 'uint32' },
+        { name: 'targetHealthFactor', type: 'uint256' },
+        { name: 'amountToSlot', type: 'uint32' },
+      ],
+    },
+    paramSchema: {
+      type: 'object',
+      properties: {
+        asset: { type: 'string', 'x-ui-widget': 'token-selector', 'x-ui-token-source': 'aave' },
+        mode: { type: 'integer', 'x-ui-widget': 'aave-amount-mode', 'x-ui-modes': [0, 1], default: 0 },
+        amount: { type: 'string', 'x-ui-widget': 'token-amount', 'x-ui-amount-token-field': 'asset', 'x-ui-hidden': true, default: '0' },
+        amountFromSlot: { type: 'integer', 'x-ui-widget': 'context-slot', 'x-ui-slot-access': 'read', 'x-ui-hidden': true, default: 4294967295 },
+        targetHealthFactor: { type: 'string', 'x-ui-hidden': true, default: '0' },
+        amountToSlot: { type: 'integer', 'x-ui-widget': 'context-slot', 'x-ui-slot-access': 'write', default: 4294967295 },
+      },
+      required: ['asset', 'mode'],
+    },
+  },
 ];
 
 describe('EncodingService', () => {
@@ -299,6 +329,32 @@ describe('EncodingService', () => {
       expect(decoded[1]).toBe(1n); // mode
       expect(decoded[3]).toBe(2n); // amountFromSlot resolved swapOutput → 2
       expect(decoded[5]).toBe(3n); // amountToSlot resolved withdrawn → 3
+    });
+
+    it('encodes Aave Borrow FIXED params with variable-rate tuple shape', () => {
+      const asset = '0x55d398326f99059fF775485246999027B3197955';
+      const abiFragment = mockStepTypes.find((s) => s.id === 'st-aave-borrow')!
+        .abiFragment;
+      const result = service.encodeParams(
+        {
+          asset,
+          mode: 0, // FIXED
+          amount: '5000000000000000000',
+          amountFromSlot: 4294967295,
+          targetHealthFactor: '0',
+          amountToSlot: 'borrowed',
+        },
+        abiFragment as any,
+        { borrowed: 1 },
+      );
+      const decoded = abiCoder.decode(
+        ['address', 'uint8', 'uint256', 'uint32', 'uint256', 'uint32'],
+        result,
+      );
+      expect(decoded[0]).toBe(asset);
+      expect(decoded[1]).toBe(0n); // FIXED
+      expect(decoded[2]).toBe(5000000000000000000n);
+      expect(decoded[5]).toBe(1n); // amountToSlot resolved borrowed → 1
     });
 
     it('resolves context slot names to indices', () => {

@@ -34,6 +34,9 @@ interface FieldSchema {
   // (Supply = "Full vault balance"; Withdraw = "Withdraw everything").
   'x-ui-max-label'?: string;
   'x-ui-max-note'?: string;
+  // aave-amount-mode: restrict the offered modes (e.g. Borrow = [0, 1] — no
+  // oracle-bound MAX_AVAILABLE / TARGET_HF yet). Default: all four.
+  'x-ui-modes'?: number[];
 }
 
 export type TokenList = { address: string; symbol: string; decimals?: number }[];
@@ -512,6 +515,10 @@ function AaveAmountModeField({
   const slotField = schema['x-ui-slot-field'] ?? 'amountFromSlot';
   const maxLabel = schema['x-ui-max-label'];
   const maxNote = schema['x-ui-max-note'] ?? DEFAULT_MAX_NOTE;
+  const allowedModes = schema['x-ui-modes'];
+  const modeOptions = allowedModes
+    ? AAVE_AMOUNT_MODES.filter((m) => allowedModes.includes(m.value))
+    : AAVE_AMOUNT_MODES;
 
   const mergedTokens: TokenList = [tokens, ...Object.values(tokenSources ?? {})].flat();
 
@@ -523,7 +530,7 @@ function AaveAmountModeField({
         value={String(mode)}
         onChange={(e) => onChange(fieldName, Number(e.target.value))}
       >
-        {AAVE_AMOUNT_MODES.map((m) => (
+        {modeOptions.map((m) => (
           <option key={m.value} value={m.value} disabled={m.disabled}>
             {m.value === 2 && maxLabel ? maxLabel : m.label}
           </option>

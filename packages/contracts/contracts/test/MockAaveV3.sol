@@ -27,6 +27,7 @@ contract MockAToken is ERC20 {
  */
 contract MockAaveV3Pool is IAaveV3Pool {
     mapping(address => address) public aTokenOf;
+    mapping(address => mapping(address => uint256)) public debtOf;
 
     function setAToken(address asset, address aToken) external {
         aTokenOf[asset] = aToken;
@@ -57,13 +58,14 @@ contract MockAaveV3Pool is IAaveV3Pool {
     }
 
     function borrow(
-        address,
-        uint256,
+        address asset,
+        uint256 amount,
         uint256,
         uint16,
-        address
-    ) external pure override {
-        revert("not implemented");
+        address onBehalfOf
+    ) external override {
+        debtOf[asset][onBehalfOf] += amount;
+        IERC20(asset).transfer(onBehalfOf, amount);
     }
 
     function repay(
