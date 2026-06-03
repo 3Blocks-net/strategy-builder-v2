@@ -45,6 +45,9 @@ function loadContractAddresses(): Record<string, string> {
       PancakeSwapV3DecreaseLiquidityAction:
         data.PancakeSwapV3DecreaseLiquidityAction ??
         '0x0000000000000000000000000000000000000000',
+      PancakeSwapV3CollectAction:
+        data.PancakeSwapV3CollectAction ??
+        '0x0000000000000000000000000000000000000000',
     };
   }
 
@@ -87,6 +90,9 @@ function loadContractAddresses(): Record<string, string> {
       '0x0000000000000000000000000000000000000000',
     PancakeSwapV3DecreaseLiquidityAction:
       process.env.PANCAKESWAP_V3_DECREASE_ACTION_ADDRESS ??
+      '0x0000000000000000000000000000000000000000',
+    PancakeSwapV3CollectAction:
+      process.env.PANCAKESWAP_V3_COLLECT_ACTION_ADDRESS ??
       '0x0000000000000000000000000000000000000000',
   };
 }
@@ -1039,6 +1045,33 @@ async function main() {
           },
         },
         required: ['tokenIdFromSlot', 'percent'],
+      },
+    },
+    {
+      name: 'PancakeSwap V3 Collect',
+      description:
+        'Collects accrued fees (and any owed tokens) from an existing PancakeSwap V3 position into the vault. The position token-id comes from a context slot.',
+      category: StepCategory.ACTION,
+      contractAddress: addresses.PancakeSwapV3CollectAction,
+      selector: EXECUTE_SELECTOR,
+      afterExecutionSelector: null,
+      abiFragment: {
+        type: 'tuple',
+        components: [{ name: 'tokenIdFromSlot', type: 'uint32' }],
+      },
+      paramSchema: {
+        type: 'object',
+        properties: {
+          tokenIdFromSlot: {
+            type: 'integer',
+            title: 'Position Token-ID from Context Slot',
+            description: 'Read the position NFT token-id from a context slot (written by a Mint step).',
+            'x-ui-widget': 'context-slot',
+            'x-ui-slot-access': 'read',
+            default: 4294967295,
+          },
+        },
+        required: ['tokenIdFromSlot'],
       },
     },
   ];

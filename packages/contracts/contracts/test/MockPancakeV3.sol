@@ -145,6 +145,14 @@ contract MockNonfungiblePositionManager is ERC721, INonfungiblePositionManager {
         pos.deposited1 += amount1;
     }
 
+    /// Test helper: accrue collectable fees/owed amounts to a position (the
+    /// caller must ensure this contract holds enough of each token to pay out).
+    function accrue(uint256 tokenId, uint128 owed0, uint128 owed1) external {
+        Position storage pos = positionOf[tokenId];
+        pos.owed0 += owed0;
+        pos.owed1 += owed1;
+    }
+
     function decreaseLiquidity(
         DecreaseLiquidityParams calldata p
     ) external payable override returns (uint256 amount0, uint256 amount1) {

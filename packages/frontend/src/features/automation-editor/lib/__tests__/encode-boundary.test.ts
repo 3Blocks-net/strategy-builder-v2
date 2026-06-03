@@ -475,3 +475,19 @@ describe('mapParamsToRaw — LP Increase Liquidity (amounts + full-balance toggl
     expect(raw.tokenIdFromSlot).toBe('lpId'); // resolved to an index backend-side
   });
 });
+
+describe('mapParamsToRaw — LP Collect (token-id from slot)', () => {
+  const schema: StepSchema = {
+    paramSchema: {
+      properties: {
+        tokenIdFromSlot: { type: 'integer', 'x-ui-widget': 'context-slot', 'x-ui-slot-access': 'read' },
+      },
+    },
+    abiFragment: { type: 'tuple', components: [{ name: 'tokenIdFromSlot', type: 'uint32' }] },
+  };
+
+  it('carries the token-id slot variable name through for backend resolution', () => {
+    const raw = mapParamsToRaw({ tokenIdFromSlot: 'lpPosition' }, schema);
+    expect(raw.tokenIdFromSlot).toBe('lpPosition');
+  });
+});

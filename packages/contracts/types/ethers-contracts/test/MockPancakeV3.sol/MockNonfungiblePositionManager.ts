@@ -28,11 +28,12 @@ export declare namespace INonfungiblePositionManager {
     }
 
   export interface MockNonfungiblePositionManagerInterface extends Interface {
-    getFunction(nameOrSignature: "approve" | "balanceOf" | "collect" | "decreaseLiquidity" | "getApproved" | "increaseLiquidity" | "isApprovedForAll" | "mint" | "name" | "nextId" | "ownerOf" | "positionOf" | "positions" | "safeTransferFrom(address,address,uint256)" | "safeTransferFrom(address,address,uint256,bytes)" | "setApprovalForAll" | "supportsInterface" | "symbol" | "tokenURI" | "transferFrom"): FunctionFragment;
+    getFunction(nameOrSignature: "accrue" | "approve" | "balanceOf" | "collect" | "decreaseLiquidity" | "getApproved" | "increaseLiquidity" | "isApprovedForAll" | "mint" | "name" | "nextId" | "ownerOf" | "positionOf" | "positions" | "safeTransferFrom(address,address,uint256)" | "safeTransferFrom(address,address,uint256,bytes)" | "setApprovalForAll" | "supportsInterface" | "symbol" | "tokenURI" | "transferFrom"): FunctionFragment;
 
     getEvent(nameOrSignatureOrTopic: "Approval" | "ApprovalForAll" | "Transfer"): EventFragment;
 
-    encodeFunctionData(functionFragment: 'approve', values: [AddressLike, BigNumberish]): string;
+    encodeFunctionData(functionFragment: 'accrue', values: [BigNumberish, BigNumberish, BigNumberish]): string;
+encodeFunctionData(functionFragment: 'approve', values: [AddressLike, BigNumberish]): string;
 encodeFunctionData(functionFragment: 'balanceOf', values: [AddressLike]): string;
 encodeFunctionData(functionFragment: 'collect', values: [INonfungiblePositionManager.CollectParamsStruct]): string;
 encodeFunctionData(functionFragment: 'decreaseLiquidity', values: [INonfungiblePositionManager.DecreaseLiquidityParamsStruct]): string;
@@ -53,7 +54,8 @@ encodeFunctionData(functionFragment: 'symbol', values?: undefined): string;
 encodeFunctionData(functionFragment: 'tokenURI', values: [BigNumberish]): string;
 encodeFunctionData(functionFragment: 'transferFrom', values: [AddressLike, AddressLike, BigNumberish]): string;
 
-    decodeFunctionResult(functionFragment: 'approve', data: BytesLike): Result;
+    decodeFunctionResult(functionFragment: 'accrue', data: BytesLike): Result;
+decodeFunctionResult(functionFragment: 'approve', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'balanceOf', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'collect', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'decreaseLiquidity', data: BytesLike): Result;
@@ -145,6 +147,14 @@ decodeFunctionResult(functionFragment: 'transferFrom', data: BytesLike): Result;
 
 
     
+    
+    accrue: TypedContractMethod<
+      [tokenId: BigNumberish, owed0: BigNumberish, owed1: BigNumberish, ],
+      [void],
+      'nonpayable'
+    >
+    
+
     
     approve: TypedContractMethod<
       [to: AddressLike, tokenId: BigNumberish, ],
@@ -308,7 +318,12 @@ decodeFunctionResult(functionFragment: 'transferFrom', data: BytesLike): Result;
 
     getFunction<T extends ContractMethod = ContractMethod>(key: string | FunctionFragment): T;
 
-    getFunction(nameOrSignature: 'approve'): TypedContractMethod<
+    getFunction(nameOrSignature: 'accrue'): TypedContractMethod<
+      [tokenId: BigNumberish, owed0: BigNumberish, owed1: BigNumberish, ],
+      [void],
+      'nonpayable'
+    >;
+getFunction(nameOrSignature: 'approve'): TypedContractMethod<
       [to: AddressLike, tokenId: BigNumberish, ],
       [void],
       'nonpayable'

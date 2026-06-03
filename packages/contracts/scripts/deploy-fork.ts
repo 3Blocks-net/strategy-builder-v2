@@ -198,6 +198,12 @@ async function main() {
   const pcsDecreaseActionAddr = await pcsDecreaseAction.getAddress();
   console.log(`  PancakeSwapV3DecreaseLiquidityAction: ${pcsDecreaseActionAddr}`);
 
+  const pcsCollectAction = await ethers.deployContract("PancakeSwapV3CollectAction", [
+    pcsRegistryAddr,
+  ]);
+  const pcsCollectActionAddr = await pcsCollectAction.getAddress();
+  console.log(`  PancakeSwapV3CollectAction: ${pcsCollectActionAddr}`);
+
   // 8. Seed test wallet with tokens via impersonation
   //    Use a raw JsonRpcProvider to bypass Hardhat's local account signing
   console.log(`\nSeeding test wallet ${TEST_WALLET}...`);
@@ -267,6 +273,7 @@ async function main() {
     PancakeSwapV3MintAction: pcsMintActionAddr,
     PancakeSwapV3IncreaseLiquidityAction: pcsIncreaseActionAddr,
     PancakeSwapV3DecreaseLiquidityAction: pcsDecreaseActionAddr,
+    PancakeSwapV3CollectAction: pcsCollectActionAddr,
     config: {
       depositFeeBps: DEPOSIT_FEE_BPS,
       withdrawFeeBps: WITHDRAW_FEE_BPS,
@@ -313,6 +320,7 @@ PancakeSwapV3SwapAction:     ${pcsSwapActionAddr}
 PancakeSwapV3MintAction:     ${pcsMintActionAddr}
 PancakeSwapV3IncreaseLiquidity: ${pcsIncreaseActionAddr}
 PancakeSwapV3DecreaseLiquidity: ${pcsDecreaseActionAddr}
+PancakeSwapV3CollectAction:  ${pcsCollectActionAddr}
 
 ${"═".repeat(55)}
  Backend .env  (packages/backend/.env)

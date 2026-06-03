@@ -764,6 +764,20 @@ describe('EncodingService', () => {
       await expect(service.encode('v1', '0xvault', 's1', graph)).rejects.toThrow(/Invalid step parameters/i);
     });
 
+    it('encodes an LP Collect (token-id slot resolves to an index)', () => {
+      const abiFragment = {
+        type: 'tuple',
+        components: [{ name: 'tokenIdFromSlot', type: 'uint32' }],
+      };
+      const result = service.encodeParams(
+        { tokenIdFromSlot: 'lpId' },
+        abiFragment as any,
+        { lpId: 5 },
+      );
+      const decoded = abiCoder.decode(['uint32'], result);
+      expect(decoded[0]).toBe(5n); // tokenIdFromSlot resolved lpId → 5
+    });
+
     it('encodes an LP Decrease Liquidity (token-id slot resolves; percent carried)', () => {
       const abiFragment = mockStepTypes.find((s) => s.id === 'st-pcs-decrease')!.abiFragment;
       const result = service.encodeParams(
