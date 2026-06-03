@@ -30,6 +30,10 @@ interface FieldSchema {
   'x-ui-amount-field'?: string;
   'x-ui-slot-field'?: string;
   'x-ui-target-hf-field'?: string;
+  // aave-amount-mode: override the MAX_AVAILABLE option label + note per action
+  // (Supply = "Full vault balance"; Withdraw = "Withdraw everything").
+  'x-ui-max-label'?: string;
+  'x-ui-max-note'?: string;
 }
 
 export type TokenList = { address: string; symbol: string; decimals?: number }[];
@@ -469,6 +473,8 @@ const AAVE_AMOUNT_MODES: { value: number; label: string; disabled?: boolean }[] 
   { value: 3, label: 'Target health factor (coming soon)', disabled: true },
 ];
 
+const DEFAULT_MAX_NOTE = "Supplies the vault's entire balance of the selected token.";
+
 /**
  * `aave-amount-mode` composite: a mode selector that conditionally reveals the
  * matching sub-input — the fixed amount (FIXED), the context-slot picker
@@ -504,6 +510,8 @@ function AaveAmountModeField({
   const mode = value === undefined || value === null ? 0 : Number(value);
   const amountField = schema['x-ui-amount-field'] ?? 'amount';
   const slotField = schema['x-ui-slot-field'] ?? 'amountFromSlot';
+  const maxLabel = schema['x-ui-max-label'];
+  const maxNote = schema['x-ui-max-note'] ?? DEFAULT_MAX_NOTE;
 
   const mergedTokens: TokenList = [tokens, ...Object.values(tokenSources ?? {})].flat();
 
@@ -517,7 +525,7 @@ function AaveAmountModeField({
       >
         {AAVE_AMOUNT_MODES.map((m) => (
           <option key={m.value} value={m.value} disabled={m.disabled}>
-            {m.label}
+            {m.value === 2 && maxLabel ? maxLabel : m.label}
           </option>
         ))}
       </select>
@@ -546,11 +554,7 @@ function AaveAmountModeField({
             isOptional={false}
           />
         )}
-        {mode === 2 && (
-          <p className="text-xs text-gray-500">
-            Supplies the vault's entire balance of the selected token.
-          </p>
-        )}
+        {mode === 2 && <p className="text-xs text-gray-500">{maxNote}</p>}
       </div>
     </div>
   );

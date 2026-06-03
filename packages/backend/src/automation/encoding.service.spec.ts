@@ -274,6 +274,33 @@ describe('EncodingService', () => {
       expect(decoded[4]).toBe(BigInt(4294967295));
     });
 
+    it('encodes Aave amount-mode action params (mode enum + actual-out slot)', () => {
+      const asset = '0x55d398326f99059fF775485246999027B3197955';
+      const abiFragment = mockStepTypes.find((s) => s.id === 'st-aave-supply')!
+        .abiFragment;
+      const slotMapping = { swapOutput: 2, withdrawn: 3 };
+      const result = service.encodeParams(
+        {
+          asset,
+          mode: 1, // FROM_SLOT
+          amount: '0',
+          amountFromSlot: 'swapOutput',
+          targetHealthFactor: '0',
+          amountToSlot: 'withdrawn',
+        },
+        abiFragment as any,
+        slotMapping,
+      );
+      const decoded = abiCoder.decode(
+        ['address', 'uint8', 'uint256', 'uint32', 'uint256', 'uint32'],
+        result,
+      );
+      expect(decoded[0]).toBe(asset);
+      expect(decoded[1]).toBe(1n); // mode
+      expect(decoded[3]).toBe(2n); // amountFromSlot resolved swapOutput → 2
+      expect(decoded[5]).toBe(3n); // amountToSlot resolved withdrawn → 3
+    });
+
     it('resolves context slot names to indices', () => {
       const slotMapping = { 'next-trigger-time': 0 };
       const result = service.encodeParams(

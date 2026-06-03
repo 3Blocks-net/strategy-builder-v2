@@ -24,6 +24,10 @@ const contracts = [
     artifact: 'actions/AaveV3SupplyAction.sol/AaveV3SupplyAction.json',
     name: 'AaveV3SupplyAction',
   },
+  {
+    artifact: 'actions/AaveV3WithdrawAction.sol/AaveV3WithdrawAction.json',
+    name: 'AaveV3WithdrawAction',
+  },
 ];
 
 mkdirSync(outDir, { recursive: true });

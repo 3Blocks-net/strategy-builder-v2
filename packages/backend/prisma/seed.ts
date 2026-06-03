@@ -24,6 +24,9 @@ function loadContractAddresses(): Record<string, string> {
       AaveV3SupplyAction:
         data.AaveV3SupplyAction ??
         '0x0000000000000000000000000000000000000000',
+      AaveV3WithdrawAction:
+        data.AaveV3WithdrawAction ??
+        '0x0000000000000000000000000000000000000000',
     };
   }
 
@@ -45,6 +48,9 @@ function loadContractAddresses(): Record<string, string> {
       '0x0000000000000000000000000000000000000000',
     AaveV3SupplyAction:
       process.env.AAVE_V3_SUPPLY_ACTION_ADDRESS ??
+      '0x0000000000000000000000000000000000000000',
+    AaveV3WithdrawAction:
+      process.env.AAVE_V3_WITHDRAW_ACTION_ADDRESS ??
       '0x0000000000000000000000000000000000000000',
   };
 }
@@ -421,6 +427,90 @@ async function main() {
             title: 'Supplied Amount to Context Slot',
             description:
               'Write the actual supplied amount to a context slot for later steps. Max uint32 = skip.',
+            'x-ui-widget': 'context-slot',
+            'x-ui-slot-access': 'write',
+            default: 4294967295,
+          },
+        },
+        required: ['asset', 'mode'],
+      },
+    },
+    {
+      name: 'Aave V3 Withdraw',
+      description:
+        'Withdraws a supplied token (collateral) from Aave V3 back into the vault. Choose a fixed amount, an amount from a context slot, or withdraw everything. The actual withdrawn amount can be written to a context slot.',
+      category: StepCategory.ACTION,
+      contractAddress: addresses.AaveV3WithdrawAction,
+      selector: EXECUTE_SELECTOR,
+      afterExecutionSelector: null,
+      abiFragment: {
+        type: 'tuple',
+        components: [
+          { name: 'asset', type: 'address' },
+          { name: 'mode', type: 'uint8' },
+          { name: 'amount', type: 'uint256' },
+          { name: 'amountFromSlot', type: 'uint32' },
+          { name: 'targetHealthFactor', type: 'uint256' },
+          { name: 'amountToSlot', type: 'uint32' },
+        ],
+      },
+      paramSchema: {
+        type: 'object',
+        properties: {
+          asset: {
+            type: 'string',
+            title: 'Token',
+            description: 'The Aave V3 reserve to withdraw',
+            'x-ui-widget': 'token-selector',
+            'x-ui-token-source': 'aave',
+          },
+          mode: {
+            type: 'integer',
+            title: 'Amount',
+            description:
+              'How the withdrawn amount is determined: a fixed value, a value from a previous step, or your entire supplied balance.',
+            'x-ui-widget': 'aave-amount-mode',
+            'x-ui-amount-field': 'amount',
+            'x-ui-amount-token-field': 'asset',
+            'x-ui-slot-field': 'amountFromSlot',
+            'x-ui-target-hf-field': 'targetHealthFactor',
+            'x-ui-max-label': 'Withdraw everything',
+            'x-ui-max-note':
+              'Withdraws your entire supplied balance of the selected token from Aave.',
+            default: 0,
+          },
+          amount: {
+            type: 'string',
+            title: 'Amount',
+            description: 'Amount to withdraw in human units (e.g. 1.5). Used when mode is FIXED.',
+            'x-ui-widget': 'token-amount',
+            'x-ui-amount-token-field': 'asset',
+            'x-ui-hidden': true,
+            default: '0',
+          },
+          amountFromSlot: {
+            type: 'integer',
+            title: 'Amount from Context Slot',
+            description:
+              'Read the amount from a context slot. Used when mode is FROM_SLOT. Max uint32 = unset.',
+            'x-ui-widget': 'context-slot',
+            'x-ui-slot-access': 'read',
+            'x-ui-hidden': true,
+            default: 4294967295,
+          },
+          targetHealthFactor: {
+            type: 'string',
+            title: 'Target Health Factor',
+            description:
+              'Reserved for the TARGET_HF mode (not yet available). Stored in 1e18 units.',
+            'x-ui-hidden': true,
+            default: '0',
+          },
+          amountToSlot: {
+            type: 'integer',
+            title: 'Actual Withdrawn Amount to Context Slot',
+            description:
+              'Write the actual withdrawn amount (which differs from a "withdraw everything" request) to a context slot for later steps. Max uint32 = skip.',
             'x-ui-widget': 'context-slot',
             'x-ui-slot-access': 'write',
             default: 4294967295,

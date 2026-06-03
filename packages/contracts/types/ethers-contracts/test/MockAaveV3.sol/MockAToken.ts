@@ -6,13 +6,14 @@ import type { TypedContractEvent, TypedDeferredTopicFilter, TypedEventLog, Typed
   
 
   export interface MockATokenInterface extends Interface {
-    getFunction(nameOrSignature: "allowance" | "approve" | "balanceOf" | "decimals" | "mint" | "name" | "symbol" | "totalSupply" | "transfer" | "transferFrom"): FunctionFragment;
+    getFunction(nameOrSignature: "allowance" | "approve" | "balanceOf" | "burn" | "decimals" | "mint" | "name" | "symbol" | "totalSupply" | "transfer" | "transferFrom"): FunctionFragment;
 
     getEvent(nameOrSignatureOrTopic: "Approval" | "Transfer"): EventFragment;
 
     encodeFunctionData(functionFragment: 'allowance', values: [AddressLike, AddressLike]): string;
 encodeFunctionData(functionFragment: 'approve', values: [AddressLike, BigNumberish]): string;
 encodeFunctionData(functionFragment: 'balanceOf', values: [AddressLike]): string;
+encodeFunctionData(functionFragment: 'burn', values: [AddressLike, BigNumberish]): string;
 encodeFunctionData(functionFragment: 'decimals', values?: undefined): string;
 encodeFunctionData(functionFragment: 'mint', values: [AddressLike, BigNumberish]): string;
 encodeFunctionData(functionFragment: 'name', values?: undefined): string;
@@ -24,6 +25,7 @@ encodeFunctionData(functionFragment: 'transferFrom', values: [AddressLike, Addre
     decodeFunctionResult(functionFragment: 'allowance', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'approve', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'balanceOf', data: BytesLike): Result;
+decodeFunctionResult(functionFragment: 'burn', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'decimals', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'mint', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'name', data: BytesLike): Result;
@@ -116,6 +118,14 @@ decodeFunctionResult(functionFragment: 'transferFrom', data: BytesLike): Result;
     
 
     
+    burn: TypedContractMethod<
+      [from: AddressLike, amount: BigNumberish, ],
+      [void],
+      'nonpayable'
+    >
+    
+
+    
     decimals: TypedContractMethod<
       [],
       [bigint],
@@ -188,6 +198,11 @@ getFunction(nameOrSignature: 'balanceOf'): TypedContractMethod<
       [account: AddressLike, ],
       [bigint],
       'view'
+    >;
+getFunction(nameOrSignature: 'burn'): TypedContractMethod<
+      [from: AddressLike, amount: BigNumberish, ],
+      [void],
+      'nonpayable'
     >;
 getFunction(nameOrSignature: 'decimals'): TypedContractMethod<
       [],

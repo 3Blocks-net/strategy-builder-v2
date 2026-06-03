@@ -134,9 +134,9 @@ decodeFunctionResult(functionFragment: 'withdraw', data: BytesLike): Result;
 
     
     withdraw: TypedContractMethod<
-      [arg0: AddressLike, arg1: BigNumberish, arg2: AddressLike, ],
+      [asset: AddressLike, amount: BigNumberish, to: AddressLike, ],
       [bigint],
-      'view'
+      'nonpayable'
     >
     
 
@@ -179,9 +179,9 @@ getFunction(nameOrSignature: 'supply'): TypedContractMethod<
       'nonpayable'
     >;
 getFunction(nameOrSignature: 'withdraw'): TypedContractMethod<
-      [arg0: AddressLike, arg1: BigNumberish, arg2: AddressLike, ],
+      [asset: AddressLike, amount: BigNumberish, to: AddressLike, ],
       [bigint],
-      'view'
+      'nonpayable'
     >;
 
     

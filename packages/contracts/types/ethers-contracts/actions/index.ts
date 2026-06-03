@@ -2,3 +2,4 @@
 /* tslint:disable */
 /* eslint-disable */
 export type { AaveV3SupplyAction } from './AaveV3SupplyAction.js';
+export type { AaveV3WithdrawAction } from './AaveV3WithdrawAction.js';

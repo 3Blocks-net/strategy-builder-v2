@@ -2,3 +2,4 @@
 /* tslint:disable */
 /* eslint-disable */
 export { AaveV3SupplyAction__factory } from './AaveV3SupplyAction__factory.js';
+export { AaveV3WithdrawAction__factory } from './AaveV3WithdrawAction__factory.js';

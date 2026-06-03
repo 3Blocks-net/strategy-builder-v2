@@ -13,6 +13,10 @@ contract MockAToken is ERC20 {
     function mint(address to, uint256 amount) external {
         _mint(to, amount);
     }
+
+    function burn(address from, uint256 amount) external {
+        _burn(from, amount);
+    }
 }
 
 /**
@@ -39,11 +43,17 @@ contract MockAaveV3Pool is IAaveV3Pool {
     }
 
     function withdraw(
-        address,
-        uint256,
-        address
-    ) external pure override returns (uint256) {
-        revert("not implemented");
+        address asset,
+        uint256 amount,
+        address to
+    ) external override returns (uint256) {
+        address aToken = aTokenOf[asset];
+        uint256 bal = MockAToken(aToken).balanceOf(msg.sender);
+        uint256 actual = amount == type(uint256).max ? bal : amount;
+        if (actual > bal) actual = bal;
+        MockAToken(aToken).burn(msg.sender, actual);
+        IERC20(asset).transfer(to, actual);
+        return actual;
     }
 
     function borrow(

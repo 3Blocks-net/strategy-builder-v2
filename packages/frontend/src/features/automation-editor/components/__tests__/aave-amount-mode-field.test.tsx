@@ -97,4 +97,36 @@ describe('AaveAmountModeField widget', () => {
     }) as HTMLOptionElement;
     expect(option.disabled).toBe(true);
   });
+
+  it('overrides the MAX option label + note via x-ui-max-label / x-ui-max-note', () => {
+    const withdrawSchema = {
+      type: 'object' as const,
+      properties: {
+        asset: { type: 'string', title: 'Token', 'x-ui-widget': 'token-selector', 'x-ui-token-source': 'aave' },
+        mode: {
+          type: 'integer',
+          title: 'Amount',
+          'x-ui-widget': 'aave-amount-mode',
+          'x-ui-max-label': 'Withdraw everything',
+          'x-ui-max-note': 'Withdraws your entire supplied balance from Aave.',
+        },
+      },
+      required: ['asset', 'mode'],
+    };
+    render(
+      <DynamicForm
+        schema={withdrawSchema as any}
+        values={{ asset: USDT, mode: 2 }}
+        onChange={() => {}}
+        tokens={[]}
+        tokenSources={{ aave: [{ address: USDT, symbol: 'USDT', decimals: 18 }] }}
+        contextVariables={[]}
+        onCreateVariable={() => {}}
+        vaultAddress="0x0000000000000000000000000000000000000000"
+        nodeId="w1"
+      />,
+    );
+    expect(screen.getByRole('option', { name: 'Withdraw everything' })).toBeInTheDocument();
+    expect(screen.getByText(/entire supplied balance/i)).toBeInTheDocument();
+  });
 });
