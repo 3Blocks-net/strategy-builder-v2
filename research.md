@@ -18,6 +18,11 @@
 9. [Version Summary](#9-version-summary)
 10. [Wagmi v2 + Viem v2 Contract Interactions (PEC-215)](#10-wagmi-v2--viem-v2-contract-interactions-pec-215)
 11. [Token Balances & Prices: Alchemy API + DeFiLlama (Backend)](#11-token-balances--prices-alchemy-api--defillama-backend)
+12. Visual Graph Editor (PEC-216) / Conditions (PEC-217) — see `## 12` sections inline
+13. [PEC-219 Execution & Monitoring — Overview & Architecture Decision](#13-pec-219-execution--monitoring--overview--architecture-decision)
+14. [PEC-219 Path A — Goldsky Subgraph (deltas over §5)](#14-pec-219-path-a--goldsky-subgraph-deltas-over-5)
+15. [PEC-219 Path B — Backend Event Indexing with ethers v6](#15-pec-219-path-b--backend-event-indexing-with-ethers-v6-no-subgraph-alternative)
+16. [PEC-219 Real-Time Updates — NestJS WebSockets + Socket.IO](#16-pec-219-real-time-updates--nestjs-websockets--socketio-shared-by-path-a--b)
 
 ---
 
@@ -664,6 +669,8 @@ query RecentExecutions($vaultId: Bytes!, $first: Int!, $skip: Int!) {
 
 ## 6. DeFi Protocols: AaveV3 + PancakeSwap V3 on BSC
 
+> **PEC-218 ("DeFi-Aktionen / Actions") — re-verified 2026-06-03.** Delete/refresh this section after PEC-218 ships. Addresses cross-checked against BscScan; Aave addresses against `bgd-labs/aave-address-book` (`AaveV3BNB.sol`); PancakeSwap structs/fee tiers against `pancakeswap/pancake-v3-contracts` source (Context7 + raw GitHub). PEC-218 implementation details live in the **PEC-218 Addendum** below.
+
 ### CRITICAL: Delegatecall Pattern -- CONFIRMED WORKING
 
 Actions are called via `delegatecall` from the vault. During delegatecall, `address(this)` = vault. When action code makes regular `call` to Aave/PancakeSwap, the vault is `msg.sender`. Tokens live at the vault, approvals are set on the vault's behalf.
@@ -687,15 +694,17 @@ Actions are called via `delegatecall` from the vault. During delegatecall, `addr
 
 #### PancakeSwap V3
 
-| Contract | Address |
-|---|---|
-| SmartRouter | `0x13f4EA83D0bd40E75C8222255bc855a974568Dd4` |
-| NonfungiblePositionManager | `0x46A15B0b27311cedF172AB29E4f4766fbE7F4364` |
-| QuoterV2 | `0xB048Bbc1Ee6b733FFfCFb9e9CeF7375518e25997` |
-| Factory | `0x0BFbCF9fa4f9C56B0F40a671Ad40E0805A091865` |
-| WBNB | `0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c` |
+| Contract | Address | Interface / use |
+|---|---|---|
+| **SwapRouter (v3-periphery)** | `0x1b81D678ffb9C0263b24A97847620C99d213eB14` | `ISwapRouter` — **recommended for single-hop actions**. `ExactInputSingleParams` **HAS `deadline`**. |
+| SmartRouter (aggregator) | `0x13f4EA83D0bd40E75C8222255bc855a974568Dd4` | `V3SwapRouter` (SwapRouter02-style) — aggregates v2+v3+stableswap, Permit2/payments, **no `deadline`** in params. Heavier; avoid for a simple stateless action. |
+| NonfungiblePositionManager | `0x46A15B0b27311cedF172AB29E4f4766fbE7F4364` | LP mint/increase/decrease/collect |
+| QuoterV2 | `0xB048Bbc1Ee6b733FFfCFb9e9CeF7375518e25997` | off-chain quoting only (non-view, reverts to measure) |
+| Factory | `0x0BFbCF9fa4f9C56B0F40a671Ad40E0805A091865` | pool lookup / `computeAddress` |
+| WBNB | `0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c` | |
 
-**Fee tiers:** 100 (0.01%), 500 (0.05%), 2500 (0.25%), 10000 (1%).
+**Fee tiers (feeAmountTickSpacing, from `PancakeV3Factory` constructor):** 100→1 (0.01%), 500→10 (0.05%), 2500→50 (0.25%), 10000→200 (1%).
+⚠️ PancakeSwap's middle tier is **2500 (0.25%)**, not Uniswap's 3000 (0.3%). Most BSC volume sits in the 100 and 500 tiers.
 
 ### Key Operations
 
@@ -713,8 +722,8 @@ Actions are called via `delegatecall` from the vault. During delegatecall, `addr
 
 | Operation | Function | Notes |
 |---|---|---|
-| Single swap | `SmartRouter.exactInputSingle(params)` | No deadline in struct; use `amountOutMinimum` for slippage |
-| Multi-hop swap | `SmartRouter.exactInput(params)` | Path: `encodePacked(tokenA, fee, tokenB, fee, tokenC)` |
+| Single swap | `SwapRouter.exactInputSingle(params)` | **`ExactInputSingleParams` DOES include `deadline`** (verified from source). Use `amountOutMinimum > 0` for slippage; set `recipient = address(this)` (vault). |
+| Multi-hop swap | `SwapRouter.exactInput(params)` | Path: `encodePacked(tokenA, fee, tokenB, fee, tokenC)`; struct includes `deadline`. |
 | Mint LP | `NftPositionManager.mint(params)` | token0 < token1 required; store NFT tokenId in context |
 | Add liquidity | `NftPositionManager.increaseLiquidity(params)` | Need tokenId |
 | Remove liquidity | `NftPositionManager.decreaseLiquidity(params)` | Must call `collect()` after |
@@ -762,27 +771,71 @@ contract PancakeSwapV3SwapAction {
     uint32 private constant NO_SLOT = type(uint32).max;
 
     struct Params {
-        address router;
+        address router;             // PancakeSwap v3 SwapRouter 0x1b81D678...
         address tokenIn;
         address tokenOut;
-        uint24 fee;
+        uint24 fee;                 // 100 | 500 | 2500 | 10000
         uint256 amountIn;           // 0 = full balance
-        uint256 amountOutMinimum;
+        uint256 amountOutMinimum;   // MUST be > 0 (success criterion)
         uint32 amountInFromSlot;    // NO_SLOT = use static
         uint32 amountOutToSlot;     // NO_SLOT = no write
         uint32 minOutFromSlot;      // NO_SLOT = use static
     }
 
+    // ISwapRouter.ExactInputSingleParams (PancakeSwap v3 SwapRouter) — note `deadline`:
+    // struct ExactInputSingleParams {
+    //     address tokenIn; address tokenOut; uint24 fee; address recipient;
+    //     uint256 deadline; uint256 amountIn; uint256 amountOutMinimum; uint160 sqrtPriceLimitX96;
+    // }
+
     function execute(bytes calldata params, bytes[] calldata ctx)
         external returns (uint32[] memory, bytes[] memory)
     {
         // Resolve amounts from context or params
-        // forceApprove router
-        // exactInputSingle with recipient = address(this)
+        // require(amountOutMinimum > 0)
+        // forceApprove(router, amountIn)
+        // exactInputSingle({ ..., recipient: address(this), deadline: block.timestamp,
+        //                     sqrtPriceLimitX96: 0 }) → amountOut
         // Write amountOut to context slot
     }
 }
 ```
+
+### PEC-218 Addendum — 8 Action Contracts (implementation-ready)
+
+Maps the Epic's 8 user stories to concrete on-chain calls. All actions are **stateless, delegatecall'd** (`address(this) == vault`), follow the `IAction.execute(bytes params, bytes[] ctx)` signature, and use OZ 5.6.1 `SafeERC20.forceApprove` (Solidity 0.8.28). `NO_SLOT = type(uint32).max`.
+
+| # | Action | Target call | Approval | Context I/O |
+|---|---|---|---|---|
+| 1 | ERC20 Transfer | (exists) `IERC20.safeTransfer` | n/a | amountFrom/To slot |
+| 2 | Aave Supply | `Pool.supply(asset, amt, address(this), 0)` | ✅ forceApprove(pool) | amountFrom; optional aToken-out |
+| 3 | Aave Withdraw | `Pool.withdraw(asset, amt, address(this))` returns actual | ❌ | `amt = type(uint256).max` → full balance; actual→slot |
+| 4 | Aave Borrow | `Pool.borrow(asset, amt, 2, 0, address(this))` | ❌ | amountFrom; borrowed→slot |
+| 5 | Aave Repay | `Pool.repay(asset, amt, 2, address(this))` returns actual | ✅ forceApprove(pool) | `amt = type(uint256).max` → repay full debt; actual→slot |
+| 6 | PCS Swap | `SwapRouter.exactInputSingle(...)` returns amountOut | ✅ forceApprove(router) | amountInFrom; **amountOut→slot** |
+| 7 | PCS LP Mint | `NPM.mint(MintParams)` returns (tokenId, liq, a0, a1) | ✅ both tokens | **tokenId→slot** (required) |
+| 8 | PCS LP Manage | `NPM.increaseLiquidity` / `decreaseLiquidity`+`collect` | increase: ✅ both | tokenId from slot |
+
+**Amount sentinels (verified):**
+- Aave `withdraw` / `repay`: pass `type(uint256).max` to withdraw entire aToken balance / repay entire debt. Pool transfers only what's needed and returns the actual amount — capture it into a context slot (it differs from the sentinel).
+- ERC20Transfer / Swap "full balance": resolve `0 → IERC20(token).balanceOf(address(this))` in the action (existing convention).
+
+**Aave specifics:**
+- `interestRateMode = 2` always (stable rate is disabled on every V3 market — passing 1 reverts).
+- Informational reads (no tx): `Pool.getReserveData(asset).currentLiquidityRate` (supply APR) / `.currentVariableBorrowRate` (borrow APR), both **ray (1e27)**, per-second linear → annualize/compound off-chain for the APY badge. `Pool.getUserAccountData(address(this))` returns `(totalCollateralBase, totalDebtBase, availableBorrowsBase, currentLiquidationThreshold, ltv, healthFactor)`; base amounts are USD with **8 decimals**, `healthFactor` is **1e18-scaled** (`type(uint256).max` = no debt). Use for the health-factor / liquidation-risk warnings — UI-only, do not gate execution on it on-chain.
+- aToken balances are continuously increasing (interest) — never cache; read live.
+
+**PancakeSwap LP specifics:**
+- `MintParams`, `IncreaseLiquidityParams`, `DecreaseLiquidityParams`, `CollectParams` **all include `deadline`** — set `block.timestamp`.
+- **Token ordering**: `token0 < token1` (numeric address sort). Sort the pair and the matching amounts before building `MintParams`, else mint reverts.
+- **NFT receipt**: `NonfungiblePositionManager.mint` uses ERC721 `_mint` (non-safe), so it does **not** call `onERC721Received` — the vault can custody the position NFT without implementing `IERC721Receiver`. (Verify against the deployed bytecode in the fork test; if a future version switches to `_safeMint`, the vault must implement the receiver hook.)
+- **Remove liquidity is two steps**: `decreaseLiquidity` only accrues tokens to the position; you must then `collect` (use `amount0Max = amount1Max = type(uint128).max`) to actually pull them to the vault.
+- **Quoter is off-chain only**: `QuoterV2.quoteExactInputSingle` is non-`view` (it executes a swap and reverts to measure). Compute `amountOutMinimum` off-chain (frontend `eth_call`/`callStatic`) with a slippage tolerance and pass it in; never call the quoter from the action.
+
+**Testing strategy (forked mainnet — this is the deliverable, not a throwaway):**
+- Run `pnpm contracts:fork:bsc` (archive RPC) and test against the live BSC addresses above. Use whale impersonation (`hardhat_impersonateAccount` + `hardhat_setBalance`) to fund the vault with real reserves — pattern already in `scripts/deploy-fork.ts` (USDT whale `0xF977814e90dA44bFA03b6295A0616a897441aceC`).
+- Per Epic success criteria: Aave actions tested against ≥3 BSC reserves; Swap asserts `amountOutMinimum > 0` enforced; LP Mint asserts the NFT `tokenId` lands in the expected context slot.
+- A standalone learning test under `/learning-tests` was intentionally **not** added: these are Solidity protocol integrations that require the Hardhat-3 fork harness (`network.connect()`, ESM) and the Epic already mandates forked tests as part of the build — duplicating them as throwaways would diverge from the real suite. The reusable artifact is this research section.
 
 ### BSC-Specific Gotchas
 
@@ -2911,6 +2964,367 @@ No learning test for React-Flow — already exercised by `lib/__tests__/` + Play
 1. Zod source-of-truth vs. layer vs. none (decision above) → whether a `shared` package gets created now.
 2. Where unit conversion lives — frontend Zod `.transform()` at submit, or backend `EncodingService` (recommend: convert in frontend, re-validate ranges in backend).
 3. Wei conversion uses viem `parseUnits` with the token's actual decimals (don't hardcode 18).
+
+---
+
+## 13. PEC-219 Execution & Monitoring — Overview & Architecture Decision
+
+> **Epic:** PEC-219 "Ausführung & Monitoring". **Docs source:** Context7 (The Graph, ethers v6, NestJS 11, Socket.IO — all current) + web (Goldsky webhooks, BSC RPC/WSS gotchas), June 2026.
+> **Scope:** (1) per-automation **execution history** (status, gas, timestamp, tx link, paginated); (2) **real-time** push of new executions (toast, no refresh, auto-reconnect, per-vault isolation). The history data source is an open architecture choice — both paths are researched below; the real-time layer (§16, Socket.IO) is shared by both.
+
+### 13.0 The decisive constraint — a reverted execution emits **no** event
+
+`executeAutomation` **reverts** on a failed action or unmet trigger (`TriggerNotMet`, `CallerNotOwner`, action revert). A revert produces **no logs**, so **any log/event indexer — subgraph (§14) OR backend ethers (§15) — yields a SUCCESS-only history.**
+
+The Epic's success-criterion *"Fehlgeschlagene Ausführungen zeigen die Fehlermeldung"* therefore **cannot** be satisfied by indexing on-chain events alone. Failed-run history must come from a **non-log source**:
+- **Keeper-reported failures** — `scripts/execute-automations.ts` (the public executor) catches the revert, decodes the reason via the existing `ContractErrorService`, and `POST`s a `status: REVERTED` row. This is the recommended source for the "failure + error message" criterion.
+- *(Alternative, expensive)* tracing every `executeAutomation` tx (receipt `status === 0` + `debug_traceTransaction`/revert-reason decode) — needs an archive/trace RPC, not viable on public BSC RPCs.
+
+**Implication:** whichever indexing path is chosen, plan a **second ingestion channel** (keeper → backend `POST /executions`) for failed runs. The indexer covers successes; the keeper covers failures.
+
+### 13.1 Decision matrix — Path A (Goldsky subgraph) vs Path B (backend ethers indexer)
+
+| Dimension | **Path A — Goldsky Subgraph** (§5 + §14) | **Path B — Backend ethers v6 indexer** (§15) |
+|---|---|---|
+| New infra | Subgraph repo + Goldsky account/deploy + GraphQL client in backend | **None** — reuses existing ethers `JsonRpcProvider` + Prisma/Postgres |
+| Reorg handling | **Automatic** (Graph Node rolls back) | **Manual** — confirmation lag (N≈15) + `log.removed` handling in our code |
+| Backfill / historical sync | **Managed** from `startBlock` | **Manual** — cursor + chunked `getLogs`, adaptive range halving |
+| Dynamic vaults (factory) | **Native** — data-source templates spawn per `VaultCreated` | Address-less topic filter (`getLogs` no `address`) → map `log.address`→vault |
+| Pagination | GraphQL `first` + `blockTimestamp_lt`/`id_gt` cursor (skip capped 5000) | SQL `LIMIT/OFFSET` or keyset from Postgres — trivial, no rate limit |
+| Query rate limits | Goldsky tier limits (~50 req/10s) | **None** (own DB) |
+| Real-time push | Backend polls subgraph **or** Goldsky **webhooks/Mirror** → WS | Indexer persists → calls WS gateway directly (lowest latency, in-process) |
+| **Local Hardhat-fork dev** | **❌ NOT supported** — Goldsky/Graph-Node index public chains only; breaks the repo's standard fork loop | **✅ Works against the fork** (`JsonRpcProvider` → `localhost:8545`), same as existing services |
+| Transactional consistency with app data | Separate store (GraphQL), eventual | **Same Postgres** as Automations/Vaults — joinable, one source of truth |
+| Ops burden | Subgraph versioning/grafting on schema change; managed uptime | Reliability code is ours (cursor, dedupe, range caps, reorg) — §15.5 |
+| Latency to "visible" | Sync lag (seconds→minutes) + head-lag | Poll interval + confirmation lag (≈ N×3s on BSC) |
+
+### 13.2 Recommendation
+
+**Start with Path B (backend ethers v6 indexer) for the MVP**, because:
+1. **It works on the local BSC fork** — Path A does **not** (§14 gotcha), and the entire dev/test workflow (deploy-fork → seed → keeper → UI) is fork-based. Introducing Goldsky now forces a testnet detour for every history change.
+2. **Zero new infra** and **one Postgres** — history rows live next to `Automation`/`Vault`, the WS gateway is fed in-process (lowest real-time latency), and pagination is plain SQL with no rate limit.
+3. The §5 subgraph schema/manifest already exists as a **migration target**: if query volume or multi-instance scaling later demands it, lift indexing to Path A and have the backend query Goldsky (or consume Goldsky **webhooks**) with the *same* WS gateway and DB-row shape. The reliability burden (§15.5) is the price; revisit when it outweighs the fork-dev cost.
+
+**Both paths share §16 (Socket.IO)** and **both require the keeper failure channel (§13.0).** This recommendation is for owner sign-off — the matrix above is the basis for choosing A instead if production-grade reorg/backfill correctness outweighs fork-dev convenience from day one.
+
+---
+
+## 14. PEC-219 Path A — Goldsky Subgraph (deltas over §5)
+
+> §5 ("Blockchain Indexing: TheGraph Subgraph + Goldsky") already documents the **schema, manifest, factory→template pattern, deployment, querying, and pinned versions** — that is the Path-A core; do not duplicate it. This section records only what §5 omits and what PEC-219 specifically needs.
+> **Docs source:** Context7 `/graphprotocol/docs` (templates, immutable entities, `_meta`) + web (Goldsky webhooks/Mirror, matchstick), June 2026.
+
+### 14.0 Confirmed reusable from §5
+The §5 schema already has `ExecutionEvent @entity(immutable: true)` with `executor`, `blockNumber`, `timestamp`, `transactionHash`, derived from `Vault`/`Automation`; the manifest already spawns a `StrategyBuilderVault` **template** per `VaultCreated` via `VaultTemplate.create(event.params.vault)`; pinned `@graphprotocol/graph-cli 0.98.1`, `graph-ts 0.38.2`, `specVersion 1.3.0`, `apiVersion 0.0.9`. **All correct — keep as is.** For gas, §5 already models `GasCompEvent` off the `FeeRegistry` `GasCompDeducted` event; the vault's own `GasCompSettled(automationId, executor, token, gasCompTokens)` can alternatively be indexed on the vault template and joined to `ExecutionEvent` by `txHash`.
+
+### 14.1 Backend GraphQL client (NOT in §5)
+Query Goldsky from NestJS with **`graphql-request` `^7.4.0`** (lightweight; v7 is **ESM-only** — under the backend's CJS ts-jest either target ESM or use dynamic `import('graphql-request')`).
+```ts
+import { GraphQLClient, gql } from 'graphql-request';
+const client = new GraphQLClient(process.env.SUBGRAPH_URL!, {
+  headers: process.env.GOLDSKY_QUERY_KEY ? { authorization: `Bearer ${process.env.GOLDSKY_QUERY_KEY}` } : {},
+});
+```
+
+### 14.2 Pagination — cursor, not deep `skip`
+§5's example uses `first`/`skip`. **`skip` is capped at 5000 and degrades at depth.** For real history pagination use a **keyset cursor**: order by `timestamp` desc and pass `timestamp_lt: <lastSeen>` per page (cursor on `id`/`id_gt` for a strict total order when timestamps tie).
+```graphql
+query History($vault: Bytes!, $automationId: BigInt!, $lastTs: BigInt!, $first: Int!) {
+  executionEvents(first: $first, orderBy: timestamp, orderDirection: desc,
+    where: { vault: $vault, automation_: { automationId: $automationId }, timestamp_lt: $lastTs }) {
+    id executor timestamp transactionHash
+  }
+}
+```
+
+### 14.3 Sync-status surface (for the "letzte Aktualisierung" UI requirement)
+Query `_meta { block { number } hasIndexingErrors }` to show indexing lag / a "history may be delayed" banner — the Epic's reliability mitigation. `hasIndexingErrors: true` ⇒ a mapping threw and indexing is degraded.
+
+### 14.4 Real-time push without GraphQL subscriptions
+**Goldsky has no GraphQL subscriptions.** Two push options instead of backend polling:
+- **Goldsky webhooks** — `goldsky subgraph webhook create <name>/<ver> --name exec-hook --url https://api/.../webhooks/goldsky --entity executionEvent --secret "<shared>"`. Payload carries `op` / `entity` / `data.{old,new}`; the **exact auth header/HMAC is undocumented** — validate empirically (treat `--secret` as a shared-secret header check). Backend webhook handler → emits via the §16 WS gateway.
+- **Goldsky Mirror** (Postgres/webhook sink) for higher-throughput pipelines (overkill for MVP).
+Otherwise: backend **polls** the subgraph on an interval and diffs against `lastSeenTimestamp` → WS.
+
+### 14.5 Gotchas not in §5
+- **❌ No local Hardhat-fork support** — the single biggest reason §13.2 defers Path A. Dev requires a self-hosted `graph-node` Docker stack against the fork **or** deploying to BSC testnet; the standard fork loop does not extend to the subgraph.
+- **Schema change ⇒ full re-sync** unless you **graft** (`features: [grafting]`, `graft: { base: <deploymentId>, block: N }`) — copies a synced deployment's data to block N and continues. Use Goldsky versioned tags (`name/1.0.1`) + repoint `SUBGRAPH_URL` for zero-downtime cutover.
+- **Reverted executions never appear** (§13.0) — don't model `REVERTED` rows from the subgraph.
+- `startBlock` = factory deploy block (never `0` — full-chain scan).
+
+### 14.6 Testing — matchstick (no chain, no deploy)
+Unit-test mappings with **`matchstick-as` `^0.6.0`** via `graph test`: build mock `ethereum.Event`s (params + `block` + `transaction.hash`), call the handler, assert `assert.fieldEquals('ExecutionEvent', id, 'executor', '0x…')`. Covers the factory→template wiring and txHash/timestamp extraction. **Cannot** cover real on-chain decoding, template spawning, or Goldsky webhook delivery — those need a BSC-testnet subgraph (no fork support).
+
+---
+
+## 15. PEC-219 Path B — Backend Event Indexing with ethers v6 (no-subgraph alternative)
+
+> **Docs source:** Context7 `/websites/ethers_v6` (current API: queryFilter / getLogs / Log / Block / JsonRpcProvider options) + web research June 2026 (WebSocketProvider drop behavior, BSC RPC range limits, @nestjs/schedule version). Each fact below is tagged **[C7]** (Context7, current) or **[web]**.
+> **Scope:** Index `AutomationExecuted` (+ `GasCompSettled`, `Deposited`, `Withdrawn`) across **all** vault proxies into Postgres, paginate from the DB, push via WebSocket. Evaluates doing this **in the NestJS backend with ethers v6** instead of the §5 subgraph.
+
+### 15.0 What / why
+
+The §5 Goldsky subgraph is the "managed indexer" path. This section is the **self-hosted alternative**: the backend already holds an ethers v6 `JsonRpcProvider` (HTTP, `^6.16.0`) and a Prisma/Postgres connection, so a long-running indexer service can poll vault logs, persist `Execution`/`FeeEvent` rows (schema already in §2), serve the paginated history endpoint from the DB, and feed the WS gateway — no extra infra, no GraphQL.
+
+**The defining constraint:** a **failed** execution **reverts and emits no event**. On-chain logs therefore only ever yield `SUCCESS` rows. `REVERTED` / `TRIGGER_NOT_MET` executions are **invisible to any log indexer** (subgraph included). If the history must show failed attempts, they have to come from the **keeper** (`scripts/execute-automations.ts`) catching the revert and POSTing it, or from tracing every `executeAutomation` tx in a block (expensive). Decide this explicitly — the log indexer alone gives a *success-only* history.
+
+**Trade-off vs subgraph:** backend indexing wins on infra simplicity, transactional consistency with app data (one Postgres), and zero query-rate limits; it loses the subgraph's automatic reorg handling, managed backfill, and dynamic-data-source-per-vault. The reliability burden (cursor, reorgs, dedupe, RPC range caps, WSS drops) moves into our code — that burden is §15.5, the core of this evaluation.
+
+### 15.1 Version decision
+
+| Package | Version | Note |
+|---|---|---|
+| `ethers` | `^6.16.0` (already pinned) | No bump needed. All APIs below are v6. **[C7]** |
+| `@nestjs/schedule` | `^6.1.3` (latest, Apr 2026) | Peer-compatible with NestJS 11. Provides `@Interval()`, `@Cron()`, `SchedulerRegistry`. Use **only** as a lifecycle host; the poll loop itself should be a self-rescheduling async loop (see §15.6), not a fixed `@Interval` that can overlap a slow RPC call. **[web]** |
+
+Do **not** use `WebSocketProvider` for the primary indexer (see §15.5). Keep the existing **HTTP `JsonRpcProvider` + interval `queryFilter`/`getLogs`** model.
+
+### 15.2 Listening approaches in ethers v6 — trade-offs
+
+| Approach | API | Misses events? | Backfill? | Verdict for this feature |
+|---|---|---|---|---|
+| `contract.on(filter, cb)` | event subscription | **Yes** — silent gaps reported on BSC (events arrive ~4/5 times via WS, no recovery until reconnect) **[web]**; over HTTP it falls back to **polling filters** anyway | No (only live) | ❌ no durable cursor, no restart backfill |
+| `provider.on(filterObj, cb)` | low-level log subscription | Same as above | No | ❌ same |
+| **`contract.queryFilter(filter, from, to)`** / **`provider.getLogs({topics, from, to})`** on an interval | explicit range pull | **No** — you control the range and persist a cursor | **Yes** — re-query any past range | ✅ **chosen**: durable, backfillable, reorg-safe |
+
+`JsonRpcProvider` "processes events by polling the backend for the current block number; when it advances, block-based events are checked." Default events use **filters and fall back to polling** (`polling: false` default; set `polling: true` to force) **[C7]**. For a durable indexer we bypass the event system entirely and drive ranges ourselves.
+
+**Matching one event across MANY vault addresses — address-less topic filter.** `getLogs` with **no `address`** field but a topic filter returns matching logs from *every* contract, then map `log.address → vault`. This is the key to indexing all proxies in one call (vs N per-contract subscriptions):
+
+```ts
+import { Interface, id, JsonRpcProvider } from "ethers";
+
+const vaultIface = new Interface(strategyBuilderVaultAbi); // impl ABI (proxies emit, impl defines)
+const provider = new JsonRpcProvider(rpcUrl, undefined, { staticNetwork: true }); // skip per-call eth_chainId [C7]
+
+// topic0 = keccak256 of the canonical event signature
+const TOPIC_EXECUTED = id("AutomationExecuted(uint32,address)");
+const TOPIC_GASCOMP  = id("GasCompSettled(uint32,address,address,uint256)");
+
+// One getLogs across ALL vaults — no `address` key:
+const logs = await provider.getLogs({
+  fromBlock, toBlock,
+  topics: [[TOPIC_EXECUTED, TOPIC_GASCOMP]], // array-of-array = OR on topic0
+});
+
+for (const log of logs) {
+  const parsed = vaultIface.parseLog(log);   // -> { name, args } or null if unknown
+  if (!parsed) continue;
+  const vault = log.address;                  // map back to the vault proxy
+  // parsed.name, parsed.args.automationId (bigint), parsed.args.executor, ...
+}
+```
+
+- `contract.filters.AutomationExecuted(id)` builds a **per-contract** filter (includes `address`) — fine if you instantiate one `Contract` per vault, but defeats the single-call advantage. Prefer the address-less form above and gate on `isRegisteredVault` / a known-vault set loaded from the DB to ignore unrelated contracts that happen to share a topic. **[C7]**
+- `iface.parseLog(log)` returns `null` for non-matching logs — always null-check. **[C7]**
+
+### 15.3 Key methods (with snippets)
+
+**queryFilter (per-contract, indexed-arg filter):** `contract.queryFilter(event, fromBlock?, toBlock?) ⇒ Promise<Array<EventLog | Log>>`. Negative `fromBlock` = relative to head (`-100` = last 100 blocks). **[C7]**
+```ts
+const vault = new Contract(vaultAddr, abi, provider);
+const filter = vault.filters.AutomationExecuted(automationId); // topic-encoded indexed arg
+const events = await vault.queryFilter(filter, fromBlock, toBlock); // EventLog[] -> e.args destructured
+```
+
+**getLogs (range + topics, address-less):** see §15.2. Returns `Log[]` (raw — no decoded `args`; decode with `iface.parseLog`). **[C7]**
+
+**getBlock (timestamp):** `provider.getBlock(blockNumberOrHash) ⇒ Block | null`; `block.timestamp` is **seconds since epoch (number)**, `block.date` is a `Date | null`. **[C7]**
+```ts
+const block = await provider.getBlock(log.blockNumber);
+const ts = new Date(block!.timestamp * 1000); // -> Execution.blockTimestamp (DateTime)
+```
+
+**parseLog:** `iface.parseLog({ topics, data }) ⇒ LogDescription | null` → `.name`, `.args` (named + positional; uint→`bigint`). **[C7]**
+
+### 15.4 Data formats (the fields the history needs)
+
+**`Log`** (from `getLogs`) — **[C7]**: `log.address` (emitting vault), `log.blockNumber` (number), `log.blockHash`, `log.transactionHash`, `log.index` (**log index in block** — note v6 renamed v5's `logIndex` → `index`), `log.data`, `log.topics`, `log.removed` (true if dropped by reorg). Dedupe key = **`transactionHash` + `index`**.
+
+**`Block`** — **[C7]**: `block.timestamp` (number, seconds), `block.date` (Date|null), `block.number`, `block.hash`, `block.gasUsed` (bigint). One `getBlock` per distinct block; cache by block number to avoid re-fetching when several events share a block.
+
+**`TransactionReceipt`** (only if you need real gas spent) — `receipt.gasUsed` (bigint) × `receipt.gasPrice`/`effectiveGasPrice`. **For our schema you usually do NOT need this:** the `GasCompSettled(automationId, executor, token, gasCompTokens)` event already carries `gasCompTokens` in its data — decode it straight from the log into `Execution.gasCompAmount` (string) + `gasCompToken`. Reading the receipt is an **extra RPC per event**; the event is cheaper and is the value actually charged. **[C7 for receipt shape; design note]**
+
+**Field → source map for one `Execution` row:**
+| Column | Source | RPC cost |
+|---|---|---|
+| `automationId`, `executorAddress` | `AutomationExecuted` args (indexed) | none (in log) |
+| `gasCompAmount`, `gasCompToken` | `GasCompSettled` args (same tx) | none (in log) |
+| `txHash`, `blockNumber` | `log.transactionHash` / `log.blockNumber` | none |
+| `blockTimestamp` | `getBlock(blockNumber).timestamp` | 1 per block (cache) |
+| `status` | always `SUCCESS` for logged events (revert emits nothing) | n/a |
+
+**Avoiding the per-event timestamp RPC:** logs in the same block share a timestamp — fetch `getBlock` **once per block number** and reuse. When processing a contiguous range you already know `toBlock`; batch the distinct block numbers. (BSC has no log-embedded timestamp, so at least one `getBlock` per block is unavoidable; ethers batches these JSON-RPC calls automatically via `batchMaxCount: 100` default.) **[C7]**
+
+### 15.5 Error handling & reliability gotchas — **the core of this evaluation**
+
+1. **Persist a `lastProcessedBlock` cursor + backfill on restart.** The indexer must store the highest fully-processed block (e.g. a `IndexerCursor` row or reuse `Vault.createdAtBlock` as the per-feature floor). On boot, resume from `cursor + 1`; never trust in-memory state. Without this, any downtime = permanently missed `AutomationExecuted` events (they're not re-emitted). **[design]**
+
+2. **BSC public-RPC `getLogs` range limits.** Public BSC endpoints reject wide ranges and `fromBlock: 0`. The project already hit this — see CLAUDE.md: `FeeService` scans `fromBlock: currentBlock - 10_000` because `fromBlock: 0` triggers an upstream full-chain scan that gets rejected. **Chunk `getLogs` into bounded windows** (commonly ≤ 2k–5k blocks per call on bsc-dataseed-class RPCs; use an archive RPC — BlastAPI/Alchemy — for backfill, per the fork notes). Implement adaptive chunking: on a range-limit error, halve the window and retry. **[web + project CLAUDE.md]**
+
+3. **Reorg handling — index with a confirmation lag.** Only treat blocks `≤ head - N` as final; BSC reorgs are shallow but real (3s blocks). Use **N ≈ 15** confirmations (≈45s) for history. Set the poll's `toBlock = currentBlock - N`. Any log with `log.removed === true` (seen only if you index nearer the tip) must delete its row. Safer: stay behind the lag and never index unconfirmed blocks. The subgraph does this for you; here it's your code. **[design; web]**
+
+4. **Duplicate delivery / idempotency.** Re-querying an overlapping range (after a crash, or because chunk windows overlap by design for safety) re-delivers logs. **Dedupe on `(txHash, logIndex)`** — add a Prisma `@@unique([txHash, logIndex])` to `Execution`/`FeeEvent` (or upsert). The current `Execution` model has `@@index([txHash])` but no unique guard — **add `logIndex` + a composite unique** before relying on at-least-once polling. **[design]**
+
+5. **WebSocketProvider drops connections silently — do NOT use it as the source of truth.** On BSC public RPCs, WSS closes silently; ethers v6 (≥6.8.1) has a known issue where `contract.on` over WS receives events ~4/5 of the time with no recovery until reconnect, and the `onclose` handler is not wired into the `WebSocketLike` interface, so disconnects aren't surfaced. There is **no built-in reconnection** in ethers v6. If WS is ever used for low-latency *notification*, it must be paired with the authoritative `getLogs` poll as backstop (WS = "wake up and poll", never the system of record), plus a manual ping/heartbeat + reconnect-on-close wrapper. For this feature: **HTTP polling only.** **[web: ethers issues #4470, #4587, #1053]**
+
+6. **`JsonRpcProvider` default `pollingInterval`.** ethers v6 polls roughly every ~4s by default for its event system; you control your own loop interval instead. Set `provider.pollingInterval` if you ever use `.on`, but the durable indexer uses an explicit interval (≈ block time × a few, e.g. 6–12s on BSC). Use `{ staticNetwork: true }` to suppress a per-request `eth_chainId` round-trip on a fixed chain. **[C7]**
+
+7. **Slow-RPC overlap.** A fixed `@Interval(6000)` can fire again while the previous `getLogs` chain is still running → double-processing / cursor races. Use a **self-rescheduling loop** (run → await → `setTimeout(next)`) or an in-flight mutex/`isRunning` flag. **[design]**
+
+8. **Local fork clock lag (dev).** Per CLAUDE.md, an idle Hardhat fork only advances `block.timestamp` when a block is mined; `getBlock().timestamp` can lag wall-clock. Relevant when asserting timestamps in fork tests (§15.7). **[project CLAUDE.md]**
+
+### 15.6 NestJS integration
+
+```ts
+@Injectable()
+export class ExecutionIndexer implements OnModuleInit, OnModuleDestroy {
+  private provider = new JsonRpcProvider(this.cfg.rpcUrl, undefined, { staticNetwork: true });
+  private iface = new Interface(strategyBuilderVaultAbi);
+  private timer?: NodeJS.Timeout;
+  private running = false;
+  private readonly CONFIRMATIONS = 15;
+  private readonly MAX_RANGE = 2_000;
+
+  constructor(private prisma: PrismaService, private cfg: ConfigService,
+              private gateway: ExecutionGateway) {}
+
+  onModuleInit() { this.scheduleNext(0); }       // self-rescheduling, not @Interval (§15.5.7)
+  onModuleDestroy() {                            // graceful shutdown
+    if (this.timer) clearTimeout(this.timer);
+    this.provider.removeAllListeners();
+    this.provider.destroy();                     // closes transports/timers [C7]
+  }
+
+  private scheduleNext(ms: number) { this.timer = setTimeout(() => this.tick(), ms); }
+
+  private async tick() {
+    if (this.running) return this.scheduleNext(6_000);
+    this.running = true;
+    try {
+      const head = await this.provider.getBlockNumber();
+      const safeHead = head - this.CONFIRMATIONS;
+      let from = (await this.getCursor()) + 1;
+      while (from <= safeHead) {
+        const to = Math.min(from + this.MAX_RANGE - 1, safeHead);
+        const logs = await this.provider.getLogs({ fromBlock: from, toBlock: to,
+          topics: [[TOPIC_EXECUTED, TOPIC_GASCOMP]] }); // address-less, all vaults
+        await this.persist(logs);                 // parseLog + getBlock(cache) + upsert by (txHash,index)
+        await this.setCursor(to);
+        from = to + 1;
+      }
+    } catch (e) { /* adaptive: on range-limit halve MAX_RANGE; log + retry next tick */ }
+    finally { this.running = false; this.scheduleNext(6_000); }
+  }
+}
+```
+
+- Host it as a plain `@Injectable` provider with `OnModuleInit`/`OnModuleDestroy` — `@nestjs/schedule` is **optional** here (only needed if you prefer `@Cron`/`SchedulerRegistry` to manage the timer). Add `ScheduleModule.forRoot()` to `AppModule` if used.
+- After persisting new rows, push them through the existing WS gateway (`this.gateway.emitExecution(row)`).
+- Filter `logs` to known vaults: load registered vault addresses from the DB (`Vault` table) into a `Set<string>` (lowercased) and skip `log.address` not in it — cheaper than `factory.isRegisteredVault` per log.
+
+### 15.7 Testing strategy (against the Hardhat BSC fork)
+
+Hardhat 3 + ethers via `network.connect()` (ESM, top-level await — matches the contracts suite). The indexer is plain TS, so it can also be unit-tested in the backend Jest suite by pointing its `JsonRpcProvider` at `http://localhost:8545`.
+
+1. **Deterministic emit → assert pickup:** in a fork test, execute an automation (`vault.executeAutomation(id)` from a non-owner so `GasCompSettled` also fires), `evm_mine` past `CONFIRMATIONS`, run one `tick()`, assert an `Execution` row exists with the right `automationId`/`executor`/`gasCompAmount` and `blockTimestamp` from `getBlock`.
+2. **Multi-vault address-less filter:** create ≥2 vaults via the factory, execute one automation in each in the same block range, assert the single address-less `getLogs` picks up both and maps `log.address → vault` correctly.
+3. **Backfill / cursor:** process to block X, persist cursor, simulate restart (new indexer instance), execute more, assert it resumes from `cursor+1` with no gap and no duplicate.
+4. **Idempotency:** run `tick()` twice over an overlapping range; assert row count unchanged (the `(txHash, index)` unique guard holds).
+5. **Range chunking:** set `MAX_RANGE` small (e.g. 5), span events across > MAX_RANGE blocks (`evm_mine` in a loop), assert all are indexed across multiple `getLogs` windows.
+6. **Reorg lag:** mine to head, assert events within the `CONFIRMATIONS` window are **not** yet indexed (only `≤ head - N`).
+7. **Revert is invisible (the critical caveat):** make an automation revert (trigger-not-met / failing action), execute, mine, run `tick()`, assert **no** `Execution` row appears from logs — proving failed runs need a non-log source.
+
+Time/timestamp assertions: mine a wall-clock block (`evm_setNextBlockTimestamp` + `evm_mine`) before reading `getBlock().timestamp` to avoid the idle-fork clock lag (§15.5.8).
+
+---
+
+## 16. PEC-219 Real-Time Updates — NestJS WebSockets + Socket.IO (shared by Path A & B)
+
+> **Docs source:** Context7 (NestJS 11 gateways/guards/adapter/WsException; socket.io v4) + web (client reconnection defaults, server/client major-match, BSC-irrelevant), June 2026. **[C7]** / **[web]** tags below.
+> **Scope:** push a `new execution` event to the vault-detail UI (toast, no refresh), auto-reconnect with exponential backoff, **per-vault isolation** (a client only receives events for vaults its wallet owns — *"kein Datenleck"*).
+
+### 16.1 Version decision (NestJS 11 — exact compatible set)
+| Package | Version | Where | Source |
+|---|---|---|---|
+| `@nestjs/websockets` | `^11.1.x` (match NestJS major **11**) | backend | npm/[C7] |
+| `@nestjs/platform-socket.io` | `^11.1.x` (match **11**) | backend | npm/[C7] |
+| `socket.io` | `^4.8.x` (peer of platform pkg) | backend | npm |
+| `socket.io-client` | `^4.8.x` | frontend + backend (e2e test) | npm |
+
+**Compatibility rule:** Socket.IO **server major MUST equal client major** (both **v4**) — a v4↔v2/v3 mix silently fails to connect. `rxjs ^7.1.0` peer already satisfied (`^7.8.2`). **[web]**
+
+### 16.2 Authentication — the no-data-leak boundary (most important)
+**Two layers.** The global `APP_GUARD` (`WalletAuthGuard`) is an **HTTP guard and does NOT protect gateways** — WS handlers are unguarded unless you add WS auth explicitly. **[C7]**
+
+1. **Handshake JWT (reject before connect).** Client sends `io(url, { auth: { token } })`; server reads `socket.handshake.auth.token` (prefer `auth` over query — query leaks to logs; browsers can't set custom headers on the WS upgrade). Verify with the existing `JwtService` in `handleConnection`; on failure `client.disconnect(true)`. On success attach `client.data.address = payload.sub` (mirrors `JwtStrategy.validate` → `{ address: payload.sub }`). **[C7]**
+2. **Per-vault room authorization (the isolation boundary).** Never auto-join. Client emits `subscribe { vaultAddress }`; handler runs the **same DB ownership check as `VaultOwnerGuard`** (`prisma.vault.findUnique` → `ownerAddress === client.data.address`) **before** `client.join(\`vault:\${address}\`)`; reject with `throw new WsException('NOT_VAULT_OWNER')`. Server only ever emits `server.to(\`vault:\${address}\`).emit(...)` → a socket that never joined the room cannot physically receive it.
+
+### 16.3 Key skeletons
+```ts
+@WebSocketGateway({ namespace: '/executions',
+  cors: { origin: process.env.FRONTEND_URL ?? 'http://localhost:5173', credentials: true } })
+export class ExecutionsGateway implements OnGatewayConnection {
+  @WebSocketServer() server: Server;
+  constructor(private jwt: JwtService, private prisma: PrismaService) {}
+
+  async handleConnection(client: Socket) {
+    try {
+      const p = this.jwt.verify(client.handshake.auth?.token ?? '', { secret: process.env.JWT_SECRET });
+      client.data.address = p.sub;
+    } catch { client.disconnect(true); }
+  }
+
+  @SubscribeMessage('subscribe')
+  async onSubscribe(@ConnectedSocket() c: Socket, @MessageBody() b: { vaultAddress: string }) {
+    const v = await this.prisma.vault.findUnique({ where: { address: b.vaultAddress } });
+    if (!v || v.ownerAddress !== c.data.address) throw new WsException('NOT_VAULT_OWNER');
+    await c.join(`vault:${b.vaultAddress}`);
+    return { event: 'subscribed', data: { vaultAddress: b.vaultAddress } };
+  }
+
+  emitExecution(vaultAddress: string, payload: ExecutionEvent) {   // called by the indexer (§15) / webhook (§14.4)
+    this.server.to(`vault:${vaultAddress}`).emit('execution', payload);
+  }
+}
+```
+Gateways are providers — declare in the owning module's `providers` and inject where executions are persisted. **[C7]**
+
+**Client (React 19 — reconnection is built-in):**
+```ts
+const socket = io(`${API_URL}/executions`, { auth: { token: jwt } });
+// defaults already = exponential backoff + jitter:
+//   reconnection:true, reconnectionDelay:1000, reconnectionDelayMax:5000,
+//   randomizationFactor:0.5, reconnectionAttempts:Infinity   (no custom backoff needed)
+socket.on('connect', () => socket.emit('subscribe', { vaultAddress })); // RE-JOIN on every (re)connect
+socket.on('execution', (e) => toast(`Automation #${e.automationId} executed`));
+socket.on('connect_error', (err) => {/* auth/CORS failure */});
+// useEffect cleanup: socket.off(...) + socket.disconnect()  (StrictMode double-mount → guard duplicate sockets/toasts)
+```
+
+### 16.4 Event payload (emit shape)
+```ts
+type ExecutionEvent = {
+  vaultAddress: string; automationId: number; txHash: string;
+  status: 'success' | 'reverted';        // 'reverted' only via the keeper failure channel (§13.0)
+  triggerFired: boolean; gasCompPaid?: string; timestamp: number; // unix seconds
+};
+```
+`subscribe` (client→server): `{ vaultAddress }` → ack `{ event:'subscribed', data:{ vaultAddress } }`. Optional `unsubscribe` → `client.leave(...)`.
+
+### 16.5 Gotchas
+- **Server/client major must match (v4↔v4)** — mismatch = silent no-connect. **[web]**
+- **Global HTTP `APP_GUARD` does NOT guard gateways** — add WS auth in `handleConnection` / a `WsJwtGuard` (`ctx.switchToWs().getClient()`) / adapter middleware. **[C7]**
+- **CORS is separate** — set `cors` in `@WebSocketGateway` (or a custom `IoAdapter.createIOServer`); `app.enableCors()` in `main.ts` does **not** cover the Socket.IO server. The repo already has `FRONTEND_URL` for HTTP CORS — reuse it. **[C7]**
+- **Use ONE namespace (`/executions`) + rooms (`vault:<addr>`)** for per-vault fan-out — not per-vault namespaces. **[C7]**
+- **Reconnection is automatic; room membership is NOT** — re-emit `subscribe` on every `connect` (covers first connect + reconnects). **[web]**
+- **Custom `IoAdapter`** needed only when feeding `@nestjs/config` values, installing connection-level `server.use(...)` auth middleware, or (later) the Redis adapter. `app.useWebSocketAdapter(...)` in `main.ts`. **[C7]**
+- **Horizontal scaling (later)** — multiple backend instances need `@socket.io/redis-adapter` so `server.to(room)` reaches sockets on other instances; single-instance dev/fork doesn't. **[C7]**
+- **React StrictMode** double-invokes effects — create socket + listeners in `useEffect`, cleanup with `socket.off` + `socket.disconnect()` to avoid duplicate live sockets/toasts (same `useRef`-guard discipline the repo uses for one-shot effects).
+
+### 16.6 Testing
+- **e2e (covers the isolation requirement):** boot Nest (`createNestApplication` + `app.listen(0)`), connect a real `socket.io-client` with a signed test JWT. Assert (a) socket on `vault:A` receives an `execution` emitted to `vault:A`; (b) a **different wallet's socket does NOT** receive it (the core *kein-Datenleck* assertion — use a short timeout to assert non-delivery); (c) `subscribe` to a non-owned vault → `exception`/no-join.
+- **Unit:** instantiate the gateway with mocked `JwtService`/`PrismaService`; stub `client = { handshake:{auth:{token}}, data:{}, join, disconnect }`; assert the `join`/`disconnect`/`WsException` branches. `@nestjs/testing` + `supertest` already present; add `socket.io-client` (dev) for the e2e client.
 
 ---
 

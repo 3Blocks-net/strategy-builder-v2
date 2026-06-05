@@ -10,6 +10,8 @@ On-chain automation protocol deployed on BSC. Users create **vaults** (ERC1967 p
 
 Beyond the example steps, the vault can run real **DeFi actions** (PEC-218): **Aave V3** Supply/Withdraw/Borrow/Repay and **PancakeSwap V3** Swap/LP-Mint/Increase/Decrease/Collect — nine stateless, delegatecall-executed action contracts wired through per-protocol address registries (`AaveV3Registry`, `PancakeSwapV3Registry`) and a shared computation library (`ActionLib`). See **DeFi Actions** below.
 
+**Execution monitoring (PEC-219):** a backend **indexer** (ethers v6 poll loop) reads on-chain events across all vaults into Postgres and pushes new successful runs over a WebSocket; the public **keeper** reports failures (reverts emit no logs) to a secured ingest endpoint. The vault detail page shows a unified, real-time execution history (successes + deposits/withdraws + decoded failures). See **Key Backend Patterns → Execution monitoring** and the `IndexerModule`.
+
 ## Monorepo Structure
 
 pnpm workspaces with packages in `packages/`:
@@ -101,6 +103,7 @@ const { ethers } = await network.connect();
 - All vault proxy calls (`createVault`, `deposit`, `withdraw`) need explicit `gas` overrides in frontend hooks — Hardhat fork gas estimation is unreliable for proxy delegatecalls
 - `FeeService.getAcceptedTokens()` scans logs with `fromBlock: currentBlock - 10_000` (not 0) — `fromBlock: 0` on a fork triggers upstream RPC full-chain scan which gets rejected
 - **Fork clock lags wall-clock**: an idle Hardhat fork only advances `block.timestamp` when a block is mined. `TriggerStatusService` computes interval/timer status from the backend's `Date.now()`, while on-chain `isTriggerMet` uses `block.timestamp` — so a time-trigger can show "Ready to fire" in the UI but be not-met on-chain. The keeper script mines a wall-clock block to align them.
+- **Indexer confirmation lag on an idle fork** (PEC-219): the indexer only processes blocks `≤ head − INDEXER_CONFIRMATIONS` (default 5, reorg safety), but an idle fork never mines the confirmation blocks → fresh deposits/executions stay "unconfirmed" and never appear in the history. **Set `INDEXER_CONFIRMATIONS=0` in `packages/backend/.env` for the fork** (no reorgs there) and restart the backend. Diagnose via `GET /indexer/status` (does the cursor advance past the event's block?). Same root cause family as the fork-clock lag.
 - **Gas-comp bootstrap**: external (non-owner) execution settles gas comp from `FeeRegistry.vaultDeposits[vault][token]`; if empty it reverts `InsufficientFeeDeposit`. Fund via `vault.depositFees(token, amount)` (owner, from vault balance) or a `FeeDepositAction` step. The `FeeDepositAction` is a no-op when `vault.minFeeDeposit() == 0` (`FeeDepositAction.sol`), so a positive `minFeeDeposit` is required for auto-top-up.
 
 ## Architecture
@@ -134,6 +137,7 @@ External contracts (pre-existing, read-only interfaces):
    - **Owner automations**: step 0 can be ACTION (runs unconditionally)
    - **Condition**: `staticcall` → `bool` → follow `nextOnTrue` or `nextOnFalse`
    - **Action**: `delegatecall` → apply context diff → follow `nextOnTrue`
+   - On failure both **re-revert with the original revert bytes**: `ConditionCallFailed(uint32 stepIndex, bytes reason)` / `ActionExecutionFailed(uint32 stepIndex, bytes reason)` (PEC-219 #02) — so the keeper/backend can decode the real protocol reason instead of a swallowed generic error.
 4. Record `triggerFired` on the first step (step 0)
    - If step 0 condition returns false and caller is not owner → revert `TriggerNotMet`
 5. If `triggerFired`: call `afterExecution` (staticcall) on step 0 — applies context diff (e.g. IntervalCondition advances schedule)
@@ -438,20 +442,24 @@ await ethers.provider.send("evm_mine", []);
 | Module | Path | Description |
 |--------|------|-------------|
 | `AuthModule` | `src/auth/` | SIWE nonce/verify/refresh, JWT strategy, WalletAuthGuard (global APP_GUARD) |
-| `VaultModule` | `src/vault/` | Vault CRUD, VaultOwnerGuard, event recording, paginated history |
+| `VaultModule` | `src/vault/` | Vault CRUD, `VaultOwnerGuard`, **`VaultAccessService`** (shared ownership check, used by the guard **and** the WS gateway). The legacy deposit/withdraw event-recording + `/history` endpoints were **removed** (PEC-219 — history is indexer-owned now) |
 | `AutomationModule` | `src/automation/` | Automation CRUD + draft reconciliation (AutomationService), graph→steps encoding incl. context-slot allocation (EncodingService), context slot read/allocate (ContextService), trigger status (TriggerStatusService) |
-| `BlockchainModule` | `src/blockchain/` | FeeService (on-chain fees + per-vault gas deposit, 1h cache), ContractErrorService, accepted tokens; `GET /vaults/:address/gas-deposit` |
+| `BlockchainModule` | `src/blockchain/` | FeeService (on-chain fees + per-vault gas deposit, 1h cache), **ContractErrorService** (now a real **revert decoder**, not just a name→message map — PEC-219), accepted tokens; `GET /vaults/:address/gas-deposit` |
+| `IndexerModule` | `src/indexer/` | **Execution monitoring (PEC-219)** — `IndexerService` (poll loop), `IndexerCursorStore`, pure `RangePlanner` + event→row mapper, `ExecutionService` (unified UNION history), `FailureIngestService` + `KeeperIngestGuard`, `ExecutionsGateway` (Socket.IO). Endpoints below |
 | `TokensModule` | `src/tokens/` | DB-backed curated per-protocol token allowlists; `GET /tokens?protocol=aave\|pancakeswap` (address/symbol/decimals from the `ProtocolToken` table) |
-| `PortfolioModule` | `src/portfolio/` | AlchemyService, PriceService (DeFiLlama fallback), VaultPortfolioService (60s cache) |
+| `PortfolioModule` | `src/portfolio/` | AlchemyService, PriceService (DeFiLlama fallback, now also **exported** for the indexer's write-time USD freeze), VaultPortfolioService (60s cache) |
 | `DatabaseModule` | `src/database/` | PrismaService (global) |
 | `HealthModule` | `src/health/` | GET /health |
 
 **AutomationModule endpoints** (all `VaultOwnerGuard`): `POST/GET/PATCH/DELETE :address/automations[/:id]`, `:id/encode` + `:id/encode-update` (build create/update calldata + context-setup tx), `:id/encode-toggle` (setAutomationActive), `:id/encode-execute` (executeAutomation); `GET :address/context-slots`; `GET :address/automations/trigger-statuses`. DELETE is DB-only and blocks active **public** automations until deactivated on-chain (owner-only are exempt).
 
+**IndexerModule endpoints**: `GET :address/executions?automationId=&page=&pageSize=` (`VaultOwnerGuard`; unified UNION history), `GET /indexer/status` (authenticated; cursor freshness), `POST /internal/executions/failures` (`@Public()` + `KeeperIngestGuard` shared secret — keeper-only). The legacy `POST/GET :address/events` + `GET :address/history` are **gone**.
+
 ### Key Backend Patterns
 
 - **Auth**: SIWE + JWT. `WalletAuthGuard` is global APP_GUARD; use `@Public()` decorator for public endpoints.
-- **VaultOwnerGuard**: Per-vault auth. Loads vault by `:address` param, checks `ownerAddress == JWT wallet`. Attaches `req.vault`.
+- **VaultOwnerGuard**: Per-vault auth. Delegates to **`VaultAccessService.assertOwnership`** (the single ownership check shared with the WS gateway) — compares **checksummed** (`getAddress`) so casing never matters, malformed input → `NOT_FOUND` (never a 500). Attaches `req.vault`.
+- **Execution monitoring (PEC-219)** — `IndexerModule`. **Two channels:** the indexer ingests *successes* + deposits/withdraws from logs; the keeper reports *failures* (reverts emit no logs). **Models:** `Execution` (SUCCESS-only, unique `(txHash, logIndex)`, frozen `gasCompUsd`), `VaultEvent` (now indexer-owned, `(txHash, logIndex)` unique), `ExecutionFailure` (one **open** row per automation via a **partial unique index** `(vaultId, automationId) WHERE resolvedAt IS NULL` — hand-written raw-SQL migration), `IndexerCursor` (single feed, durable resume). **Indexer:** self-rescheduling poll loop (in-flight-guarded), one address-less `getLogs({topics:[ALL_TOPICS]})` per tick gated on the **per-tick-reloaded** known-vault set, pure `RangePlanner` (`head − CONFIRMATIONS` cap, chunking, adaptive halving) + pure event→row mapper, idempotent `createMany`, write-time-frozen USD via `PriceService`. The indexer **resolves** an open failure in the **same `$transaction`** as the SUCCESS insert. Provider injected via `INDEXER_PROVIDER` (HTTP `JsonRpcProvider`, `staticNetwork`; null → dormant). `onModuleInit` is resilient (a startup hiccup never crashes the API; mocked-Prisma integration tests rely on this). **Decoder** (`ContractErrorService.decodeRevert`): unwraps the 2-arg `ActionExecutionFailed`/`ConditionCallFailed` → `Step N:` + inner reason → `Error(string)` (Aave codes / PancakeSwap require msgs) → `Panic` → known custom error → `0x<selector>`. **Gateway** (`ExecutionsGateway`, Socket.IO `/executions`, rooms `vault:<checksummed>`): handshake JWT in `handleConnection` + per-vault ownership on `subscribe` (shared `VaultAccessService`); bound as `EXECUTION_EVENTS_PORT` (`useExisting`) so the indexer pushes in-process without importing it. **Keeper** (`scripts/execute-automations.ts`) reports path 1 (`executeAutomation` revert, has txHash) + path 2 (`isTriggerMet` revert, no txHash) with raw `e.data`; gated by `KEEPER_INGEST_SECRET`.
 - **PrismaService**: Global, extends PrismaClient. All modules inject it.
 - **DTOs**: Plain classes (no class-validator decorators yet).
 - **Context-slot encoding** (`EncodingService`): `extractSlotNames` collects variable names from params of fields marked `x-ui-widget: context-slot` (via `StepType.paramSchema`), `ContextService.allocateSlots` maps name→index in `vault.contextSlots`, and `encodeParams` resolves names→indices and applies the field's schema `default` (e.g. NO_SLOT `4294967295`) for unset slot fields — never 0, which would point at slot 0. `encode`/`encodeUpdate` emit a `setContext` calldata when new slots are needed (the deploy dialog sends it as a separate tx before create/update).
@@ -467,7 +475,7 @@ await ethers.provider.send("evm_mine", []);
 | `/connect` | `ConnectPage` | MetaMask connection + SIWE sign-in |
 | `/dashboard` | `DashboardPage` | Vault table with USD values, empty state, create CTA |
 | `/vault/create` | `CreateVaultPage` | Multi-step wizard (label → token → fees → TX → deposit) |
-| `/vault/:address` | `VaultDetailPage` | Portfolio, label edit, deposit/withdraw, automation list, **ContextView** (slots + on-chain values), **GasDepositCard** (gas reserve + deposit + minFeeDeposit config), history |
+| `/vault/:address` | `VaultDetailPage` | Portfolio, label edit, deposit/withdraw, automation list, **ContextView** (slots + on-chain values), **GasDepositCard** (gas reserve + deposit + minFeeDeposit config), **ExecutionHistoryTable** (live unified history: success/failed/resolved + deposits/withdraws, gas+USD, BscScan, freshness indicator — PEC-219) |
 | `/vault/:address/automation/:id/edit` | `AutomationEditorPage` | React-Flow graph editor (`features/automation-editor/`): nodes/edges, context variables, auto-save, deploy dialog (context tx → create/update tx) |
 
 **Automation editor** (`src/features/automation-editor/`): Zustand store (`editor-store.ts`), `useAutoSave` (5s debounce → PATCH editorState), context variables merged from both `/context-slots` (vault-wide) and the automation's saved `editorState.contextVariables` via commutative `mergeContextVariables` so concurrent loads don't clobber. Automation list shows **Execute** (owner-only) vs Activate/Deactivate toggle (public); deploy dialog reads the on-chain id from the `AutomationCreated` event receipt.
@@ -479,6 +487,7 @@ await ethers.provider.send("evm_mine", []);
 - **Contract ABIs**: Auto-generated in `lib/abis/` from Hardhat artifacts via `scripts/extract-abis.js` (runs on compile).
 - **wagmi**: Config in `lib/wagmi.ts`. Chain order: `[hardhat]` in dev, `[bsc, bscTestnet]` in production. Multicall disabled on Hardhat chain. `pollingInterval: 2000`. Hooks: `useCreateVault` (gas: 500k), `useApproveAndDeposit` (gas: 300k on deposit), `useWithdraw` (gas: 300k).
 - **Receipt waiting**: `lib/wait-for-receipt.ts` polls `getTransactionReceipt` (used by `useCreateVault` + deploy dialog). Deposit/withdraw/gas-deposit hooks use viem's `usePublicClient().waitForTransactionReceipt`.
+- **Realtime execution history (PEC-219)**: `ExecutionHistoryTable` consumes `GET /vaults/:address/executions` (unified UNION, offset paging, vault-wide or `automationId` filter). `useExecutionsSocket` connects to the `/executions` Socket.IO namespace with the JWT via the **function form** `auth: (cb)=>cb({token})` (read fresh on every reconnect — no expired-token loop), re-subscribes + gap-fill-refetches on every connect/reconnect, and toasts (`sonner`) + refetches page 1 on each `execution` event. `useIndexerStatus` polls `GET /indexer/status` every 10s (always) → `FreshnessIndicator` (connection dot + "updated Ns ago" from the cursor's block timestamp). While the socket is disconnected the table REST-polls every 15s; no heavy polling while it's healthy. The forms no longer POST optimistic events (history is indexer-owned).
 - **StrictMode**: dev double-invokes effects — guard one-shot side effects (e.g. draft creation) with a `useRef` flag, not just state, since async state isn't set yet on the second invocation.
 - **Chain switching**: `ConnectPage` uses `useSwitchChain` to force MetaMask to `config.chains[0]` on connect. SIWE `chainId` defaults to 31337 in dev, 56 in production.
 - **Protected Routes**: `ProtectedRoute` component redirects to `/connect` if not authenticated.
