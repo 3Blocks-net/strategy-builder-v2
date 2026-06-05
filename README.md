@@ -50,9 +50,16 @@ pnpm contracts:deploy:fork
 ```
 
 This deploys the FeeRegistry, vault factory + implementation, a MockPriceOracle,
-and the example conditions/actions; configures fees and gas compensation; and
+the example conditions/actions, **and the two DeFi registries + nine DeFi action
+contracts** (Aave V3 + PancakeSwap V3); configures fees and gas compensation; and
 seeds the test wallet. It prints every address and also saves them to
 `packages/contracts/deployments/fork-latest.json`.
+
+> Already have the base system deployed and only need to add the DeFi actions?
+> Run `npx hardhat run --network localhost scripts/deploy-defi-actions.ts` — it
+> deploys just the registries + nine actions and **merges** their addresses into
+> `fork-latest.json` (leaving the factory and existing vaults untouched), then
+> re-seed with `pnpm --filter backend prisma:seed`.
 
 Copy the printed addresses into your env files **before** starting the services:
 
@@ -164,7 +171,8 @@ npx hardhat test                                   # Run all tests
 npx hardhat test test/StrategyBuilderVault.ts      # Single file
 npx hardhat test --grep "deposit"                  # Pattern match
 npx hardhat node --network bscFork                 # Start fork node (Chain ID 31337)
-npx hardhat run --network localhost scripts/deploy-fork.ts        # Deploy to running fork
+npx hardhat run --network localhost scripts/deploy-fork.ts          # Deploy the full system to a running fork
+npx hardhat run --network localhost scripts/deploy-defi-actions.ts  # Incremental: deploy only the DeFi registries + 9 actions
 npx hardhat run --network localhost scripts/execute-automations.ts  # Keeper: execute due automations
 ```
 
@@ -209,6 +217,9 @@ ALCHEMY_API_KEY=
 ```bash
 VITE_API_URL=http://localhost:3001
 VITE_FACTORY_ADDRESS=
+# Optional — PancakeSwap V3 factory for the Swap node's pool-existence check.
+# Defaults to the live BSC factory; only override for a non-BSC fork.
+VITE_PCS_FACTORY_ADDRESS=
 ```
 
 ### `packages/contracts/.env`
@@ -285,7 +296,25 @@ StrategyBuilderVault (impl) → automations, context, deposit/withdraw
 FeeRegistry → deposit/withdraw fees (flat BPS) + executor gas compensation
 ```
 
-Vault automations are directed graphs of **Conditions** (staticcall, read-only) and **Actions** (delegatecall, stateless). Example contracts: `TokenBalanceCondition`, `IntervalCondition`, `TimerCondition`, `ERC20TransferAction`, `FeeDepositAction`.
+Vault automations are directed graphs of **Conditions** (staticcall, read-only) and **Actions** (delegatecall, stateless). Example steps: `TokenBalanceCondition`, `IntervalCondition`, `TimerCondition`, `ERC20TransferAction`, `FeeDepositAction`.
+
+#### DeFi Actions
+
+The vault also runs real on-chain DeFi via nine stateless action contracts (PEC-218), wired through per-protocol address registries and a shared `ActionLib`:
+
+```
+AaveV3Registry ──────────┐         PancakeSwapV3Registry ──────────┐
+  (PoolAddressesProvider, │           (SwapRouter, NPM, Factory)     │
+   caches Pool, runtime   │                                          │
+   oracle)                │                                          │
+  ↓                       │          ↓                               │
+  AaveV3 Supply / Withdraw / Borrow / Repay   PancakeSwapV3 Swap / Mint / Increase / Decrease / Collect
+                          └──────── ActionLib (amount modes, 18-dec normalization, inverse-HF math) ───────┘
+```
+
+- **Aave V3** — Supply / Withdraw / Borrow / Repay with a 4-mode amount model: `FIXED`, `FROM_SLOT`, `MAX_AVAILABLE` (per-action protocol max), `TARGET_HF` (move the position to a target health factor; wrong-direction is a no-op). Borrow/Repay use variable rate; approvals reset to 0.
+- **PancakeSwap V3** — Swap (single-hop, ships `amountOutMinimum = 0` by design), LP Mint (explicit price range or preset ±% width, position NFT held by the vault via `onERC721Received`), Increase / Decrease (bundles `decreaseLiquidity` + `collect`) / Collect.
+- Registries are **immutable** (no owner/setters); actions hold the registry as an `immutable` and call protocols via regular `call`. Curated per-protocol token lists are DB-backed (`/tokens?protocol=…`). All nine actions are well under the 24 KB EIP-170 limit.
 
 ### Backend API
 
@@ -309,7 +338,9 @@ Vault automations are directed graphs of **Conditions** (staticcall, read-only) 
 | `POST /vaults/:address/automations/:id/encode*` | JWT + Owner | Build calldata: `encode`, `encode-update`, `encode-toggle`, `encode-execute` |
 | `GET /vaults/:address/automations/trigger-statuses` | JWT + Owner | Live trigger status per automation |
 | `GET /fees` | Public | depositFeeBps + withdrawFeeBps |
-| `GET /tokens/accepted` | Public | Accepted tokens with metadata |
+| `GET /tokens/accepted` | Public | Accepted fee tokens with metadata |
+| `GET /tokens?protocol=aave\|pancakeswap` | Public | Curated per-protocol token allowlist (address, symbol, decimals) |
+| `GET /step-types` | Public | Available conditions/actions with `paramSchema` + `abiFragment` (drives the editor) |
 | `GET /errors/contract-errors` | Public | Solidity error → message map |
 | `GET /health` | Public | Health check |
 
@@ -370,7 +401,13 @@ The script also deploys a **MockPriceOracle** and calls `setGasConfig` (oracle, 
 ### Important Notes
 
 - **Production build profile required**: The deploy script compiles with `--build-profile production` (optimizer enabled). Without the optimizer, vault proxy deployment fails with StackOverflow.
-- **Re-seed StepTypes after a fresh deploy**: `pnpm --filter backend prisma:seed` — otherwise newly built automations encode the previous deploy's (now dead) condition/action addresses and revert.
+- **Re-seed StepTypes after a fresh deploy**: `pnpm --filter backend prisma:seed` — otherwise newly built automations encode the previous deploy's (now dead) condition/action addresses and revert. The seed reads addresses from `fork-latest.json`, seeds one row per step (3 conditions + 2 example actions + 9 DeFi actions) and the per-protocol token lists, and **skips any action still at `address(0)`** (not yet deployed) — so deploy the contracts first, then seed.
 - **Multicall disabled on Hardhat**: The frontend disables viem's multicall batching on chain 31337 to avoid StackOverflow from multicall3 contract simulation.
 - **`NODE_ENV=development`**: Must be set in `packages/backend/.env` for the portfolio service to read balances via local RPC instead of Alchemy API.
 - **Fork clock**: an idle fork's `block.timestamp` lags real time; the keeper script syncs it. Trigger badges in the UI use wall-clock, so they can read "ready" before the chain agrees.
+
+### Troubleshooting
+
+- **Editor shows only some action nodes**: the new DeFi actions aren't deployed, so their `StepType` rows collapsed onto the `address(0)` placeholder. Deploy them (`scripts/deploy-defi-actions.ts` or a full `deploy-fork.ts`) and re-seed.
+- **Keeper skips an automation with `[id] skip: trigger not met` even though it should fire**: the automation's on-chain steps were encoded against a **previous deploy's condition/action addresses** (the `StepType` table drifted from `fork-latest.json` and wasn't re-seeded). The stale condition's `check()` reverts → `isTriggerMet` is false. **Fix:** re-seed `StepType`s (clear the table first so old rows don't linger as duplicates), then **re-deploy the automation** in the editor (re-seeding alone can't fix the addresses already baked into the deployed steps). To avoid the drift, prefer the incremental `deploy-defi-actions.ts` over a full re-deploy on an existing setup.
+- **`InsufficientFeeDeposit` on external execution**: the vault's gas reserve is empty — set a positive `minFeeDeposit` (gas-reserve card) and fund it via `depositFees` or a `FeeDepositAction` step.

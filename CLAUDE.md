@@ -8,6 +8,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 On-chain automation protocol deployed on BSC. Users create **vaults** (ERC1967 proxies) and configure **automations** — directed graphs of Conditions and Actions. A public executor calls `executeAutomation`, the trigger condition gates execution, and actions run in sequence modifying the vault's shared context. Fees are charged at the vault boundary (deposit/withdraw BPS), and executors receive gas compensation from a pre-funded deposit in FeeRegistry.
 
+Beyond the example steps, the vault can run real **DeFi actions** (PEC-218): **Aave V3** Supply/Withdraw/Borrow/Repay and **PancakeSwap V3** Swap/LP-Mint/Increase/Decrease/Collect — nine stateless, delegatecall-executed action contracts wired through per-protocol address registries (`AaveV3Registry`, `PancakeSwapV3Registry`) and a shared computation library (`ActionLib`). See **DeFi Actions** below.
+
 ## Monorepo Structure
 
 pnpm workspaces with packages in `packages/`:
@@ -33,7 +35,7 @@ pnpm contracts:compile       # Compile contracts + extract ABIs to frontend
 pnpm contracts:test          # Run contract tests
 pnpm contracts:clean         # Clean contract artifacts
 pnpm contracts:fork:bsc      # Start BSC mainnet fork on localhost:8545
-pnpm contracts:deploy:fork   # Deploy all contracts to fork (incl. MockPriceOracle + gas config)
+pnpm contracts:deploy:fork   # Deploy all contracts to fork (incl. MockPriceOracle + gas config + the 2 DeFi registries + 9 actions)
 pnpm contracts:execute:fork  # Keeper: execute all externally-runnable automations
 pnpm backend:dev             # Start backend in watch mode
 pnpm backend:build           # Build backend
@@ -54,8 +56,11 @@ npx hardhat test test/StrategyBuilderVault.ts   # Run single test file
 npx hardhat clean            # Clean artifacts
 npx hardhat test --grep "pattern"  # Run tests matching pattern
 npx hardhat node --network bscFork  # Start BSC fork node (Chain ID 31337)
-npx hardhat run --build-profile production --network localhost scripts/deploy-fork.ts  # Deploy to running fork
+npx hardhat run --build-profile production --network localhost scripts/deploy-fork.ts  # Deploy the full system to a running fork
+npx hardhat run --network localhost scripts/deploy-defi-actions.ts  # Incremental: deploy ONLY the 2 registries + 9 DeFi actions, merge into fork-latest.json
 ```
+
+**`scripts/deploy-defi-actions.ts`** — deploys only the DeFi-actions Epic contracts (the two registries + nine actions) and **merges** their addresses into the existing `deployments/fork-latest.json`, leaving the factory / FeeRegistry / vault implementation / existing vaults untouched. Use it when the base system is already deployed and you just need the new actions to get real, distinct addresses (then `pnpm --filter backend prisma:seed`). A full `deploy-fork.ts` would mint a new factory address → orphaned vaults + `.env` changes + service restart.
 
 **Deploy** (Hardhat Ignition):
 ```bash
@@ -72,7 +77,7 @@ npx hardhat ignition deploy --network bscMainnet ignition/modules/StrategyBuilde
 #               Running backend/frontend test or build standalone? They build shared first
 #               via pnpm topology, but a manual `pnpm shared:build` is the fallback if dist/ is missing.
 ```
-**After a fresh redeploy, re-seed the backend StepType table** (`pnpm --filter backend prisma:seed`) — it reads condition/action addresses from `deployments/fork-latest.json`. Skipping this leaves stale addresses, so newly built automations encode dead contract addresses and revert (`ConditionCallFailed`). The seed upserts by `(contractAddress, selector)`, so delete old `StepType` rows first if addresses changed.
+**After a fresh redeploy, re-seed the backend StepType table** (`pnpm --filter backend prisma:seed`) — it reads condition/action addresses from `deployments/fork-latest.json`. Skipping this leaves stale addresses, so newly built automations encode dead contract addresses and revert (`ConditionCallFailed`). The seed upserts by `(contractAddress, selector)`, so delete old `StepType` rows first if addresses changed (e.g. `TRUNCATE "StepType" RESTART IDENTITY CASCADE` then re-seed). **Re-seeding does NOT fix already-deployed automations** — their step addresses are baked into the vault's on-chain steps, so a drifted automation manifests as the keeper logging `skip: trigger not met` (the stale condition's `check()` reverts → `isTriggerMet` false); the automation must be **re-deployed** (editor → update / `updateAutomationSteps`) to pick up the current addresses. On an already-running setup prefer `scripts/deploy-defi-actions.ts` (incremental, leaves factory/conditions/vaults untouched) over a full `deploy-fork.ts` to avoid the drift entirely.
 
 **Hardhat 3** (`hardhat ^3.2.0`) — uses `defineConfig`, `network.connect()`, and ESM (`"type": "module"` in package.json). Tests use top-level `await` for network connection:
 ```typescript
@@ -223,6 +228,7 @@ function afterExecution(bytes calldata params, bytes[] calldata ctx)
 - `withdrawETH(to, amount)` — recover accidentally sent ETH (amount=0 sends full balance)
 - `executeAutomation(automationId)` — public; owner-only automations restricted to owner
 - `isTriggerMet(automationId)` — view, checks if trigger condition is currently true
+- `onERC721Received(...)` — returns the ERC-721 magic selector so the vault can custody PancakeSwap V3 LP position NFTs (proactive, unconditional; works even if NPM uses `_safeMint`). Existing vaults pick this up via `setVaultImplementation`.
 
 **Views:** `getAutomation(id)`, `getContext()`, `automationCount()`, `depositToken()`, `feeRegistry()`, `minFeeDeposit()`
 
@@ -349,6 +355,50 @@ struct Params {
 
 **No-op when `minFeeDeposit == 0`** — set a positive `minFeeDeposit` (vault `setMinFeeDeposit`) for auto-top-up to work.
 
+## DeFi Actions (Aave V3 + PancakeSwap V3 — PEC-218)
+
+Nine stateless, delegatecall-executed action contracts that perform real on-chain DeFi from the vault. They never `delegatecall` into the external protocols — they use regular `call`, `SafeERC20.forceApprove`, and **reset every approval back to 0** after a pull. Each action holds an `immutable registry` (immutables live in bytecode → read correctly under delegatecall, so the action stays stateless and address-portable).
+
+### Registries (`contracts/registries/`)
+
+- **`AaveV3Registry`** — stores the Aave **`PoolAddressesProvider`** (BSC `0xff75B6da14FfbbfD355Daf7a2731456b3562Ba6D`) as `immutable`, resolves + caches the `Pool` in the constructor. Does **not** cache the price oracle — `priceOracle()` resolves it at call time via `provider.getPriceOracle()`, so a governance oracle re-point is followed and the HF math reads the same oracle Aave uses. Zero-address construction reverts.
+- **`PancakeSwapV3Registry`** — stores `SwapRouter` (`0x1b81…`), `NonfungiblePositionManager` (`0x46A1…`), `Factory` (`0x0BFb…`) as three `immutable`s. No oracle. Zero-address construction reverts.
+- Both are **immutable — no owner, no setters**. Re-targeting a chain = deploy new registries + repoint actions.
+
+### `ActionLib` (`contracts/libraries/ActionLib.sol`)
+
+Pure `library` of `internal` functions, inlined into each action's bytecode (delegatecall-safe, no storage). Carries:
+- **v1 primitives** — `NO_SLOT = type(uint32).max`; `AmountMode` enum `{FIXED, FROM_SLOT, MAX_AVAILABLE, TARGET_HF}` (integer values are part of the ABI — keep stable); `readUint256Slot` (bounds-checked), `fullBalance`, `singleSlotDiff` (empty diff on `NO_SLOT`). The three ERC-20 amount conventions (`0 = full balance`, `uint256.max = "all"`, explicit) are kept **strictly separate** so they can't leak between actions.
+- **HF/oracle engine** — 18-decimal normalization (`×1e10` for Aave's 8-dec base values **and** `getAssetPrice`), `baseToToken`/`tokenToBase` at dynamic decimals (floors), the inverse target-HF math in four directions (`targetDebtBase` for Borrow/Repay, `targetCollateralBase` for Supply/Withdraw), `maxSafeWithdrawBase` (HF ≥ 1 floor), `applyHaircut` (`HAIRCUT_BPS = 50`, applied only to Borrow-MAX / Withdraw-MAX), `requireValidTargetHF` (`MIN_TARGET_HF = 1.05e18`), `loadAaveCtx`. **Mandatory hard-fixture unit tests** live in `test/ActionLibHF.ts` (exercised via `ActionLibHarness`) — a 10ⁿ scaling error is caught there, not by fork tests.
+
+### The nine actions (`contracts/actions/`)
+
+| Action | External call | Approval | Amount / params |
+|---|---|---|---|
+| `AaveV3SupplyAction` | `Pool.supply` | ✅ reset 0 | 4-mode; MAX = full balance |
+| `AaveV3WithdrawAction` | `Pool.withdraw` → actual | ❌ | 4-mode; MAX = max-safe (`uint256.max` only when no debt); actual → slot |
+| `AaveV3BorrowAction` | `Pool.borrow(...,2,...)` | ❌ | 4-mode; MAX = `availableBorrows` − haircut; rate **always 2 (variable)**; borrowed → slot |
+| `AaveV3RepayAction` | `Pool.repay(...,2,...)` → actual | ✅ reset 0 | 4-mode; MAX = `min(debt, balance)` (revert-free); actual → slot |
+| `PancakeSwapV3SwapAction` | `SwapRouter.exactInputSingle` → amountOut | ✅ reset 0 | in: slot/full/fixed; **`amountOutMinimum = 0`**, `sqrtPriceLimitX96 = 0`; amountOut → slot |
+| `PancakeSwapV3MintAction` | `NPM.mint` → (tokenId, …) | ✅ both, reset 0 | range explicit/preset; `amountMin = 0`; **tokenId → slot** |
+| `PancakeSwapV3IncreaseLiquidityAction` | `NPM.increaseLiquidity` | ✅ both, reset 0 | tokenId from slot; per-token amounts; `amountMin = 0` |
+| `PancakeSwapV3DecreaseLiquidityAction` | `NPM.decreaseLiquidity` **then** `NPM.collect(max,max)` | ❌ | tokenId from slot; **percentage** (1–100) of live `positions().liquidity` |
+| `PancakeSwapV3CollectAction` | `NPM.collect(max,max)` | ❌ | tokenId from slot |
+
+- **Aave 4-mode model** (all four Aave actions): `mode ∈ {FIXED, FROM_SLOT, MAX_AVAILABLE, TARGET_HF}`. `MAX_AVAILABLE` resolves per-action (table above). `TARGET_HF` computes the amount that moves the position to `targetHealthFactor` (inverse-HF math): **wrong-direction → no-op** (amount 0, the step proceeds, never reverts), **holdings cap → best-effort**, `MAX_AVAILABLE` never reverts from edge rounding. `targetHealthFactor` must be `> 1.05e18`. The oracle-bound modes (`MAX_AVAILABLE` for Withdraw/Borrow, all `TARGET_HF`) read `getUserAccountData` + `getAssetPrice`; FIXED / FROM_SLOT / Supply-MAX / Repay-MAX read neither.
+- **Swap / LP price protection — removed by design** (PRD): swaps ship `amountOutMinimum = 0`, `sqrtPriceLimitX96 = 0`; LP mint/increase/decrease use `amount0Min = amount1Min = 0`. Priority is that the step **executes** over price-protection; the swap struct keeps optional `amountOutMinimum` + `minOutFromSlot` (default 0) so protection can be enabled later without redeploy. (Epic success-criterion conflict pending owner sign-off — see PRD.)
+- **Mint tick range** — `rangeMode 0` (explicit): frontend computes `tickLower`/`tickUpper` off-chain, rounded **outward** to spacing, sorted to the token0<token1 order; action uses as-is. `rangeMode 1` (preset): frontend passes only `tickDelta`; the action reads `pool.slot0().tick` (via `Factory.getPool`) and centers `tick ∓ tickDelta`, rounded outward. Token ordering + amounts are auto-sorted.
+- **Decrease bundles `collect`** — `decreaseLiquidity` alone only accrues to the position; the bundled `collect(max,max)` is what delivers the freed tokens (+ fees) to the vault (the classic LP integration bug, explicitly asserted in tests).
+- `deadline = block.timestamp` for all swap/LP calls. All nine actions are **< 8 KB** under the production profile (EIP-170 well clear).
+
+### New external interfaces (`contracts/interfaces/external/`)
+
+`IAaveV3Pool` (supply/withdraw/borrow/repay + `getUserAccountData`/`getReserveData`), `IPoolAddressesProvider` (`getPool`, `getPriceOracle`), `IAaveOracle` (`getAssetPrice`), `IPancakeV3SwapRouter` (`exactInputSingle` incl. `deadline`), `IPancakeV3Factory` (`getPool`), `IPancakeV3Pool` (`slot0`/`tickSpacing`/`token0`/`token1`), `INonfungiblePositionManager` (mint/increase/decrease/collect/positions).
+
+### Deploy / seed
+
+`deploy-fork.ts` deploys both registries (real BSC protocol addresses) + the nine actions and writes them to `deployments/fork-latest.json`; `extract-abis.js` emits each action ABI to the frontend. For an incremental add to an already-running fork, use `scripts/deploy-defi-actions.ts` (see Commands). The backend `prisma/seed.ts` seeds **one `StepType` row per action** and the `ProtocolToken` allowlists; it **skips any action whose address is `address(0)`** (not yet deployed) and deletes stale zero-address rows — re-seed after deploying (`pnpm --filter backend prisma:seed`).
+
 ## Test Helpers (TypeScript)
 
 ```typescript
@@ -377,8 +427,11 @@ await ethers.provider.send("evm_mine", []);
 | Contract | Purpose |
 |---|---|
 | `MockERC20` | Standard ERC-20, mints on deploy |
-| `MockPriceOracle` | `setPrice(token, priceUSD18)` — reverts `OracleNotExist` if unset |
+| `MockPriceOracle` | `setPrice(token, priceUSD18)` — reverts `OracleNotExist` if unset (project `IPriceOracle`) |
 | `ERC1967ProxyHelper` | Proxy helper for tests |
+| `ActionLibHarness` | Exposes `ActionLib`'s internal funcs (incl. the HF/oracle math) for hard-fixture unit tests |
+| `MockAaveV3` | `MockAaveV3Pool` (supply/withdraw/borrow/repay + debt-token tracking + configurable `getUserAccountData`/`seedDebt`), `MockAToken` (mintable/burnable), `MockAaveOracle` (`setPrice` 8-dec), `MockPoolAddressesProvider` |
+| `MockPancakeV3` | `MockPancakeV3Factory` (`setPool`/`getPool`), `MockPancakeV3SwapRouter` (rate-based `exactInputSingle`), `MockPancakeV3Pool` (configurable `slot0`/`tickSpacing`), `MockNonfungiblePositionManager` (ERC-721, `_safeMint`s the position; mint/increase/decrease/collect/positions + `accrue` helper) |
 
 ## Backend Modules
 
@@ -388,6 +441,7 @@ await ethers.provider.send("evm_mine", []);
 | `VaultModule` | `src/vault/` | Vault CRUD, VaultOwnerGuard, event recording, paginated history |
 | `AutomationModule` | `src/automation/` | Automation CRUD + draft reconciliation (AutomationService), graph→steps encoding incl. context-slot allocation (EncodingService), context slot read/allocate (ContextService), trigger status (TriggerStatusService) |
 | `BlockchainModule` | `src/blockchain/` | FeeService (on-chain fees + per-vault gas deposit, 1h cache), ContractErrorService, accepted tokens; `GET /vaults/:address/gas-deposit` |
+| `TokensModule` | `src/tokens/` | DB-backed curated per-protocol token allowlists; `GET /tokens?protocol=aave\|pancakeswap` (address/symbol/decimals from the `ProtocolToken` table) |
 | `PortfolioModule` | `src/portfolio/` | AlchemyService, PriceService (DeFiLlama fallback), VaultPortfolioService (60s cache) |
 | `DatabaseModule` | `src/database/` | PrismaService (global) |
 | `HealthModule` | `src/health/` | GET /health |
@@ -402,7 +456,9 @@ await ethers.provider.send("evm_mine", []);
 - **DTOs**: Plain classes (no class-validator decorators yet).
 - **Context-slot encoding** (`EncodingService`): `extractSlotNames` collects variable names from params of fields marked `x-ui-widget: context-slot` (via `StepType.paramSchema`), `ContextService.allocateSlots` maps name→index in `vault.contextSlots`, and `encodeParams` resolves names→indices and applies the field's schema `default` (e.g. NO_SLOT `4294967295`) for unset slot fields — never 0, which would point at slot 0. `encode`/`encodeUpdate` emit a `setContext` calldata when new slots are needed (the deploy dialog sends it as a separate tx before create/update).
 - **Friendly params + encode-boundary mapper** (PEC-217): condition/action params are stored **friendly** in `node.data.params` (durations as `{ value, unit }`, start time as Unix seconds, etc.) for lossless round-trip. The frontend runs the **encode-boundary mapper** (`features/automation-editor/lib/encode-boundary.ts`, using `shared`'s `toSeconds`/`encodeTimestamp`) just before `POST /encode`: `mapGraphToRaw` converts friendly → **raw** and strips friendly-only fields (sent as `body.graph`); `buildContextOverrides` routes each `x-ui-widget: start-time` field → **name-keyed** `contextOverrides[<timeSlot var name>]` (ABI-encoded uint256). The encode controller prefers `body.graph` over the persisted (friendly) `editorState`; `EncodingService` runs a defensive **raw-mode guard** (`shared` `validateParams(schema, params, { mode: 'raw' })`) before building calldata (e.g. rejects `interval = 0` with HTTP 400). `contextOverrides` on `/encode` + `/encode-update` is **name-keyed** `Record<string,string>` (no index-keyed form); `EncodingService`/`ContextService.buildExpandedContext` resolve name→index via the `slotMapping` from `allocateSlots`. New context slots default to `0x` — only `start-time` slots receive a timestamp initial value, written into the deploy `setContext` tx. The generic ABI encoder is unchanged. `/step-types` (findAll) returns `paramSchema` + `abiFragment` so the editor store can do **node-init** default materialization (static defaults; deterministic hidden `__time_<nodeId>` slot names; `start-time` defaults to now; `account-selector` fields default to the vault address) and a schema-driven **param-validation pass** over all nodes (friendly mode) merged into `validationErrors` — gating Deploy and feeding inline per-field errors (`ValidationError.fieldName`). Widget UI lives in `dynamic-form.tsx` (`x-ui-widget`: `duration` → `DurationField`, `start-time` → `StartTimeField`, `token-amount` → `TokenAmountField`; `x-ui-hidden` fields are kept in params but not rendered). **Token amounts**: `token-amount` fields store a human string (e.g. `1.5`) and declare their token field via `x-ui-amount-token-field`; the mapper converts → base units with `shared`'s `toBaseUnits` using **decimals from the loaded accepted-token list** (`/tokens/accepted`, no extra call), held in the store as `tokenDecimals` (lowercased address → decimals) which also drives the friendly over-precision check. A bare `token-amount` (e.g. TokenBalance threshold) allows `0`. **Zero-toggle**: action amount fields with the contract's "0 = special" semantics add `x-ui-zero-toggle: { label, default? }` (ERC20Transfer `amount` = full balance; FeeDeposit `topUpAmount` = fill to target). The toggle state is a flat boolean param keyed by `shared`'s `zeroToggleField(field)` (`<field>_useZero`) — friendly-only, stripped before `/encode`. Toggle on → mapper emits raw `0` and the widget disables the amount input; toggle off → a positive amount is required (`validateParams` enforces `> 0`).
-- **StepType seed**: `prisma/seed.ts` loads contract addresses from `deployments/fork-latest.json`; re-seed after every fresh contract deploy.
+- **Raw-mode guards** (defensive, `shared` `validateParams(schema, params, { mode: 'raw' })` run by `EncodingService` before building calldata — HTTP 400): `interval = 0`; `token-selector` zero/invalid address; `aave-amount-mode` TARGET_HF `targetHealthFactor ≤ 1.05e18`; `fee-tier` ∉ `{100,500,2500,10000}`; `tick-range` explicit `tickLower ≥ tickUpper`; `percent` ∉ `[1,100]`. Each new widget added a rule keyed by `x-ui-widget` — no per-step-type code.
+- **DB-backed token allowlists** (`ProtocolToken`): a Prisma entity (`protocol`, `address`, `symbol`, `decimals`, `enabled`, `@@unique([protocol, address])`) seeded with curated Aave reserves + PancakeSwap pairs (BSC, all standard ERC-20s). `GET /tokens?protocol=…` serves them; their `decimals` feed the frontend `tokenDecimals` map so protocol-token `token-amount` → base-units conversion is correct. Lives alongside `/tokens/accepted` (fee tokens).
+- **StepType seed**: `prisma/seed.ts` loads contract addresses from `deployments/fork-latest.json` and seeds one row per condition/action (14 total: 3 conditions, ERC-20 Transfer, Fee Deposit, + 9 DeFi actions) plus the `ProtocolToken` allowlists; re-seed after every fresh contract deploy. **It skips actions whose address is `address(0)`** (not yet deployed) and deletes stale zero-address rows — otherwise multiple undeployed actions sharing `(0x0…0, executeSelector)` collide on the unique key and collapse into one row.
 
 ## Frontend Structure
 
@@ -426,6 +482,8 @@ await ethers.provider.send("evm_mine", []);
 - **StrictMode**: dev double-invokes effects — guard one-shot side effects (e.g. draft creation) with a `useRef` flag, not just state, since async state isn't set yet on the second invocation.
 - **Chain switching**: `ConnectPage` uses `useSwitchChain` to force MetaMask to `config.chains[0]` on connect. SIWE `chainId` defaults to 31337 in dev, 56 in production.
 - **Protected Routes**: `ProtectedRoute` component redirects to `/connect` if not authenticated.
+- **DeFi action widgets** (`dynamic-form.tsx`, driven by `x-ui-widget`): `aave-amount-mode` (mode selector that conditionally shows the amount input / context-slot picker / a "full balance" note / a friendly `health-factor` input; `x-ui-modes` restricts the offered modes per action, `x-ui-max-label`/`x-ui-max-note` customise the MAX option), `fee-tier` (0.01/0.05/0.25/1%), `tick-range` (explicit min/max price ↔ preset ±% — computes `tickLower`/`tickUpper` or `tickDelta` via `lib/ticks.ts`, carried into raw params; friendly price inputs stripped), `percent` (1–100), `health-factor` (friendly `1.5` → `1.5e18` at the encode boundary). `token-selector` honours `x-ui-token-source` (`aave`/`pancakeswap`) to load the curated list from `/tokens?protocol=…`; those decimals are merged into the store `tokenDecimals` map.
+- **Pool-existence validity check**: `usePoolValidity` (`hooks/use-pool-validity.ts`) reads `factory.getPool(tokenIn, tokenOut, fee)` for each Swap node (PCS factory address, `VITE_PCS_FACTORY_ADDRESS` override) and feeds a blocking error into the store's `externalErrors` slice (merged into `validationErrors` in `runValidation`) so the Deploy gate catches a missing pair+tier at config time. Pure helpers (`collectSwapPoolChecks`, `buildSwapPoolErrors`) live in `lib/pool-validity.ts`.
 
 ## Security Notes
 
@@ -437,3 +495,7 @@ await ethers.provider.send("evm_mine", []);
 - Gas compensation always paid to executor at full computed amount — never reduced
 - Non-owner trigger failure reverts early with `TriggerNotMet` to save gas
 - Owner-only automations revert with `CallerNotOwner` for non-owner callers
+- **DeFi actions** call external protocols via regular `call` (never `delegatecall`), hold the registry as `immutable` (bytecode, not storage → stays stateless), and **reset every approval to 0** after a pull (Repay-MAX / Mint over-approve vs. consumed)
+- **Aave oracle resolved at runtime** (never cached) so the action reads the same oracle Aave uses for the health factor; TARGET_HF target floored at `> 1.05e18`; MAX/TARGET_HF are best-effort and no-op rather than revert on wrong-direction / edge rounding
+- **Swap/LP ship without price protection** (`amountOutMinimum = 0`, `amountMin = 0`) — a consciously accepted MEV/sandwich risk for a public executor (PRD); a future "protected swap" can enable it via the struct's optional fields without redeploy
+- **LP NFT custody**: `StrategyBuilderVault.onERC721Received` returns the magic selector so positions are held safely
