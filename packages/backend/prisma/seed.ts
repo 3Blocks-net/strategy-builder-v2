@@ -1076,7 +1076,24 @@ async function main() {
     },
   ];
 
+  const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
+
+  // Drop any stale zero-address rows from a prior partial seed — multiple
+  // not-yet-deployed actions share (0x0…0, executeSelector), so they would
+  // otherwise collapse into a single row and hide the others in the editor.
+  await prisma.stepType.deleteMany({ where: { contractAddress: ZERO_ADDRESS } });
+
+  let seeded = 0;
+  let skipped = 0;
   for (const stepType of stepTypes) {
+    // Skip steps whose contract isn't deployed yet (address(0)) — seeding them
+    // would collide on the (contractAddress, selector) unique key. Deploy the
+    // contracts (writes real addresses to fork-latest.json) and re-seed.
+    if (stepType.contractAddress === ZERO_ADDRESS) {
+      console.warn(`  ⚠ skipping "${stepType.name}" — not deployed (address(0))`);
+      skipped++;
+      continue;
+    }
     await prisma.stepType.upsert({
       where: {
         contractAddress_selector: {
@@ -1094,9 +1111,12 @@ async function main() {
       },
       create: stepType,
     });
+    seeded++;
   }
 
-  console.log(`Seeded ${stepTypes.length} step types`);
+  console.log(
+    `Seeded ${seeded} step types${skipped > 0 ? ` (skipped ${skipped} not-yet-deployed)` : ''}`,
+  );
 
   // Curated per-protocol token allowlists (Aave reserves).
   for (const t of AAVE_BSC_TOKENS) {
