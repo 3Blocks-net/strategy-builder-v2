@@ -7,3 +7,4 @@ export { ActionLibHarness__factory } from './ActionLibHarness__factory.js';
 export { ERC1967ProxyHelper__factory } from './ERC1967ProxyHelper__factory.js';
 export { MockERC20__factory } from './MockERC20__factory.js';
 export { MockPriceOracle__factory } from './MockPriceOracle__factory.js';
+export { MockRevertingAction__factory } from './MockRevertingAction__factory.js';

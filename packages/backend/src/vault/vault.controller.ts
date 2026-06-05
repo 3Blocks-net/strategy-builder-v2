@@ -5,16 +5,14 @@ import {
   Param,
   Patch,
   Post,
-  Query,
   Request,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags, ApiOperation, ApiParam, ApiQuery } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiTags, ApiOperation, ApiParam } from '@nestjs/swagger';
 import { VaultService } from './vault.service';
 import { VaultOwnerGuard } from './vault-owner.guard';
 import { CreateVaultDto } from './dto/create-vault.dto';
 import { UpdateVaultDto } from './dto/update-vault.dto';
-import { CreateVaultEventDto } from './dto/create-vault-event.dto';
 
 @ApiTags('Vaults')
 @ApiBearerAuth()
@@ -46,38 +44,7 @@ export class VaultController {
     return this.vaultService.updateLabel(address, req.user.address, dto.label);
   }
 
-  @Post(':address/events')
-  @UseGuards(VaultOwnerGuard)
-  @ApiOperation({ summary: 'Record a deposit/withdrawal event' })
-  @ApiParam({ name: 'address', description: 'Vault address' })
-  async createEvent(
-    @Param('address') address: string,
-    @Body() dto: CreateVaultEventDto,
-  ) {
-    return this.vaultService.createEvent(address, dto);
-  }
-
-  @Get(':address/events')
-  @UseGuards(VaultOwnerGuard)
-  @ApiOperation({ summary: 'Get all events for a vault' })
-  @ApiParam({ name: 'address', description: 'Vault address' })
-  async getEvents(@Param('address') address: string) {
-    return this.vaultService.getEvents(address);
-  }
-
-  @Get(':address/history')
-  @UseGuards(VaultOwnerGuard)
-  @ApiOperation({ summary: 'Get paginated transaction history' })
-  @ApiParam({ name: 'address', description: 'Vault address' })
-  @ApiQuery({ name: 'page', required: false, type: Number, description: 'Page number (default: 1)' })
-  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Items per page (default: 20, max: 100)' })
-  async getHistory(
-    @Param('address') address: string,
-    @Query('page') pageStr?: string,
-    @Query('limit') limitStr?: string,
-  ) {
-    const page = Math.max(1, parseInt(pageStr ?? '1', 10) || 1);
-    const limit = Math.min(100, Math.max(1, parseInt(limitStr ?? '20', 10) || 20));
-    return this.vaultService.getHistory(address, page, limit);
-  }
+  // Deposit/withdraw history is now indexer-owned and served by the unified
+  // GET /vaults/:address/executions endpoint (PEC-219 #04). The legacy
+  // frontend-written POST /events + GET /events + GET /history are removed.
 }

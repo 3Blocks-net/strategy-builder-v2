@@ -128,8 +128,8 @@ contract StrategyBuilderVault is
     error AutomationDoesNotExist();
     error CallerNotOwner();
     error TriggerNotMet();
-    error ConditionCallFailed(uint32 stepIndex);
-    error ActionExecutionFailed(uint32 stepIndex);
+    error ConditionCallFailed(uint32 stepIndex, bytes reason);
+    error ActionExecutionFailed(uint32 stepIndex, bytes reason);
     error MaxStepsExceeded();
     error ContextSlotOutOfBounds(uint32 slot);
     error ContextDiffLengthMismatch();
@@ -551,7 +551,7 @@ contract StrategyBuilderVault is
             abi.encodeWithSelector(selector, data, ctx)
         );
         if (!success || result.length < 32)
-            revert ConditionCallFailed(stepIndex);
+            revert ConditionCallFailed(stepIndex, result);
         return abi.decode(result, (bool));
     }
 
@@ -565,7 +565,7 @@ contract StrategyBuilderVault is
         (bool success, bytes memory returnData) = target.delegatecall(
             abi.encodeWithSelector(selector, data, ctx)
         );
-        if (!success) revert ActionExecutionFailed(stepIndex);
+        if (!success) revert ActionExecutionFailed(stepIndex, returnData);
 
         if (returnData.length > 0) {
             (

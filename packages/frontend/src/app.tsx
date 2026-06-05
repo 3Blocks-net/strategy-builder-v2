@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router';
+import { Toaster } from 'sonner';
 import { WalletProvider } from '@/providers/wallet-provider';
 import { AuthProvider } from '@/providers/auth-context';
 import { ProtectedRoute } from '@/components/protected-route';
@@ -59,6 +60,7 @@ export function App() {
           </Routes>
         </AuthProvider>
       </BrowserRouter>
+      <Toaster position="top-right" richColors />
     </WalletProvider>
   );
 }

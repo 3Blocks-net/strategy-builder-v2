@@ -4,7 +4,7 @@ import { type Address } from 'viem';
 import { Button } from '@/components/ui/button';
 import { DepositForm } from '@/components/deposit-form';
 import { WithdrawForm } from '@/components/withdraw-form';
-import { HistoryTable } from '@/components/history-table';
+import { ExecutionHistoryTable } from '@/components/execution-history-table';
 import { ContextView } from '@/components/context-view';
 import { GasDepositCard } from '@/components/gas-deposit-card';
 import { apiFetch } from '@/lib/api';
@@ -281,7 +281,7 @@ export function VaultDetailPage() {
 
         {address && <ContextView vaultAddress={address} />}
 
-        {address && <HistoryTable vaultAddress={address} />}
+        {address && <ExecutionHistoryTable vaultAddress={address} />}
       </div>
     </div>
   );

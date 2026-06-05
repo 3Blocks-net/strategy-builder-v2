@@ -27,6 +27,45 @@ import { fileURLToPath } from "url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
+// ─── Failure reporting (PEC-219 #05) ─────────────────────────────────────────
+// Reverts emit no logs, so the indexer can't see them. The keeper reports each
+// failed execution (and reverting trigger check) to the backend ingest endpoint,
+// authenticated by a shared secret. Built prod-ready; reporting is skipped when
+// KEEPER_INGEST_SECRET is unset so the keeper still runs standalone.
+const INGEST_URL = process.env.KEEPER_INGEST_URL ?? "http://localhost:3001";
+const INGEST_SECRET = process.env.KEEPER_INGEST_SECRET;
+
+async function reportFailure(args: {
+  vaultAddress: string;
+  automationId: number;
+  executorAddress: string;
+  failurePath: "execution" | "trigger-check";
+  txHash?: string | null;
+  error: any;
+}): Promise<void> {
+  if (!INGEST_SECRET) return; // reporting disabled
+  const rawData = args.error?.data ?? args.error?.info?.error?.data ?? null;
+  try {
+    await fetch(`${INGEST_URL}/internal/executions/failures`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-keeper-secret": INGEST_SECRET },
+      body: JSON.stringify({
+        vaultAddress: args.vaultAddress,
+        automationId: args.automationId,
+        executorAddress: args.executorAddress,
+        failurePath: args.failurePath,
+        txHash: args.txHash ?? null,
+        // raw revert bytes for the backend decoder; shortMessage as fallback
+        errorData: typeof rawData === "string" ? rawData : null,
+        errorMessageFallback: args.error?.shortMessage ?? args.error?.message ?? "reverted",
+        timestamp: new Date().toISOString(),
+      }),
+    });
+  } catch (err: any) {
+    console.log(`     ⚠ could not report failure: ${err.shortMessage ?? err.message}`);
+  }
+}
+
 async function main() {
   const networkName = process.env.HARDHAT_NETWORK ?? "localhost";
   const { ethers } = await network.connect(networkName);
@@ -118,8 +157,17 @@ async function main() {
       let met: boolean;
       try {
         met = await vault.isTriggerMet(id);
-      } catch {
-        console.log(`${tag} skip: isTriggerMet reverted`);
+      } catch (e: any) {
+        // A reverting trigger check = a broken automation the user can't see
+        // otherwise. Report it (no txHash — it's a staticcall) so it surfaces.
+        console.log(`${tag} skip: isTriggerMet reverted (reported)`);
+        await reportFailure({
+          vaultAddress: vaultAddr,
+          automationId: id,
+          executorAddress: executor.address,
+          failurePath: "trigger-check",
+          error: e,
+        });
         skipped++;
         continue;
       }
@@ -130,10 +178,12 @@ async function main() {
       }
 
       // Executable → run it from the external account.
+      let txHash: string | null = null;
       try {
         const tx = await vault
           .connect(executor)
           .executeAutomation(id, { gasLimit: 2_000_000n });
+        txHash = tx.hash;
         const receipt = await tx.wait();
 
         let comp = 0n;
@@ -160,6 +210,14 @@ async function main() {
         executed++;
       } catch (e: any) {
         console.log(`${tag} FAILED: ${e.shortMessage ?? e.message}`);
+        await reportFailure({
+          vaultAddress: vaultAddr,
+          automationId: id,
+          executorAddress: executor.address,
+          failurePath: "execution",
+          txHash,
+          error: e,
+        });
         failed++;
       }
     }

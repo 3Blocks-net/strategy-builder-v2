@@ -9,6 +9,6 @@ import { VaultModule } from '../vault/vault.module';
   imports: [VaultModule],
   controllers: [PortfolioController],
   providers: [AlchemyService, PriceService, VaultPortfolioService],
-  exports: [VaultPortfolioService],
+  exports: [VaultPortfolioService, PriceService],
 })
 export class PortfolioModule {}

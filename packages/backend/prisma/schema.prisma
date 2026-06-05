@@ -46,23 +46,94 @@ model Vault {
   owner          User         @relation(fields: [ownerAddress], references: [walletAddress])
   events         VaultEvent[]
   automations    Automation[]
+  executions     Execution[]
+  failures       ExecutionFailure[]
 
   @@unique([ownerAddress, label])
 }
 
+/// Deposit/withdraw activity (PEC-219). Now **indexer-owned** — sourced from
+/// `Deposited` / `Withdrawn` logs, the indexer is the sole writer (the legacy
+/// optimistic frontend POST path is removed). `(txHash, logIndex)` guarantees
+/// idempotency on overlapping re-scans.
 model VaultEvent {
   id             String   @id @default(uuid())
   vaultId        String
   eventType      String
   token          String
   amount         String
+  amountUsd      String?
   feeAmount      String
   feeBps         Int
   txHash         String
   blockNumber    Int
+  logIndex       Int
   blockTimestamp  DateTime
   createdAt      DateTime @default(now())
   vault          Vault    @relation(fields: [vaultId], references: [id])
+
+  @@unique([txHash, logIndex])
+  @@index([vaultId, blockTimestamp])
+}
+
+/// One row per successful automation run (PEC-219). Log-sourced by the indexer
+/// from `AutomationExecuted`, joined with `GasCompSettled` in the same tx.
+/// SUCCESS-only — there is no `status` enum (failures live in `ExecutionFailure`,
+/// added in a later slice). `(txHash, logIndex)` guarantees idempotency on
+/// overlapping re-scans. Gas fields are null for owner-executed runs (no gas comp).
+model Execution {
+  id              String   @id @default(uuid())
+  vaultId         String
+  automationId    Int
+  executorAddress String
+  txHash          String
+  blockNumber     Int
+  logIndex        Int
+  blockTimestamp  DateTime
+  gasCompAmount   String?
+  gasCompToken    String?
+  gasCompUsd      String?
+  createdAt       DateTime @default(now())
+  vault           Vault    @relation(fields: [vaultId], references: [id], onDelete: Cascade)
+
+  @@unique([txHash, logIndex])
+  @@index([vaultId, blockTimestamp])
+}
+
+/// Keeper-sourced failures (PEC-219 #05). A reverted execution emits no log, so
+/// the public keeper reports it here (execution revert **or** a reverting trigger
+/// check). One **open** record per `(vaultId, automationId)` (enforced by a
+/// partial unique index `WHERE resolvedAt IS NULL`, added via raw SQL): repeated
+/// failures bump `attemptCount`; the indexer sets `resolvedAt` when the
+/// automation next succeeds. A later failure opens a fresh row.
+model ExecutionFailure {
+  id              String    @id @default(uuid())
+  vaultId         String
+  automationId    Int
+  executorAddress String
+  lastTxHash      String?
+  errorMessage    String
+  failurePath     String    // 'execution' | 'trigger-check'
+  attemptCount    Int       @default(1)
+  firstFailedAt   DateTime
+  lastFailedAt    DateTime
+  resolvedAt      DateTime?
+  createdAt       DateTime  @default(now())
+  vault           Vault     @relation(fields: [vaultId], references: [id], onDelete: Cascade)
+
+  @@index([vaultId, firstFailedAt])
+}
+
+/// Durable indexer progress (PEC-219). A single logical feed advances all four
+/// topics together (`AutomationExecuted`/`GasCompSettled`/`Deposited`/`Withdrawn`)
+/// in one `getLogs` call, so there is exactly one cursor. On boot the indexer
+/// resumes from `lastProcessedBlock + 1`; in-memory state is never trusted.
+model IndexerCursor {
+  id                          String    @id @default(uuid())
+  feed                        String    @unique
+  lastProcessedBlock          Int
+  lastProcessedBlockTimestamp DateTime?
+  updatedAt                   DateTime  @updatedAt
 }
 
 enum StepCategory {

@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Interface } from 'ethers';
 
 const CONTRACT_ERRORS: Record<string, string> = {
   CallerNotOwner: 'You are not the owner of this vault.',
@@ -40,9 +41,108 @@ const CONTRACT_ERRORS: Record<string, string> = {
   NegativePriceNotAllowed: 'The price oracle returned a negative price.',
 };
 
+/**
+ * Error fragments the decoder recognises (PEC-219 #05). The OUTER wrappers
+ * `ActionExecutionFailed`/`ConditionCallFailed` carry the step index + the raw
+ * inner reason (slice #02). The inner reason is then decoded against this set.
+ *
+ * Note on Aave V3 / PancakeSwap V3: both predominantly revert with
+ * `Error(string)` (Aave numeric codes, PancakeSwap require messages like "STF"
+ * / "Too little received"), which `Interface.parseError` handles natively — so
+ * the `Error(string)` branch covers them. The custom-error branch handles the
+ * project's own 4-byte errors below. Unknown selectors fall back to hex.
+ */
+const ERROR_SIGNATURES: string[] = [
+  'error ConditionCallFailed(uint32 stepIndex, bytes reason)',
+  'error ActionExecutionFailed(uint32 stepIndex, bytes reason)',
+  'error NoSteps()',
+  'error FirstStepMustBeCondition()',
+  'error InvalidStepReference(uint32 stepIndex)',
+  'error ZeroTargetAddress(uint32 stepIndex)',
+  'error ZeroSelector(uint32 stepIndex)',
+  'error AutomationNotActive()',
+  'error AutomationDoesNotExist()',
+  'error CallerNotOwner()',
+  'error TriggerNotMet()',
+  'error MaxStepsExceeded()',
+  'error ContextSlotOutOfBounds(uint32 slot)',
+  'error ContextDiffLengthMismatch()',
+  'error ZeroRecipient()',
+  'error ETHTransferFailed()',
+  'error InsufficientFeeDeposit()',
+  'error NothingToWithdraw()',
+  'error WithdrawExceedsDeposit()',
+  'error ZeroInterval()',
+  'error ZeroDelta()',
+  'error ZeroFeeRegistry()',
+  'error ZeroToken()',
+  'error OracleNotExist()',
+  'error NegativePriceNotAllowed()',
+];
+
+const OUTER_WRAPPERS = new Set(['ActionExecutionFailed', 'ConditionCallFailed']);
+
 @Injectable()
 export class ContractErrorService {
+  private readonly iface = new Interface(ERROR_SIGNATURES);
+
   getErrors(): Record<string, string> {
     return CONTRACT_ERRORS;
+  }
+
+  /**
+   * Decode a revert into a human-readable reason.
+   *
+   * `errorData` is the raw revert bytes the keeper captured (`e.data`). It may
+   * be the outer `ActionExecutionFailed`/`ConditionCallFailed(stepIndex, reason)`
+   * wrapper (slice #02) — unwrapped to a `"Step N: …"` prefix + the inner reason.
+   * The reason runs the fallback chain: Error(string) → Panic → known custom
+   * error → `0x<selector>`. `fallback` (the keeper's `shortMessage`) is used when
+   * there is nothing decodable.
+   */
+  decodeRevert(errorData?: string | null, fallback?: string | null): string {
+    const fb = fallback?.trim() || 'Execution reverted';
+    if (!errorData || errorData === '0x') return fb;
+
+    let prefix = '';
+    let reason = errorData;
+
+    const outer = this.tryParse(errorData);
+    if (outer && OUTER_WRAPPERS.has(outer.name)) {
+      prefix = `Step ${Number(outer.args[0])}: `;
+      reason = outer.args[1] as string;
+    }
+
+    if (!reason || reason === '0x') {
+      return prefix ? `${prefix}reverted without reason` : fb;
+    }
+
+    const decoded = this.decodeReason(reason);
+    return decoded !== null ? `${prefix}${decoded}` : `${prefix}${this.selectorOf(reason)}`;
+  }
+
+  private decodeReason(reason: string): string | null {
+    const desc = this.tryParse(reason);
+    if (!desc) return null;
+    if (desc.name === 'Error') return String(desc.args[0]);
+    if (desc.name === 'Panic') {
+      const code = BigInt(desc.args[0]);
+      return `panic 0x${code.toString(16)}`;
+    }
+    return CONTRACT_ERRORS[desc.name] ?? desc.name;
+  }
+
+  private tryParse(data: string): { name: string; args: ReadonlyArray<any> } | null {
+    try {
+      const d = this.iface.parseError(data);
+      return d ? { name: d.name, args: d.args } : null;
+    } catch {
+      return null;
+    }
+  }
+
+  private selectorOf(data: string): string {
+    const hex = data.startsWith('0x') ? data : `0x${data}`;
+    return hex.slice(0, 10);
   }
 }

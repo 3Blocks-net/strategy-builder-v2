@@ -10,6 +10,11 @@ export const StrategyBuilderVaultAbi = [
         "internalType": "uint32",
         "name": "stepIndex",
         "type": "uint32"
+      },
+      {
+        "internalType": "bytes",
+        "name": "reason",
+        "type": "bytes"
       }
     ],
     "name": "ActionExecutionFailed",
@@ -36,6 +41,11 @@ export const StrategyBuilderVaultAbi = [
         "internalType": "uint32",
         "name": "stepIndex",
         "type": "uint32"
+      },
+      {
+        "internalType": "bytes",
+        "name": "reason",
+        "type": "bytes"
       }
     ],
     "name": "ConditionCallFailed",

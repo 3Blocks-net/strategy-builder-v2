@@ -3,7 +3,6 @@ import { useAccount } from 'wagmi';
 import { type Address, parseUnits, formatUnits } from 'viem';
 import { Button } from '@/components/ui/button';
 import { useWithdraw } from '@/hooks/use-withdraw';
-import { apiFetch } from '@/lib/api';
 
 interface Position {
   address: string;
@@ -59,13 +58,8 @@ export function WithdrawForm({
     });
 
     if (success) {
-      recordEvent(vaultAddress, {
-        eventType: 'WITHDRAWAL',
-        token: selectedToken.address,
-        amount: amountBig.toString(),
-        feeAmount: BigInt(Math.floor(feeAmount)).toString(),
-        feeBps,
-      });
+      // Deposit/withdraw history is now indexer-owned (PEC-219 #04) — recorded
+      // from on-chain logs by the backend; no optimistic frontend write.
       onSuccess?.();
     }
   };
@@ -176,34 +170,3 @@ export function WithdrawForm({
   );
 }
 
-async function recordEvent(
-  vaultAddress: string,
-  data: {
-    eventType: string;
-    token: string;
-    amount: string;
-    feeAmount: string;
-    feeBps: number;
-  },
-  retries = 3,
-) {
-  for (let attempt = 0; attempt <= retries; attempt++) {
-    try {
-      const res = await apiFetch(`/vaults/${vaultAddress}/events`, {
-        method: 'POST',
-        body: JSON.stringify({
-          ...data,
-          txHash: '0x0',
-          blockNumber: 0,
-          blockTimestamp: new Date().toISOString(),
-        }),
-      });
-      if (res.ok) return;
-    } catch {
-      // retry
-    }
-    if (attempt < retries) {
-      await new Promise((r) => setTimeout(r, 1000 * 2 ** attempt));
-    }
-  }
-}
