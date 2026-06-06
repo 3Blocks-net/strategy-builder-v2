@@ -63,6 +63,8 @@ export function VaultDetailPage() {
   const [copied, setCopied] = useState(false);
   const [fees, setFees] = useState<{ depositFeeBps: number; withdrawFeeBps: number } | null>(null);
   const [errorMap, setErrorMap] = useState<Record<string, string>>({});
+  // Shared cockpit timeframe — drives both the performance card and the chart.
+  const [cockpitRange, setCockpitRange] = useState('30d');
 
   useEffect(() => {
     apiFetch('/fees')
@@ -280,9 +282,21 @@ export function VaultDetailPage() {
 
         {address && <CockpitPositionsPanel address={address} />}
 
-        {address && <PerformanceCard address={address} />}
+        {address && (
+          <PerformanceCard
+            address={address}
+            range={cockpitRange}
+            onRangeChange={setCockpitRange}
+          />
+        )}
 
-        {address && <ValueHistoryChart address={address} />}
+        {address && (
+          <ValueHistoryChart
+            address={address}
+            range={cockpitRange}
+            onRangeChange={setCockpitRange}
+          />
+        )}
 
         {address && <AutomationList vaultAddress={address} />}
 

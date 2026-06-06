@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Button } from '@/components/ui/button';
 import { apiFetch } from '@/lib/api';
+import { RangeToggle } from '@/components/range-toggle';
 
 interface HistoryPoint {
   t: string;
@@ -20,13 +20,6 @@ interface ValueHistory {
   historyStartsAt: string | null;
 }
 
-const RANGES: { key: string; label: string }[] = [
-  { key: '24h', label: '24h' },
-  { key: '7d', label: '7d' },
-  { key: '30d', label: '30d' },
-  { key: 'all', label: 'Since creation' },
-];
-
 const W = 600;
 const H = 160;
 const PAD = 8;
@@ -43,8 +36,15 @@ function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString();
 }
 
-export function ValueHistoryChart({ address }: { address: string }) {
-  const [range, setRange] = useState('30d');
+export function ValueHistoryChart({
+  address,
+  range,
+  onRangeChange,
+}: {
+  address: string;
+  range: string;
+  onRangeChange: (range: string) => void;
+}) {
   const [data, setData] = useState<ValueHistory | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -108,18 +108,7 @@ export function ValueHistoryChart({ address }: { address: string }) {
     <div className="rounded-lg border border-border p-4">
       <div className="mb-3 flex items-center justify-between">
         <h2 className="text-lg font-semibold">Value history</h2>
-        <div className="flex gap-1">
-          {RANGES.map((r) => (
-            <Button
-              key={r.key}
-              variant={range === r.key ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setRange(r.key)}
-            >
-              {r.label}
-            </Button>
-          ))}
-        </div>
+        <RangeToggle value={range} onChange={onRangeChange} />
       </div>
 
       {loading && (

@@ -56,10 +56,19 @@ export class CockpitController {
   @Get(':address/performance')
   @UseGuards(VaultOwnerGuard)
   @ApiOperation({
-    summary: 'All-time PnL vs net deposits + costs (fees + gas)',
+    summary:
+      'PnL vs net deposits + costs (fees + gas), flow-adjusted over the range',
   })
   @ApiParam({ name: 'address', description: 'Vault address' })
-  async getPerformance(@Param('address') address: string) {
-    return this.performance.getPerformance(address);
+  @ApiQuery({
+    name: 'range',
+    required: false,
+    description: '24h | 7d | 30d | all (default all)',
+  })
+  async getPerformance(
+    @Param('address') address: string,
+    @Query('range') range = 'all',
+  ) {
+    return this.performance.getPerformance(address, range);
   }
 }

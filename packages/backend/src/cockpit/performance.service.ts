@@ -1,12 +1,18 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
 import { SnapshotService } from './snapshot.service';
 import {
   BoundaryEvent,
-  computePnl,
+  computeRangePnl,
   feesUsd,
   netDepositsUsd,
 } from './performance';
+import {
+  HistoryRange,
+  VALID_RANGES,
+  isHistoryRange,
+  rangeToCutoff,
+} from './history';
 
 export interface VaultPerformance {
   currentValueUsd: number;
@@ -35,7 +41,17 @@ export class PerformanceService {
     private readonly snapshots: SnapshotService,
   ) {}
 
-  async getPerformance(address: string): Promise<VaultPerformance> {
+  async getPerformance(
+    address: string,
+    rangeInput = 'all',
+  ): Promise<VaultPerformance> {
+    if (!isHistoryRange(rangeInput)) {
+      throw new BadRequestException(
+        `range must be one of ${VALID_RANGES.join(', ')}`,
+      );
+    }
+    const range: HistoryRange = rangeInput;
+
     const view = await this.snapshots.getPositionsView(address, false);
     const currentValueUsd = view.totalValueUsd;
 
@@ -53,13 +69,36 @@ export class PerformanceService {
       };
     }
 
+    const cutoff = rangeToCutoff(range, new Date());
+
+    // Baseline value at the range start = snapshot at/just before the cutoff.
+    // None (or 'all') → 0, which makes the formula reduce to all-time PnL.
+    let valueAtRangeStartUsd = 0;
+    if (cutoff) {
+      const baseline = await this.prisma.vaultValueSnapshot.findFirst({
+        where: { vaultId: vault.id, asOf: { lte: cutoff } },
+        orderBy: { asOf: 'desc' },
+        select: { totalValueUsd: true },
+      });
+      if (baseline) valueAtRangeStartUsd = Number(baseline.totalValueUsd);
+    }
+
+    const timeFilter = cutoff ? { gte: cutoff } : undefined;
     const [rawEvents, executions] = await Promise.all([
       this.prisma.vaultEvent.findMany({
-        where: { vaultId: vault.id, eventType: { in: ['DEPOSIT', 'WITHDRAW'] } },
+        where: {
+          vaultId: vault.id,
+          eventType: { in: ['DEPOSIT', 'WITHDRAW'] },
+          ...(timeFilter ? { blockTimestamp: timeFilter } : {}),
+        },
         select: { eventType: true, amountUsd: true, feeBps: true },
       }),
       this.prisma.execution.findMany({
-        where: { vaultId: vault.id, gasCompUsd: { not: null } },
+        where: {
+          vaultId: vault.id,
+          gasCompUsd: { not: null },
+          ...(timeFilter ? { blockTimestamp: timeFilter } : {}),
+        },
         select: { gasCompUsd: true },
       }),
     ]);
@@ -77,7 +116,11 @@ export class PerformanceService {
     );
     const costsUsd = feesUsd(events) + gasUsd;
 
-    const { pnlAbsUsd, pnlPct } = computePnl(currentValueUsd, netDeposits);
+    const { pnlAbsUsd, pnlPct } = computeRangePnl(
+      currentValueUsd,
+      valueAtRangeStartUsd,
+      netDeposits,
+    );
 
     return {
       currentValueUsd,

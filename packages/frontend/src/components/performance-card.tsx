@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { apiFetch } from '@/lib/api';
+import { RangeToggle } from '@/components/range-toggle';
 
 interface Performance {
   currentValueUsd: number;
@@ -23,7 +24,15 @@ function formatSignedUsd(value: number): string {
   return `${sign}${formatUsd(value)}`;
 }
 
-export function PerformanceCard({ address }: { address: string }) {
+export function PerformanceCard({
+  address,
+  range,
+  onRangeChange,
+}: {
+  address: string;
+  range: string;
+  onRangeChange: (range: string) => void;
+}) {
   const [data, setData] = useState<Performance | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -32,7 +41,9 @@ export function PerformanceCard({ address }: { address: string }) {
     setLoading(true);
     setError(null);
     try {
-      const res = await apiFetch(`/vaults/${address}/performance`);
+      const res = await apiFetch(
+        `/vaults/${address}/performance?range=${range}`,
+      );
       if (!res.ok) throw new Error('failed');
       setData(await res.json());
     } catch {
@@ -40,7 +51,7 @@ export function PerformanceCard({ address }: { address: string }) {
     } finally {
       setLoading(false);
     }
-  }, [address]);
+  }, [address, range]);
 
   useEffect(() => {
     load();
@@ -50,7 +61,10 @@ export function PerformanceCard({ address }: { address: string }) {
 
   return (
     <div className="rounded-lg border border-border p-4">
-      <h2 className="mb-3 text-lg font-semibold">Performance</h2>
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="text-lg font-semibold">Performance</h2>
+        <RangeToggle value={range} onChange={onRangeChange} />
+      </div>
 
       {loading && (
         <p className="text-sm text-muted-foreground">Loading performance…</p>

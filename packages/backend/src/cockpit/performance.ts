@@ -43,3 +43,24 @@ export function computePnl(
   const pnlPct = netDeposits > 0 ? pnlAbsUsd / netDeposits : null;
   return { pnlAbsUsd, pnlPct };
 }
+
+/**
+ * Flow-adjusted PnL over a window (PRD Resolved decision 8): the value change
+ * since the range-start baseline, minus the capital the owner moved in/out during
+ * the window — so a mid-window deposit can't masquerade as profit.
+ *
+ *   pnlAbs = (currentValue − valueAtRangeStart) − netDepositsInRange
+ *   pnlPct = pnlAbs / (valueAtRangeStart + netDepositsInRange)   // capital at risk
+ *
+ * For 'all' (valueAtRangeStart = 0) this reduces exactly to `computePnl`.
+ */
+export function computeRangePnl(
+  currentValueUsd: number,
+  valueAtRangeStartUsd: number,
+  netDepositsInRange: number,
+): { pnlAbsUsd: number; pnlPct: number | null } {
+  const pnlAbsUsd = currentValueUsd - valueAtRangeStartUsd - netDepositsInRange;
+  const base = valueAtRangeStartUsd + netDepositsInRange;
+  const pnlPct = base > 0 ? pnlAbsUsd / base : null;
+  return { pnlAbsUsd, pnlPct };
+}
