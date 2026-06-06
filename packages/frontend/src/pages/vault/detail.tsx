@@ -7,6 +7,7 @@ import { WithdrawForm } from '@/components/withdraw-form';
 import { ExecutionHistoryTable } from '@/components/execution-history-table';
 import { ContextView } from '@/components/context-view';
 import { GasDepositCard } from '@/components/gas-deposit-card';
+import { CockpitPositionsPanel } from '@/components/cockpit-positions-panel';
 import { apiFetch } from '@/lib/api';
 import { AutomationList } from '@/features/automation-editor/components/automation-list';
 
@@ -274,6 +275,8 @@ export function VaultDetailPage() {
             />
           </div>
         )}
+
+        {address && <CockpitPositionsPanel address={address} />}
 
         {address && <AutomationList vaultAddress={address} />}
 

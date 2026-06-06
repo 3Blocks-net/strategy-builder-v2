@@ -10,6 +10,7 @@ import { StepRegistryModule } from './step-registry/step-registry.module';
 import { AutomationModule } from './automation/automation.module';
 import { TokensModule } from './tokens/tokens.module';
 import { IndexerModule } from './indexer/indexer.module';
+import { CockpitModule } from './cockpit/cockpit.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { IndexerModule } from './indexer/indexer.module';
     AutomationModule,
     TokensModule,
     IndexerModule,
+    CockpitModule,
   ],
 })
 export class AppModule {}
