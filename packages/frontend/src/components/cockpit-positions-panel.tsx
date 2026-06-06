@@ -55,6 +55,21 @@ function formatAmount(amount: string, decimals: number): string {
   return new Intl.NumberFormat('en-US', { maximumFractionDigits: 4 }).format(num);
 }
 
+function formatMetrics(p: ValuedPosition): string | null {
+  const m = p.metrics;
+  if (!m) return null;
+  const parts: string[] = [];
+  if ('healthFactor' in m) {
+    const hf = m.healthFactor as number | null;
+    parts.push(`Health factor ${hf == null ? '∞' : hf.toFixed(2)}`);
+  }
+  if (typeof m.supplyApy === 'number')
+    parts.push(`APY ${(m.supplyApy * 100).toFixed(2)}%`);
+  if (typeof m.borrowApy === 'number')
+    parts.push(`Borrow APY ${(m.borrowApy * 100).toFixed(2)}%`);
+  return parts.length ? parts.join(' · ') : null;
+}
+
 function relativeAge(iso: string | null): string {
   if (!iso) return '';
   const secs = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000));
@@ -169,20 +184,28 @@ export function CockpitPositionsPanel({ address }: { address: string }) {
                       className="flex items-center justify-between rounded-md bg-muted/40 px-3 py-2 text-sm"
                     >
                       <div>
-                        <span className="font-medium">{p.label}</span>
-                        {p.legs.map((leg, j) => (
-                          <span key={j} className="ml-2 text-muted-foreground">
-                            {formatAmount(leg.amount, leg.decimals)} {leg.symbol}
-                            {leg.isDebt ? ' (debt)' : ''}
-                          </span>
-                        ))}
+                        <div>
+                          <span className="font-medium">{p.label}</span>
+                          {p.legs.map((leg, j) => (
+                            <span key={j} className="ml-2 text-muted-foreground">
+                              {formatAmount(leg.amount, leg.decimals)}{' '}
+                              {leg.symbol}
+                              {leg.isDebt ? ' (debt)' : ''}
+                            </span>
+                          ))}
+                        </div>
+                        {formatMetrics(p) && (
+                          <div className="text-xs text-muted-foreground">
+                            {formatMetrics(p)}
+                          </div>
+                        )}
                       </div>
                       <span
                         className={
                           (p.valueUsd ?? 0) < 0 ? 'text-destructive' : ''
                         }
                       >
-                        {formatUsd(p.valueUsd)}
+                        {p.kind === 'summary' ? '' : formatUsd(p.valueUsd)}
                       </span>
                     </div>
                   ),
