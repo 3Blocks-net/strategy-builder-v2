@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Contract, Interface, JsonRpcProvider, getAddress } from 'ethers';
+import { Contract, JsonRpcProvider, getAddress } from 'ethers';
 import { PrismaService } from '../../database/prisma.service';
 import { ProtocolAdapter, ValuedPosition } from '../protocol-adapter';
 import type { LogSubscription } from '../../indexer/protocol-flow';
@@ -11,6 +11,7 @@ import {
   buildAavePositions,
 } from './aave-positions';
 import { netPrincipalByReserve } from './aave-earnings';
+import { buildAaveLogSubscriptions } from './aave-subscriptions';
 
 const ADDRESSES_PROVIDER_ABI = [
   'function getPool() view returns (address)',
@@ -81,38 +82,7 @@ export class AaveV3Adapter implements ProtocolAdapter {
     const provider = new JsonRpcProvider(rpcUrl);
     try {
       const { pool } = await this.resolveAddresses(provider);
-      const iface = new Interface([
-        'event Supply(address indexed reserve, address user, address indexed onBehalfOf, uint256 amount, uint16 indexed referralCode)',
-        'event Withdraw(address indexed reserve, address indexed user, address indexed to, uint256 amount)',
-      ]);
-      return [
-        {
-          address: pool,
-          iface,
-          eventName: 'Supply',
-          topic0: iface.getEvent('Supply')!.topicHash,
-          vaultTopicIndex: 2, // onBehalfOf
-          toDraft: (a: any) => ({
-            protocol: 'aave-v3',
-            kind: 'AAVE_SUPPLY',
-            token: getAddress(a.reserve),
-            amount: a.amount.toString(),
-          }),
-        },
-        {
-          address: pool,
-          iface,
-          eventName: 'Withdraw',
-          topic0: iface.getEvent('Withdraw')!.topicHash,
-          vaultTopicIndex: 2, // user
-          toDraft: (a: any) => ({
-            protocol: 'aave-v3',
-            kind: 'AAVE_WITHDRAW',
-            token: getAddress(a.reserve),
-            amount: a.amount.toString(),
-          }),
-        },
-      ];
+      return buildAaveLogSubscriptions(pool);
     } catch (err) {
       this.logger.warn(`Aave logSubscriptions resolve failed: ${err}`);
       return [];
