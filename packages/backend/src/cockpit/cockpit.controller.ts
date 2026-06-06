@@ -3,6 +3,7 @@ import { ApiBearerAuth, ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestj
 import { VaultOwnerGuard } from '../vault/vault-owner.guard';
 import { SnapshotService } from './snapshot.service';
 import { HistoryService } from './history.service';
+import { PerformanceService } from './performance.service';
 
 @ApiTags('Cockpit')
 @ApiBearerAuth()
@@ -11,6 +12,7 @@ export class CockpitController {
   constructor(
     private readonly snapshots: SnapshotService,
     private readonly history: HistoryService,
+    private readonly performance: PerformanceService,
   ) {}
 
   @Get(':address/positions')
@@ -49,5 +51,15 @@ export class CockpitController {
     @Query('range') range = '30d',
   ) {
     return this.history.getValueHistory(address, range);
+  }
+
+  @Get(':address/performance')
+  @UseGuards(VaultOwnerGuard)
+  @ApiOperation({
+    summary: 'All-time PnL vs net deposits + costs (fees + gas)',
+  })
+  @ApiParam({ name: 'address', description: 'Vault address' })
+  async getPerformance(@Param('address') address: string) {
+    return this.performance.getPerformance(address);
   }
 }
