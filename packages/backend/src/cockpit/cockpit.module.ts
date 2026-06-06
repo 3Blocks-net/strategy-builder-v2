@@ -15,6 +15,7 @@ import {
   SnapshotProvider,
   resolveSnapshotRpcUrl,
 } from './snapshot.service';
+import { HistoryService } from './history.service';
 
 /**
  * Vault-Cockpit (PRD `vault-cockpit-prd.md`).
@@ -29,6 +30,7 @@ import {
   providers: [
     ValuationService,
     SnapshotService,
+    HistoryService,
     AaveV3Adapter,
     PancakeV3Adapter,
     {

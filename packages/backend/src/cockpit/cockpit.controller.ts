@@ -2,12 +2,16 @@ import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { VaultOwnerGuard } from '../vault/vault-owner.guard';
 import { SnapshotService } from './snapshot.service';
+import { HistoryService } from './history.service';
 
 @ApiTags('Cockpit')
 @ApiBearerAuth()
 @Controller('vaults')
 export class CockpitController {
-  constructor(private readonly snapshots: SnapshotService) {}
+  constructor(
+    private readonly snapshots: SnapshotService,
+    private readonly history: HistoryService,
+  ) {}
 
   @Get(':address/positions')
   @UseGuards(VaultOwnerGuard)
@@ -27,5 +31,23 @@ export class CockpitController {
     @Query('refresh') refresh?: string,
   ) {
     return this.snapshots.getPositionsView(address, refresh === '1');
+  }
+
+  @Get(':address/value-history')
+  @UseGuards(VaultOwnerGuard)
+  @ApiOperation({
+    summary: 'USD value-over-time series + deposit/withdraw markers',
+  })
+  @ApiParam({ name: 'address', description: 'Vault address' })
+  @ApiQuery({
+    name: 'range',
+    required: false,
+    description: '24h | 7d | 30d | all (default 30d)',
+  })
+  async getValueHistory(
+    @Param('address') address: string,
+    @Query('range') range = '30d',
+  ) {
+    return this.history.getValueHistory(address, range);
   }
 }
