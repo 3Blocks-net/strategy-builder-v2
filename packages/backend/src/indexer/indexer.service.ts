@@ -2,6 +2,7 @@ import {
   Inject,
   Injectable,
   Logger,
+  Optional,
   OnModuleDestroy,
   OnModuleInit,
 } from '@nestjs/common';
@@ -25,6 +26,14 @@ import {
   EXECUTION_EVENTS_PORT,
   ExecutionEventsPort,
 } from './execution-events.port';
+import {
+  PROTOCOL_FLOW_SOURCES,
+  ProtocolFlowSource,
+  LogSubscription,
+  ProtocolFlowRow,
+  buildProtocolFlowRows,
+  vaultTopicFilter,
+} from './protocol-flow';
 
 const ERC20_DECIMALS_ABI = ['function decimals() external view returns (uint8)'];
 const FEE_REGISTRY_ABI = ['function depositFeeBps() external view returns (uint16)'];
@@ -65,7 +74,13 @@ export class IndexerService implements OnModuleInit, OnModuleDestroy {
     private readonly events: ExecutionEventsPort,
     @Inject(INDEXER_PROVIDER)
     private readonly provider: IndexerProvider | null,
+    @Optional()
+    @Inject(PROTOCOL_FLOW_SOURCES)
+    private readonly flowSources: ProtocolFlowSource[] = [],
   ) {}
+
+  /** Lazily-resolved adapter log subscriptions (slice #08), cached after first tick. */
+  private flowSubs: LogSubscription[] | null = null;
 
   async onModuleInit(): Promise<void> {
     this.enabled = this.config.get('INDEXER_ENABLED', 'true') !== 'false';
@@ -200,9 +215,109 @@ export class IndexerService implements OnModuleInit, OnModuleDestroy {
         await this.persistVaultEvents(eventRows, vaultByAddress);
       }
 
+      // Adapter-declared protocol flows (slice #08). Guarded so a failure here
+      // never breaks the proven execution/vault-event path or the cursor advance.
+      await this.indexProtocolFlows(range, vaultByAddress);
+
       const toTs = await this.blockTimestamp(range.to);
       await this.cursor.advance(range.to, new Date(toTs * 1000));
     }
+  }
+
+  /** Resolve all flow-source subscriptions once (cached). */
+  private async resolveFlowSubscriptions(): Promise<LogSubscription[]> {
+    if (this.flowSubs) return this.flowSubs;
+    const subs: LogSubscription[] = [];
+    for (const src of this.flowSources ?? []) {
+      try {
+        subs.push(...(await src.logSubscriptions()));
+      } catch (err) {
+        this.logger.warn(
+          `flow source subscription resolve failed: ${(err as Error).message}`,
+        );
+      }
+    }
+    this.flowSubs = subs;
+    return subs;
+  }
+
+  /**
+   * Index protocol flows (e.g. Aave Supply/Withdraw) for a block range, gated
+   * server-side to known vaults via the subscription's vault topic. Generic — the
+   * indexer has no protocol-specific knowledge; everything comes from the
+   * adapter's subscription descriptor.
+   */
+  private async indexProtocolFlows(
+    range: BlockRange,
+    vaultByAddress: Map<string, string>,
+  ): Promise<void> {
+    try {
+      const subs = await this.resolveFlowSubscriptions();
+      if (subs.length === 0) return;
+      const vaultAddrs = [...vaultByAddress.keys()];
+      if (vaultAddrs.length === 0) return;
+
+      for (const sub of subs) {
+        const logs = await this.requireProvider().getLogs({
+          address: sub.address,
+          fromBlock: range.from,
+          toBlock: range.to,
+          topics: vaultTopicFilter(sub, vaultAddrs),
+        });
+        if (logs.length === 0) continue;
+
+        const bts = new Map<number, number>();
+        for (const bn of new Set(logs.map((l) => l.blockNumber))) {
+          bts.set(bn, await this.blockTimestamp(bn));
+        }
+        const rows = buildProtocolFlowRows(
+          sub,
+          logs as unknown as Parameters<typeof buildProtocolFlowRows>[1],
+          vaultByAddress,
+          bts,
+        );
+        await this.persistProtocolFlows(rows, vaultByAddress);
+      }
+    } catch (err) {
+      this.logger.warn(
+        `protocol-flow indexing failed for ${range.from}-${range.to}: ${(err as Error).message}`,
+      );
+    }
+  }
+
+  /** Persist new protocol-flow rows idempotently on (txHash, logIndex), USD frozen. */
+  private async persistProtocolFlows(
+    rows: ProtocolFlowRow[],
+    vaultByAddress: Map<string, string>,
+  ): Promise<void> {
+    if (rows.length === 0) return;
+    const existing = await this.prisma.protocolFlow.findMany({
+      where: { OR: rows.map((r) => ({ txHash: r.txHash, logIndex: r.logIndex })) },
+      select: { txHash: true, logIndex: true },
+    });
+    const seen = new Set(existing.map((e) => `${e.txHash}:${e.logIndex}`));
+    const newRows = rows.filter((r) => !seen.has(`${r.txHash}:${r.logIndex}`));
+    if (newRows.length === 0) return;
+
+    const usd = await this.computeUsd(
+      newRows.map((r) => ({ token: r.token, amount: r.amount })),
+    );
+
+    await this.prisma.protocolFlow.createMany({
+      data: newRows.map((r, i) => ({
+        vaultId: vaultByAddress.get(r.vaultAddress)!,
+        protocol: r.protocol,
+        kind: r.kind,
+        token: r.token,
+        amount: r.amount,
+        amountUsd: usd[i],
+        txHash: r.txHash,
+        blockNumber: r.blockNumber,
+        logIndex: r.logIndex,
+        blockTimestamp: r.blockTimestamp,
+      })),
+      skipDuplicates: true,
+    });
   }
 
   /** getLogs with adaptive halving on a range-limit RPC rejection. */

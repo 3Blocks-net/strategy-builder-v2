@@ -49,8 +49,34 @@ model Vault {
   executions     Execution[]
   failures       ExecutionFailure[]
   valueSnapshots VaultValueSnapshot[]
+  protocolFlows  ProtocolFlow[]
 
   @@unique([ownerAddress, label])
+}
+
+/// Adapter-indexed protocol flows (Vault-Cockpit slice #08) — e.g. Aave
+/// Supply/Withdraw per reserve, captured via a protocol adapter's declared log
+/// subscriptions. **Wholly separate from VaultEvent**: VaultEvent (boundary
+/// deposits/withdraws) drives PnL net-deposits; ProtocolFlow drives per-reserve
+/// earnings. The two must never be unioned — the PnL/earnings firewall (PRD
+/// Resolved decisions 2 & 9). `amountUsd` is frozen at index time.
+model ProtocolFlow {
+  id             String   @id @default(uuid())
+  vaultId        String
+  protocol       String
+  kind           String // e.g. AAVE_SUPPLY | AAVE_WITHDRAW
+  token          String
+  amount         String
+  amountUsd      String?
+  txHash         String
+  blockNumber    Int
+  logIndex       Int
+  blockTimestamp DateTime
+  createdAt      DateTime @default(now())
+  vault          Vault    @relation(fields: [vaultId], references: [id], onDelete: Cascade)
+
+  @@unique([txHash, logIndex])
+  @@index([vaultId, token])
 }
 
 /// Periodic full valuation of a vault (Vault-Cockpit slice #04). Written hourly

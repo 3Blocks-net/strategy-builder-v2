@@ -1,14 +1,16 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Contract, JsonRpcProvider, getAddress } from 'ethers';
+import { Contract, Interface, JsonRpcProvider, getAddress } from 'ethers';
 import { PrismaService } from '../../database/prisma.service';
 import { ProtocolAdapter, ValuedPosition } from '../protocol-adapter';
+import type { LogSubscription } from '../../indexer/protocol-flow';
 import { base8ToUsd } from './aave-math';
 import {
   AaveAccountRead,
   AaveReserveRead,
   buildAavePositions,
 } from './aave-positions';
+import { netPrincipalByReserve } from './aave-earnings';
 
 const ADDRESSES_PROVIDER_ABI = [
   'function getPool() view returns (address)',
@@ -60,12 +62,90 @@ export class AaveV3Adapter implements ProtocolAdapter {
 
   async getPositions(vaultAddress: string): Promise<ValuedPosition[]> {
     const raw = await this.read(vaultAddress);
-    return buildAavePositions(raw.reserves, raw.account).positions;
+    const netPrincipal = await this.netPrincipal(vaultAddress);
+    return buildAavePositions(raw.reserves, raw.account, netPrincipal).positions;
   }
 
   async claimedTokens(vaultAddress: string): Promise<string[]> {
     const raw = await this.read(vaultAddress);
     return raw.claimed;
+  }
+
+  /**
+   * Log subscriptions the indexer ingests into ProtocolFlow (slice #08): Aave
+   * Pool `Supply` (onBehalfOf) + `Withdraw` (user), both at indexed topic 2.
+   */
+  async logSubscriptions(): Promise<LogSubscription[]> {
+    const rpcUrl = this.config.get<string>('RPC_URL');
+    if (!rpcUrl) return [];
+    const provider = new JsonRpcProvider(rpcUrl);
+    try {
+      const { pool } = await this.resolveAddresses(provider);
+      const iface = new Interface([
+        'event Supply(address indexed reserve, address user, address indexed onBehalfOf, uint256 amount, uint16 indexed referralCode)',
+        'event Withdraw(address indexed reserve, address indexed user, address indexed to, uint256 amount)',
+      ]);
+      return [
+        {
+          address: pool,
+          iface,
+          eventName: 'Supply',
+          topic0: iface.getEvent('Supply')!.topicHash,
+          vaultTopicIndex: 2, // onBehalfOf
+          toDraft: (a: any) => ({
+            protocol: 'aave-v3',
+            kind: 'AAVE_SUPPLY',
+            token: getAddress(a.reserve),
+            amount: a.amount.toString(),
+          }),
+        },
+        {
+          address: pool,
+          iface,
+          eventName: 'Withdraw',
+          topic0: iface.getEvent('Withdraw')!.topicHash,
+          vaultTopicIndex: 2, // user
+          toDraft: (a: any) => ({
+            protocol: 'aave-v3',
+            kind: 'AAVE_WITHDRAW',
+            token: getAddress(a.reserve),
+            amount: a.amount.toString(),
+          }),
+        },
+      ];
+    } catch (err) {
+      this.logger.warn(`Aave logSubscriptions resolve failed: ${err}`);
+      return [];
+    } finally {
+      await provider.destroy();
+    }
+  }
+
+  /** Net principal USD per reserve from indexed ProtocolFlow rows (for earnings). */
+  private async netPrincipal(
+    vaultAddress: string,
+  ): Promise<Map<string, number | null>> {
+    try {
+      const vault = await this.prisma.vault.findUnique({
+        where: { address: vaultAddress },
+        select: { id: true },
+      });
+      if (!vault) return new Map();
+      const flows = await this.prisma.protocolFlow.findMany({
+        where: { vaultId: vault.id, protocol: 'aave-v3' },
+        select: { token: true, kind: true, amountUsd: true },
+      });
+      return netPrincipalByReserve(
+        flows.map((f) => ({
+          token: f.token,
+          kind: f.kind,
+          amountUsd: f.amountUsd != null ? Number(f.amountUsd) : null,
+        })),
+      );
+    } catch (err) {
+      this.logger.warn(`Aave net-principal read failed: ${err}`);
+      return new Map();
+    }
   }
 
   private async read(vaultAddress: string): Promise<RawRead> {

@@ -60,6 +60,6 @@ import { PerformanceService } from './performance.service';
       inject: [ConfigService],
     },
   ],
-  exports: [ValuationService, SnapshotService],
+  exports: [ValuationService, SnapshotService, PROTOCOL_ADAPTERS],
 })
 export class CockpitModule {}

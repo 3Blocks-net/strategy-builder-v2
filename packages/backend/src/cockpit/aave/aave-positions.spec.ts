@@ -87,4 +87,21 @@ describe('buildAavePositions', () => {
     const { positions } = buildAavePositions([reserve()], account());
     expect(positions.some((p) => p.kind === 'summary')).toBe(false);
   });
+
+  it('sets earningsUsd = suppliedUsd − net principal when flows are known (#08)', () => {
+    const { positions } = buildAavePositions(
+      [reserve({ supplied: 100n * 10n ** 18n })], // supplied now = $100
+      account({ totalCollateralBase: 100_0000_0000n }),
+      new Map([['0xusdt', 60]]), // net principal $60 (asset 0xUSDT lowercased)
+    );
+    expect(positions.find((p) => p.kind === 'supply')!.earningsUsd).toBe(40);
+  });
+
+  it('leaves earningsUsd null when no flow principal is available', () => {
+    const { positions } = buildAavePositions(
+      [reserve({ supplied: 100n * 10n ** 18n })],
+      account({ totalCollateralBase: 100_0000_0000n }),
+    );
+    expect(positions.find((p) => p.kind === 'supply')!.earningsUsd).toBeNull();
+  });
 });

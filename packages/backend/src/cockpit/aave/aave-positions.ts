@@ -47,6 +47,8 @@ export interface AaveAccountRead {
 export function buildAavePositions(
   reserves: AaveReserveRead[],
   account: AaveAccountRead,
+  /** token (lowercased) → net principal USD (slice #08); undefined/null → no earnings. */
+  netPrincipalByReserve?: Map<string, number | null>,
 ): { positions: ValuedPosition[]; claimed: string[] } {
   const positions: ValuedPosition[] = [];
   const claimed: string[] = [];
@@ -57,6 +59,9 @@ export function buildAavePositions(
     if (r.supplied > 0n) {
       const usd =
         r.priceUsd != null ? tokenUsd(r.supplied, r.decimals, r.priceUsd) : null;
+      const principal = netPrincipalByReserve?.get(r.asset.toLowerCase());
+      const earningsUsd =
+        usd != null && typeof principal === 'number' ? usd - principal : null;
       positions.push({
         protocol: 'aave-v3',
         kind: 'supply',
@@ -71,6 +76,7 @@ export function buildAavePositions(
           },
         ],
         valueUsd: usd,
+        earningsUsd,
         metrics: { supplyApy: rayRateToApy(r.supplyRateRay) },
       });
     }

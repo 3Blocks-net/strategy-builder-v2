@@ -72,6 +72,8 @@ function formatMetrics(p: ValuedPosition): string | null {
   if (typeof m.feeTier === 'number') parts.push(`${m.feeTier / 10000}% pool`);
   if (typeof m.uncollectedUsd === 'number')
     parts.push(`Unclaimed fees ${formatUsd(m.uncollectedUsd)}`);
+  if (typeof p.earningsUsd === 'number')
+    parts.push(`Earnings ${formatUsd(p.earningsUsd)}`);
   return parts.length ? parts.join(' · ') : null;
 }
 
