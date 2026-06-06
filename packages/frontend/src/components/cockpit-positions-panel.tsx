@@ -67,6 +67,10 @@ function formatMetrics(p: ValuedPosition): string | null {
     parts.push(`APY ${(m.supplyApy * 100).toFixed(2)}%`);
   if (typeof m.borrowApy === 'number')
     parts.push(`Borrow APY ${(m.borrowApy * 100).toFixed(2)}%`);
+  if ('inRange' in m) parts.push(m.inRange ? 'In range' : 'Out of range');
+  if (typeof m.feeTier === 'number') parts.push(`${m.feeTier / 10000}% pool`);
+  if (typeof m.uncollectedUsd === 'number')
+    parts.push(`Unclaimed fees ${formatUsd(m.uncollectedUsd)}`);
   return parts.length ? parts.join(' · ') : null;
 }
 

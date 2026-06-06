@@ -6,6 +6,7 @@ import { ValuationService } from './valuation.service';
 import { CockpitController } from './cockpit.controller';
 import { PROTOCOL_ADAPTERS, ProtocolAdapter } from './protocol-adapter';
 import { AaveV3Adapter } from './aave/aave-v3.adapter';
+import { PancakeV3Adapter } from './pancakeswap/pancake-v3.adapter';
 
 /**
  * Vault-Cockpit (PRD `vault-cockpit-prd.md`).
@@ -21,11 +22,15 @@ import { AaveV3Adapter } from './aave/aave-v3.adapter';
   providers: [
     ValuationService,
     AaveV3Adapter,
+    PancakeV3Adapter,
     {
-      // Registered protocol adapters. PancakeSwap V3 joins in #03.
+      // Registered protocol adapters (Aave V3 + PancakeSwap V3).
       provide: PROTOCOL_ADAPTERS,
-      useFactory: (aave: AaveV3Adapter): ProtocolAdapter[] => [aave],
-      inject: [AaveV3Adapter],
+      useFactory: (
+        aave: AaveV3Adapter,
+        pcs: PancakeV3Adapter,
+      ): ProtocolAdapter[] => [aave, pcs],
+      inject: [AaveV3Adapter, PancakeV3Adapter],
     },
   ],
   exports: [ValuationService],
