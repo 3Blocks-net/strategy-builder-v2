@@ -29,6 +29,7 @@ interface ValuedVault {
   totalValueUsd: number;
   asOfBlock: number | null;
   asOf: string;
+  source?: 'snapshot' | 'live';
 }
 
 const PROTOCOL_LABELS: Record<string, string> = {
@@ -143,7 +144,8 @@ export function CockpitPositionsPanel({ address }: { address: string }) {
         <div className="flex items-center gap-3">
           {data && (
             <span className="text-xs text-muted-foreground">
-              updated {relativeAge(data.asOf)}
+              {data.source === 'live' ? 'Live · ' : ''}updated{' '}
+              {relativeAge(data.asOf)}
             </span>
           )}
           <Button

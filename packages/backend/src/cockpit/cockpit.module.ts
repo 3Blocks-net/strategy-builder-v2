@@ -1,4 +1,6 @@
 import { Module } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { JsonRpcProvider } from 'ethers';
 import { PortfolioModule } from '../portfolio/portfolio.module';
 import { BlockchainModule } from '../blockchain/blockchain.module';
 import { VaultModule } from '../vault/vault.module';
@@ -7,20 +9,26 @@ import { CockpitController } from './cockpit.controller';
 import { PROTOCOL_ADAPTERS, ProtocolAdapter } from './protocol-adapter';
 import { AaveV3Adapter } from './aave/aave-v3.adapter';
 import { PancakeV3Adapter } from './pancakeswap/pancake-v3.adapter';
+import {
+  SnapshotService,
+  SNAPSHOT_PROVIDER,
+  SnapshotProvider,
+  resolveSnapshotRpcUrl,
+} from './snapshot.service';
 
 /**
  * Vault-Cockpit (PRD `vault-cockpit-prd.md`).
  *
- * Slice #01 — the spine: `ValuationService` (single source of truth) + the
- * `ProtocolAdapter` registry (empty for now) behind `GET /vaults/:address/
- * positions`. Aave/PCS adapters (#02/#03), snapshots (#04), chart (#05) and
- * performance (#06/#07) extend this module.
+ * - #01 spine: ValuationService (single source of truth) + ProtocolAdapter registry
+ * - #02/#03: Aave V3 + PancakeSwap V3 adapters
+ * - #04: SnapshotService loop + VaultValueSnapshot read model behind /positions
  */
 @Module({
   imports: [PortfolioModule, BlockchainModule, VaultModule],
   controllers: [CockpitController],
   providers: [
     ValuationService,
+    SnapshotService,
     AaveV3Adapter,
     PancakeV3Adapter,
     {
@@ -32,7 +40,22 @@ import { PancakeV3Adapter } from './pancakeswap/pancake-v3.adapter';
       ): ProtocolAdapter[] => [aave, pcs],
       inject: [AaveV3Adapter, PancakeV3Adapter],
     },
+    {
+      // The snapshot loop's own provider: dedicated SNAPSHOT_RPC_URL when set,
+      // else the shared RPC_URL, else null (→ loop dormant).
+      provide: SNAPSHOT_PROVIDER,
+      useFactory: (config: ConfigService): SnapshotProvider | null => {
+        const url = resolveSnapshotRpcUrl(
+          config.get<string>('SNAPSHOT_RPC_URL'),
+          config.get<string>('RPC_URL'),
+        );
+        return url
+          ? new JsonRpcProvider(url, undefined, { staticNetwork: true })
+          : null;
+      },
+      inject: [ConfigService],
+    },
   ],
-  exports: [ValuationService],
+  exports: [ValuationService, SnapshotService],
 })
 export class CockpitModule {}

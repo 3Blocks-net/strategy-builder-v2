@@ -48,8 +48,28 @@ model Vault {
   automations    Automation[]
   executions     Execution[]
   failures       ExecutionFailure[]
+  valueSnapshots VaultValueSnapshot[]
 
   @@unique([ownerAddress, label])
+}
+
+/// Periodic full valuation of a vault (Vault-Cockpit slice #04). Written hourly
+/// by the SnapshotService loop and used as the canonical positions read model +
+/// the value-history chart source. `breakdown` holds the full per-position detail
+/// (HF, LP range, uncollected fees, APY, earnings); `totalValueUsd` is net equity
+/// as a decimal string (never a float). `blockNumber` is the snapshot provider's
+/// head at write time, when available.
+model VaultValueSnapshot {
+  id            String   @id @default(uuid())
+  vaultId       String
+  blockNumber   Int?
+  asOf          DateTime
+  totalValueUsd String
+  breakdown     Json
+  createdAt     DateTime @default(now())
+  vault         Vault    @relation(fields: [vaultId], references: [id], onDelete: Cascade)
+
+  @@index([vaultId, asOf])
 }
 
 /// Deposit/withdraw activity (PEC-219). Now **indexer-owned** — sourced from

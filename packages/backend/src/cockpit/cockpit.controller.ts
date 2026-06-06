@@ -1,13 +1,13 @@
 import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { VaultOwnerGuard } from '../vault/vault-owner.guard';
-import { ValuationService } from './valuation.service';
+import { SnapshotService } from './snapshot.service';
 
 @ApiTags('Cockpit')
 @ApiBearerAuth()
 @Controller('vaults')
 export class CockpitController {
-  constructor(private readonly valuation: ValuationService) {}
+  constructor(private readonly snapshots: SnapshotService) {}
 
   @Get(':address/positions')
   @UseGuards(VaultOwnerGuard)
@@ -19,12 +19,13 @@ export class CockpitController {
   @ApiQuery({
     name: 'refresh',
     required: false,
-    description: '1 = bypass cache and recompute live',
+    description:
+      '1 = recompute live (ephemeral); default serves the latest snapshot',
   })
   async getPositions(
     @Param('address') address: string,
     @Query('refresh') refresh?: string,
   ) {
-    return this.valuation.valueVault(address, { refresh: refresh === '1' });
+    return this.snapshots.getPositionsView(address, refresh === '1');
   }
 }
