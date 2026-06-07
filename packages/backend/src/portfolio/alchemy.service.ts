@@ -1,6 +1,7 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Contract, JsonRpcProvider } from "ethers";
+import { PrismaService } from "../database/prisma.service";
 
 export interface AlchemyTokenPosition {
   address: string;
@@ -15,7 +16,10 @@ export interface AlchemyTokenPosition {
 export class AlchemyService {
   private readonly logger = new Logger(AlchemyService.name);
 
-  constructor(private readonly configService: ConfigService) {}
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   async getTokenBalances(
     vaultAddress: string,
@@ -133,11 +137,31 @@ export class AlchemyService {
       "function decimals() view returns (uint8)",
     ];
 
-    const knownTokens = [
+    // Fee tokens (fallback) + every curated protocol token from the DB allowlist
+    // (Aave reserves + PancakeSwap pairs — incl. BTCB), so tokens a vault borrows
+    // or swaps into actually show up on the fork instead of only a hardcoded few.
+    const fallbackTokens = [
       "0x55d398326f99059fF775485246999027B3197955", // USDT
       "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c", // WBNB
       "0xe9e7CEA3DedcA5984780Bafc599bD69ADd087D56", // BUSD
     ];
+    let knownTokens = fallbackTokens;
+    try {
+      const protocolTokens = await this.prisma.protocolToken.findMany({
+        where: { enabled: true },
+        select: { address: true },
+      });
+      // dedupe case-insensitively, keep the original casing
+      const byLower = new Map<string, string>();
+      for (const a of [...fallbackTokens, ...protocolTokens.map((t) => t.address)]) {
+        byLower.set(a.toLowerCase(), a);
+      }
+      knownTokens = [...byLower.values()];
+    } catch (err) {
+      this.logger.warn(
+        `ProtocolToken lookup failed, using fallback token list: ${err}`,
+      );
+    }
 
     const positions: AlchemyTokenPosition[] = [];
     for (const addr of knownTokens) {

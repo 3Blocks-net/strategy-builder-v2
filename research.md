@@ -23,6 +23,7 @@
 14. [PEC-219 Path A — Goldsky Subgraph (deltas over §5)](#14-pec-219-path-a--goldsky-subgraph-deltas-over-5)
 15. [PEC-219 Path B — Backend Event Indexing with ethers v6](#15-pec-219-path-b--backend-event-indexing-with-ethers-v6-no-subgraph-alternative)
 16. [PEC-219 Real-Time Updates — NestJS WebSockets + Socket.IO](#16-pec-219-real-time-updates--nestjs-websockets--socketio-shared-by-path-a--b)
+17. [Vault-Cockpit — DeFi-Positionen-READ + Wert-/Performance-Historie](#17-vault-cockpit--defi-positionen-read--wert-performance-historie-epic-vault-cockpit-epicmd)
 
 ---
 
@@ -3325,6 +3326,115 @@ type ExecutionEvent = {
 ### 16.6 Testing
 - **e2e (covers the isolation requirement):** boot Nest (`createNestApplication` + `app.listen(0)`), connect a real `socket.io-client` with a signed test JWT. Assert (a) socket on `vault:A` receives an `execution` emitted to `vault:A`; (b) a **different wallet's socket does NOT** receive it (the core *kein-Datenleck* assertion — use a short timeout to assert non-delivery); (c) `subscribe` to a non-owned vault → `exception`/no-join.
 - **Unit:** instantiate the gateway with mocked `JwtService`/`PrismaService`; stub `client = { handshake:{auth:{token}}, data:{}, join, disconnect }`; assert the `join`/`disconnect`/`WsException` branches. `@nestjs/testing` + `supertest` already present; add `socket.io-client` (dev) for the e2e client.
+
+---
+
+## 17. Vault-Cockpit — DeFi-Positionen-READ + Wert-/Performance-Historie (Epic `vault-cockpit-epic.md`)
+
+> **Docs source:** WebSearch/WebFetch (Aave + PancakeSwap Docs, The Graph Explorer, DeFiLlama Coins API), 2026-06-05. **Refresh/Delete nach Abschluss des Cockpit-Epics.**
+> **Scope:** Nur die **Read-Seite** für das Cockpit (Positionen anzeigen, Wertverlauf, PnL). Die *Write*-Actions sind PEC-218 (§6) und nicht Teil hiervon. DeFiLlama-`chart`/`historical`/`batchHistorical`-Endpoints sind bereits in **§11** dokumentiert — hier nur die Deltas (Aave/PCS-Position-Reads, RPC-vs-Subgraph, Snapshot-/PnL-Modell).
+> **Verifiziert:** Aave-Addr gegen §6 (`PoolAddressesProvider 0xff75B6da…`) konsistent; restliche Adressen unten vor Gebrauch on-chain prüfen.
+
+### 17.0 RPC vs. Subgraph — Entscheidung: **RPC-first**
+
+| Kriterium | RPC (ethers v6, bestehend) | Subgraph (The Graph) |
+|---|---|---|
+| Neue Abhängigkeit | Keine (nutzt Indexer-Provider) | API-Key + GRT-Billing pro Query |
+| Hosted Service | — | **Seit Juni 2024 abgeschaltet** → nur noch Decentralized Network (kostenpflichtig) oder protokoll-eigenes Gateway |
+| Aktueller Zustand (HF, Fees, Liquidität) | Exakt, blockgenau | Indexer-Lag (Minuten), reorg-fähig |
+| Uncollected Fees (PCS) | `collect`-staticCall = exakter Live-Wert | feeGrowth-Math od. veraltetes `tokensOwed` |
+| Historie | teuer (Archive-Reads) | Subgraph-Stärke |
+| Earnings/APY | selbst rechnen (Formeln unten) | teils vorberechnet |
+
+**Begründung:** Das Cockpit braucht primär den **aktuellen** Zustand → RPC ist exakt + nutzt vorhandene Infra. Die einzige Subgraph-Stärke (Historie) lösen wir billiger über **eigene Snapshots** (§17.3). Subgraph würde einen kostenpflichtigen externen Dienst + Key-Management einführen, ohne MVP-Mehrwert. **[web — Hosted-Service-Sunset]**
+
+### 17.1 Aave V3 — Position lesen (RPC, BSC)
+
+**Adressen (BSC 56, vor Gebrauch on-chain verifizieren):**
+- `PoolAddressesProvider` `0xff75B6da14FfbbfD355Daf7a2731456b3562Ba6D` (= §6) → `getPool()` / `getPriceOracle()` zur Laufzeit auflösen, nicht hardcoden.
+- `UiPoolDataProviderV3` `0xc0179321f0825c3e0F59Fe7Ca4E40557b97797a3` **(⚠️ verifizieren — periphery driftet)**.
+
+**Schnellster Read-Pfad = `UiPoolDataProviderV3` (der Pfad, den Aaves UI nutzt):**
+- `getReservesData(provider) → (AggregatedReserveData[], BaseCurrencyInfo)` — alle Reserves mit `underlyingAsset`, `decimals`, `liquidityRate`(RAY), `variableBorrowRate`(RAY), `liquidityIndex`, `aTokenAddress`, `variableDebtTokenAddress`, `priceInMarketReferenceCurrency`, `reserveLiquidationThreshold`. **Ein Call.**
+- `getUserReservesData(provider, user) → (UserReserveData[], uint8 emode)` — pro Reserve `scaledATokenBalance`, `scaledVariableDebt`, `usageAsCollateralEnabledOnUser`. **Ein Call.**
+
+**Aggregierte Risiko-Kennzahlen** (direkt aus dem Pool, siehe auch §6): `Pool.getUserAccountData(vault) → (totalCollateralBase, totalDebtBase, availableBorrowsBase, currentLiquidationThreshold, ltv, healthFactor)`. Base = **USD, 8 Dezimalen** (`/1e8`); `healthFactor` **1e18**, bei **keiner Debt = `type(uint256).max`** → als „∞ / keine Liquidationsgefahr" rendern (sonst UI-Bug). `ltv`/`liquidationThreshold` in **bps**.
+
+**Per-Reserve Beträge:** supplied = `aToken.balanceOf(vault)` (rebasing, inkl. Zinsen — nie zusätzlich aufzinsen), debt = `variableDebtToken.balanceOf(vault)`.
+
+**Supply-/Borrow-APY aus RAY-Raten (selbst rechnen, per-Sekunde-Compounding):**
+```
+RAY = 1e27 ; SECONDS_PER_YEAR = 31_536_000
+APR = liquidityRate / RAY               // bzw. variableBorrowRate / RAY
+APY = (1 + APR / SECONDS_PER_YEAR) ** SECONDS_PER_YEAR - 1
+```
+(Float reicht für die Anzeige; entspricht Aave-`calculateCompoundedInterest`.)
+
+**Accrued Earnings (MVP):** `current_supplied_USD − net_principal_USD`, mit `net_principal` aus den vom Indexer erfassten Supply/Withdraw-Events (write-time-USD wie Deposits in PEC-219). Exakt-on-chain via `scaledBalance × liquidityIndex / RAY` ist aufwändiger → nicht MVP.
+
+### 17.2 PancakeSwap V3 — LP-Positionen lesen (RPC, BSC)
+
+**Adressen (= §6):** NPM `0x46A15B0b27311cedF172AB29E4f4766fbE7F4364`, Factory `0x0BFbCF9fa4f9C56B0F40a671Ad40E0805A091865`.
+
+**Enumeration** (NPM ist `ERC721Enumerable`, Vault custodiert NFTs via `onERC721Received`): `n = NPM.balanceOf(vault)`; `tokenId = NPM.tokenOfOwnerByIndex(vault, i)`.
+
+**`NPM.positions(tokenId)` →** `(nonce, operator, token0, token1, fee, tickLower, tickUpper, liquidity, feeGrowthInside0LastX128, feeGrowthInside1LastX128, tokensOwed0, tokensOwed1)`.
+
+**⚠️ Uncollected Fees — `tokensOwed` ist VERALTET** (nur bei mint/increase/decrease/collect aktualisiert). Echten Live-Wert via **`collect`-staticCall** (kein State-Change):
+```ts
+const MAX_U128 = 2n ** 128n - 1n;
+const [fee0, fee1] = await npm.collect.staticCall(
+  { tokenId, recipient: vaultAddress, amount0Max: MAX_U128, amount1Max: MAX_U128 },
+  { from: vaultAddress }   // ethers v6: from MUSS owner/approved sein, sonst revert
+);
+```
+(Standard-Trick, Uniswap/Pancake identisch.) **[web]**
+
+**Positions-Token-Beträge aus `liquidity`:** `pool = Factory.getPool(token0, token1, fee)`; `(sqrtPriceX96, tick,…) = pool.slot0()`; `getAmountsForLiquidity(sqrtPriceX96, sqrtRatioAtTick(tickLower), sqrtRatioAtTick(tickUpper), liquidity)` → `(amount0, amount1)` (Uniswap-V3-`LiquidityAmounts`/`TickMath`, **BigInt** — Q96/Q128 niemals als `number`). PancakeSwap V3 = Uniswap-V3-Fork → Math identisch; im Backend hand-rollen ODER `@uniswap/v3-sdk` nur im Frontend.
+
+**in-range:** `tickLower <= tick < tickUpper`. **USD-Wert:** `(amount0+fee0)×price0 + (amount1+fee1)×price1` (DeFiLlama).
+
+### 17.3 Wert-Historie + PnL — Snapshot-Ansatz (nicht Event-Rekonstruktion)
+
+**Token-Preis-Historie ≠ Vault-WERT-Historie** (Wert hängt auch von rebasing-aTokens, LP-Fees, Tick-abhängigem LP-Wert ab → historische Rekonstruktion zu komplex).
+
+**Empfehlung:** periodischer Backend-Cron schreibt `VaultValueSnapshot(vaultId, timestamp, totalValueUsd, breakdownJson)`; Chart (Story 2) liest Snapshots. Reuse der vorhandenen Indexer-Kadenz + `PriceService`. Granularität = Cron-Intervall.
+
+**PnL (Story 3):** `PnL_abs = currentValueUsd − netDeposits`, `netDeposits = Σ depositUsd − Σ withdrawUsd` aus den **bereits write-time-USD-frozen** VaultEvents (PEC-219). `PnL% = PnL_abs / netDeposits`. DeFiLlama **`/prices/historical`** (§11) nur als Backfill, falls für Alt-Events kein USD eingefroren ist. Vermeidet Archive-RPC-Reads und Subgraph-Kosten.
+
+### 17.4 Gotchas (Delta zu §6)
+
+1. **The-Graph Hosted Service tot (Juni 2024)** — alte Aave/Pancake-Hosted-Endpoints liefern nichts; Decentralized Network = Key + GRT. → RPC-first.
+2. **PCS `tokensOwed` veraltet** → nur `collect`-staticCall (mit `from: vault`) gibt echte uncollected Fees. Häufigster Integrationsfehler.
+3. **Aave Base = 8 Dezimalen (USD), nicht 18** — typischer 1e10-Fehler; dieselbe `×1e10`-Normalisierung wie `ActionLib`-HF-Math nutzen.
+4. **`healthFactor = uint256.max` bei keiner Debt** — als ∞ rendern.
+5. **Q96/Q128 + RAY mit BigInt** — `number` overflowt.
+6. **Reads pro Position einzeln fangen** — eine kaputte Position darf das Cockpit nicht killen; Leerzustände (kein aToken / `balanceOf==0`) als sauberen Empty-State, nicht als Fehler.
+7. **Fork:** idle BSC-Fork bewegt sich nicht (Fork-Clock-Lag, CLAUDE.md) — für UI-Tests Positionen via die Actions erzeugen + Block minen.
+8. **`UiPoolDataProviderV3`-Adresse vor Gebrauch on-chain verifizieren** (periphery wird neu deployt).
+
+### 17.5 Version Decision (Delta)
+
+- **Primär `ethers ^6.16.0`** (bestehend) für alle Reads über `INDEXER_PROVIDER`. **Keine** neue Backend-Dependency nötig.
+- **`@aave/contract-helpers` NICHT einziehen** (ethers-v5-Annahmen → Konflikt mit v6-Provider); falls überhaupt, nur `@aave/math-utils` (pure Math). APY-Formel ist ~10 Zeilen → hand-rollen bevorzugt.
+- **`@uniswap/v3-sdk` nur im Frontend** oder `LiquidityAmounts`/`TickMath` im Backend hand-rollen (kein JSBI-Ballast im Backend).
+- **`graphql-request` / Subgraph-Client NICHT** (RPC-first).
+- DeFiLlama: kein Key, raw HTTP, bereits in `PriceService` — nur um `getHistoricalPrices`/`chart` erweitern (§11).
+
+### 17.6 Testing Strategy (Delta)
+
+- **DeFiLlama:** `fetch` mocken (wie `price.service.spec.ts`); historical/chart-Shapes + low-confidence/fehlende-Coin abdecken.
+- **Aave/PCS Reads:** Integration gegen den **BSC-Fork** nach `deploy-fork.ts` — Positionen via die existierenden Actions erzeugen (Supply/Borrow, LP-Mint), dann Read-Service prüfen. Unit: vorhandene Mocks (`MockAaveV3`, `MockNonfungiblePositionManager.accrue`) nutzen; **`UiPoolDataProviderV3` ist noch nicht gemockt** → Fork-Test oder schlanker Mock.
+- **`collect`-staticCall:** assert Revert ohne `from`-Owner; mit `from` kommen die akkruierten Fees (nicht `tokensOwed`) zurück.
+- **APY/LiquidityAmounts-Math** (falls hand-gerollt): Hard-Fixture-Unit-Tests analog `test/ActionLibHF.ts` (fängt 10ⁿ-Skalierungsfehler).
+
+### 17.7 Sources
+
+- Aave Pool / Addresses / UiPoolDataProviderV3 — https://aave.com/docs/aave-v3/smart-contracts/pool · https://aave.com/docs/resources/addresses · https://github.com/aave/aave-v3-periphery/blob/master/contracts/misc/UiPoolDataProviderV3.sol
+- Aave Subgraphs / Graph Explorer — https://github.com/aave/protocol-subgraphs · https://thegraph.com/explorer
+- PancakeSwap NPM / Subgraph — https://docs.pancakeswap.finance/ · https://developer.pancakeswap.finance/apis/subgraph
+- Uniswap V3 Collect-Fees (gleiche Math) — https://docs.uniswap.org/sdk/v3/guides/liquidity/liquidity-fees
+- DeFiLlama Coins API — https://docs.llama.fi/coin-prices-api (Endpoints siehe §11)
 
 ---
 

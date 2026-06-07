@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { AlchemyService } from './alchemy.service';
+import { PrismaService } from '../database/prisma.service';
 
 describe('AlchemyService', () => {
   let service: AlchemyService;
@@ -19,6 +20,10 @@ describe('AlchemyService', () => {
       providers: [
         AlchemyService,
         { provide: ConfigService, useValue: { get: configGet } },
+        {
+          provide: PrismaService,
+          useValue: { protocolToken: { findMany: jest.fn().mockResolvedValue([]) } },
+        },
       ],
     }).compile();
 
