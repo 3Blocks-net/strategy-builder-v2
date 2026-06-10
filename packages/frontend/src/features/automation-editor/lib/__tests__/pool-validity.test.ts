@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { collectSwapPoolChecks, buildSwapPoolErrors } from '../pool-validity';
-import type { StepSchema } from '../encode-boundary';
+import type { StepSchema } from 'shared';
 
 const swapSchema: StepSchema = {
   paramSchema: {

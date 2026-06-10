@@ -13,3 +13,16 @@ export type {
   ParamValidationError,
 } from './validation';
 export { validateParams, zeroToggleField } from './validation';
+
+export {
+  mapParamsToRaw,
+  buildContextOverrides,
+  mapGraphToRaw,
+} from './encode-boundary';
+export type {
+  AbiFragment,
+  StepSchema,
+  RawGraph,
+  RawGraphNode,
+  RawGraphEdge,
+} from './encode-boundary';

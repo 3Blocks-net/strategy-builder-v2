@@ -9,10 +9,15 @@ import {
   applyEdgeChanges,
   addEdge,
 } from '@xyflow/react';
-import { validateParams, zeroToggleField, type ParamSchema } from 'shared';
+import {
+  validateParams,
+  zeroToggleField,
+  type ParamSchema,
+  type StepSchema,
+  type AbiFragment,
+} from 'shared';
 import { validateGraph } from '../lib/validate-graph';
 import { autoLayout } from '../lib/auto-layout';
-import type { StepSchema, AbiFragment } from '../lib/encode-boundary';
 import type { ValidationError, GraphNode, GraphEdge } from '../lib/types';
 
 export interface StepTypeOption {

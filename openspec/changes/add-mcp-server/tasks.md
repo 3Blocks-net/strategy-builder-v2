@@ -17,10 +17,10 @@ Story 7 (Schutz) wird mit Slice 6 designt; Security-Review-Gate vor jeder schrei
 
 ## 2. shared-Extraktion der Encode-Boundary (Slice 02 — keine Blocker)
 
-- [ ] 2.1 `mapGraphToRaw`/`buildContextOverrides`/`mapParamsToRaw` (+ Typen) nach `packages/shared` ziehen, über `exports`-Map verfügbar machen
-- [ ] 2.2 Frontend auf die `shared`-Version refactoren; alte Kopie in `features/automation-editor/lib/encode-boundary.ts` entfernen (keine Duplikation)
-- [ ] 2.3 Bestehende Mapper-Tests auf die `shared`-Version umziehen (table-driven, kein LLM, keine Chain), grün
-- [ ] 2.4 `pnpm shared:build` + `frontend:build` + `frontend:test` unverändert grün verifizieren
+- [x] 2.1 `mapGraphToRaw`/`buildContextOverrides`/`mapParamsToRaw` (+ Typen) nach `packages/shared` ziehen, über `exports`-Map verfügbar machen
+- [x] 2.2 Frontend auf die `shared`-Version refactoren; alte Kopie in `features/automation-editor/lib/encode-boundary.ts` entfernen (keine Duplikation)
+- [x] 2.3 Bestehende Mapper-Tests auf die `shared`-Version umziehen (table-driven, kein LLM, keine Chain), grün
+- [x] 2.4 `pnpm shared:build` + `frontend:build` + `frontend:test` unverändert grün verifizieren
 
 ## 3. Read-/Discovery-Tools (Slice 03 — blocked by 1)
 

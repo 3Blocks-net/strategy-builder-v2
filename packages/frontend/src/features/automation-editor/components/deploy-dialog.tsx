@@ -7,7 +7,7 @@ import { apiFetch } from '@/lib/api';
 import { StrategyBuilderVaultAbi } from '@/lib/abis';
 import { waitForReceipt } from '@/lib/wait-for-receipt';
 import { useEditorStore } from '../store/editor-store';
-import { mapGraphToRaw, buildContextOverrides } from '../lib/encode-boundary';
+import { mapGraphToRaw, buildContextOverrides } from 'shared';
 
 interface ContextChange {
   slotIndex: number;

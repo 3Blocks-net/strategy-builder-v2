@@ -4,8 +4,9 @@ import {
   mapGraphToRaw,
   buildContextOverrides,
   type StepSchema,
-} from '../encode-boundary';
-import { encodeTimestamp, zeroToggleField } from 'shared';
+} from './encode-boundary';
+import { encodeTimestamp } from './timestamp';
+import { zeroToggleField } from './validation';
 
 const intervalSchema: StepSchema = {
   paramSchema: {

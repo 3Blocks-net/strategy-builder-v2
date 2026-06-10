@@ -8,7 +8,7 @@
  * read is injected so it can be faked in tests.
  */
 import type { ValidationError } from './types';
-import type { StepSchema } from './encode-boundary';
+import type { StepSchema } from 'shared';
 
 export const PCS_FACTORY_ABI = [
   {

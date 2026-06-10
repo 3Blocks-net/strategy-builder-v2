@@ -1,33 +1,25 @@
 /**
- * Encode-boundary mapper — runs frontend-side just before `POST /encode`.
+ * Encode-boundary mapper — die eine, geteilte Quelle für den friendly→raw-Schritt
+ * direkt vor `POST /encode`.
  *
- * Converts each node's **friendly** params (as stored in `node.data.params`)
- * into the **raw** values the backend ABI-encoder expects, and strips every
- * friendly-only field. The output for a node carries ONLY keys present in that
- * step type's `abiFragment`, with raw string values (uint256 as string, since
- * precision can exceed 2^53).
+ * Konvertiert die **friendly** Params jedes Nodes (wie in `node.data.params`
+ * gehalten) in die **raw** Werte, die der Backend-ABI-Encoder erwartet, und
+ * entfernt jedes friendly-only-Feld. Die Ausgabe eines Nodes trägt NUR Keys, die
+ * im `abiFragment` des Step-Types vorkommen, mit raw-String-Werten (uint256 als
+ * String, da die Präzision 2^53 übersteigen kann).
  *
- * Slice 2 handles the `duration` widget (`{ value, unit }` → seconds string).
- * Later slices extend `mapFieldToRaw` (token-amount, toggles, start-time →
- * contextOverrides). The generic backend encoder stays unchanged.
+ * Wird sowohl vom Frontend (Automation-Editor) als auch vom MCP-Server konsumiert
+ * — keine Duplikation. Hängt ausschließlich von `shared`-Helfern ab.
  */
 
-import { toSeconds, encodeTimestamp, toBaseUnits, zeroToggleField, type Duration } from 'shared';
+import { toSeconds, type Duration } from './duration';
+import { encodeTimestamp } from './timestamp';
+import { toBaseUnits } from './amount';
+import { zeroToggleField, type FieldSchema, type ParamSchema } from './validation';
 
 export interface AbiFragment {
   type: string;
   components: { name: string; type: string }[];
-}
-
-export interface FieldSchema {
-  type?: string;
-  'x-ui-widget'?: string;
-  [key: string]: unknown;
-}
-
-export interface ParamSchema {
-  properties?: Record<string, FieldSchema>;
-  required?: string[];
 }
 
 export interface StepSchema {
