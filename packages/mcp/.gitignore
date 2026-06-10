@@ -1,0 +1,4 @@
+# Wallet-Keystores gehören NIEMALS ins Repo (auch keine Test-Keystores).
+keystore.json
+*.keystore.json
+*.keystore

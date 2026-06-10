@@ -35,6 +35,7 @@
       "@prisma/client",
       "@prisma/engines",
       "esbuild",
+      "keytar",
       "prisma"
     ]
   }

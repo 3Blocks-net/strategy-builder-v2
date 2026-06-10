@@ -1,0 +1,66 @@
+import { Wallet, type HDNodeWallet } from 'ethers';
+
+const REDACTED = '[WalletSigner: redacted]';
+
+/**
+ * Kapselt den Wallet-Zugang (verschlüsselter JSON-Keystore).
+ *
+ * Deep module: die Schnittstelle ist klein (Adresse ableiten, Nachricht/TX
+ * signieren), die gesamte Key-Behandlung liegt dahinter. Key-Material wird
+ * niemals nach außen gereicht und nie geloggt — `toJSON`/`inspect`/`toString`
+ * sind bewusst redigiert.
+ */
+export class WalletSigner {
+  // #private: weder von JSON.stringify noch von util.inspect sichtbar.
+  readonly #wallet: HDNodeWallet | Wallet;
+  readonly #address: `0x${string}`;
+
+  private constructor(wallet: HDNodeWallet | Wallet) {
+    this.#wallet = wallet;
+    this.#address = wallet.address as `0x${string}`;
+  }
+
+  /**
+   * Entschlüsselt einen Web3-Secret-Storage-Keystore und leitet die
+   * Owner-Adresse ab. Wirft bei falschem Passwort / beschädigtem Keystore
+   * einen sicheren Fehler ohne Key- oder Passwort-Fragmente.
+   */
+  static async fromKeystore(
+    keystoreJson: string,
+    password: string,
+  ): Promise<WalletSigner> {
+    let wallet: HDNodeWallet | Wallet;
+    try {
+      wallet = await Wallet.fromEncryptedJson(keystoreJson, password);
+    } catch {
+      // Bewusst kein `cause` und keine Original-Message weiterreichen —
+      // sie könnte Argument-Fragmente enthalten.
+      throw new Error(
+        'Wallet-Zugang konnte nicht entschlüsselt werden (falsches Passwort oder beschädigter Keystore).',
+      );
+    }
+    return new WalletSigner(wallet);
+  }
+
+  get address(): `0x${string}` {
+    return this.#address;
+  }
+
+  /** EIP-191 personal_sign über die kanonische Nachricht (z. B. SIWE). */
+  async signMessage(message: string): Promise<string> {
+    return this.#wallet.signMessage(message);
+  }
+
+  toJSON(): { address: `0x${string}` } {
+    // Nur die öffentliche Adresse, niemals Key-Material.
+    return { address: this.#address };
+  }
+
+  toString(): string {
+    return REDACTED;
+  }
+
+  [Symbol.for('nodejs.util.inspect.custom')](): string {
+    return REDACTED;
+  }
+}
