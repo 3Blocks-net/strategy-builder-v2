@@ -64,9 +64,27 @@ In `claude_desktop_config.json` (Claude Desktop → Settings → Developer):
 Beim Start zeigt der Server einen **Sicherheitshinweis** (er kann in deinem Namen signieren,
 wie du den Zugang entziehst) auf stderr an und verbindet sich per SIWE mit dem Backend.
 
-### Tools (Slice 1)
+### Tools
 
-- `whoami` — gibt die verbundene Owner-Adresse zurück.
+**Auth / Identität**
+- `whoami` — verbundene Owner-Adresse.
+
+**Lesen / Discovery** (owner-isoliert, bestätigungsfrei)
+- `list_vaults` — alle Vaults der Adresse (Adresse, Label, Deposit-Token).
+- `get_vault` — ein Vault inkl. Gas-Deposit-Stand.
+- `get_portfolio` — Token-Bestände mit USD-Werten.
+- `list_automations` — Automations (aktiv/pausiert, owner-only/public, Schrittzahl).
+- `get_executions` — Verlauf: Runs, Deposits/Withdraws, dekodierte Fehlschläge (`Step N: <reason>`).
+- `get_positions` — DeFi-Positionssicht (idle + Gas-Reserve + Aave/PancakeSwap-Positionen + Netto-Equity).
+- `get_performance` — PnL vs. Einzahlungen + Kosten (`range: 24h|7d|30d|all`).
+- `get_value_history` — USD-Wertverlauf + Deposit/Withdraw-Marker (`range`).
+
+**Katalog**
+- `list_step_types` — deployte Bausteine (Conditions + Actions).
+- `describe_step_type` — `paramSchema` (JSON-Schema-treu) + gelesene/geschriebene Kontext-Slots.
+
+> Schreibende/geldbewegende Tools (Vault erstellen, deposit/withdraw, Automations
+> deployen) folgen in späteren Slices und laufen dann durch ein erzwungenes Confirm-Gate.
 
 ## Konfiguration (Env)
 
