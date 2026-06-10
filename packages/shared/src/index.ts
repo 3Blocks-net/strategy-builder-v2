@@ -26,3 +26,6 @@ export type {
   RawGraphNode,
   RawGraphEdge,
 } from './encode-boundary';
+
+export { resolveFieldRole, findUnannotatedRecipients } from './step-roles';
+export type { FieldRole, AnnotationGap } from './step-roles';

@@ -35,11 +35,11 @@ Story 7 (Schutz) wird mit Slice 6 designt; Security-Review-Gate vor jeder schrei
 
 ## 4. Katalog-Tools + Mindest-Annotations-Pass (Slice 04 — blocked by 1)
 
-- [ ] 4.1 `list_step_types` (deployte Conditions+Actions; Null-Adress-Bausteine ausschließen)
-- [ ] 4.2 `describe_step_type` (`paramSchema` JSON-Schema-treu inkl. Defaults, Param-Bedeutungen, Kontext-Slots soweit ableitbar)
-- [ ] 4.3 Mindest-Annotations-Pass im StepType-Seed (Rollen-Marker Token/Betrag/Empfänger/Richtung); `ERC20TransferAction.recipient` annotieren (`seed.ts`)
-- [ ] 4.4 `prisma:seed` läuft durch; Frontend-Form-Widgets unverändert funktionsfähig
-- [ ] 4.5 Test: Step ohne Empfänger-Annotation wird als Lücke erkannt
+- [x] 4.1 `list_step_types` (deployte Conditions+Actions; Null-Adress-Bausteine ausschließen)
+- [x] 4.2 `describe_step_type` (`paramSchema` JSON-Schema-treu inkl. Defaults, Param-Bedeutungen, Kontext-Slots soweit ableitbar)
+- [x] 4.3 Mindest-Annotations-Pass im StepType-Seed (Rollen-Marker Token/Betrag/Empfänger/Richtung); `ERC20TransferAction.recipient` annotieren (`seed.ts`)
+- [x] 4.4 `prisma:seed` läuft durch; Frontend-Form-Widgets unverändert funktionsfähig
+- [x] 4.5 Test: Step ohne Empfänger-Annotation wird als Lücke erkannt
 
 ## 5. Recipes (Slice 05 — blocked by 1)
 

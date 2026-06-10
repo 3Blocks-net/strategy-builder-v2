@@ -18,6 +18,7 @@ import {
   getPerformance,
   getValueHistory,
 } from './tools/read-tools.js';
+import { listStepTypes, describeStepType } from './tools/catalog-tools.js';
 import { SECURITY_NOTICE } from './security-notice.js';
 
 /** Read-Tool-Ergebnis als LLM-freundlicher, eingerückter JSON-Text. */
@@ -165,6 +166,31 @@ async function main(): Promise<void> {
       annotations: readOnly,
     },
     async ({ address, range }) => jsonResult(await getValueHistory(backend, address, { range })),
+  );
+
+  server.registerTool(
+    'list_step_types',
+    {
+      title: 'StepType-Katalog',
+      description:
+        'Listet alle tatsächlich deployten Bausteine (Conditions + Actions): ' +
+        'Name, Kategorie, Kurzbeschreibung. Basis fürs Assemblieren von Automations.',
+      annotations: readOnly,
+    },
+    async () => jsonResult(await listStepTypes(backend)),
+  );
+
+  server.registerTool(
+    'describe_step_type',
+    {
+      title: 'StepType-Detail',
+      description:
+        'Detailbeschreibung eines StepTypes: paramSchema (JSON-Schema-treu, mit Defaults ' +
+        'und Param-Bedeutungen) sowie gelesene/geschriebene Kontext-Slots.',
+      inputSchema: { id: z.string().describe('StepType-ID') },
+      annotations: readOnly,
+    },
+    async ({ id }) => jsonResult(await describeStepType(backend, id)),
   );
 
   const transport = new StdioServerTransport();

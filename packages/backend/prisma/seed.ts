@@ -323,6 +323,9 @@ async function main() {
             type: 'string',
             title: 'Recipient',
             description: 'The address that will receive the tokens',
+            // Rollen-Marker (MVP-Pflicht): macht das Geld-Ziel-Feld für
+            // SummaryDecoder + Adress-Allowlist-Guard schema-getrieben sichtbar.
+            'x-ui-role': 'recipient',
           },
           amount: {
             type: 'string',
