@@ -24,11 +24,14 @@ Story 7 (Schutz) wird mit Slice 6 designt; Security-Review-Gate vor jeder schrei
 
 ## 3. Read-/Discovery-Tools (Slice 03 — blocked by 1)
 
-- [ ] 3.1 `list_vaults`, `get_vault`, `get_portfolio`, `list_automations`, `get_executions` gegen bestehende owner-guarded Endpunkte mit Session-JWT
-- [ ] 3.2 Strukturierte, LLM-freundliche Ergebnisse (kein Roh-Hex)
-- [ ] 3.3 Owner-Isolation gegen gemockte Backend-Antworten testen (nur eigene Vaults; Fremd-Zugriff unmöglich)
-- [ ] 3.4 `get_executions`: erfolgreiche Runs, Deposits/Withdraws + dekodierte Fehlschläge (`Step N: <reason>`)
-- [ ] 3.5 Leerzustand (Vault ohne Daten) klar von Fehler unterscheiden; alle Read-Tools bestätigungsfrei
+- [x] 3.1 `list_vaults`, `get_vault`, `get_portfolio`, `list_automations`, `get_executions` gegen bestehende owner-guarded Endpunkte mit Session-JWT
+- [x] 3.2 Strukturierte, LLM-freundliche Ergebnisse (kein Roh-Hex)
+- [x] 3.3 Owner-Isolation gegen gemockte Backend-Antworten testen (nur eigene Vaults; Fremd-Zugriff unmöglich)
+- [x] 3.4 `get_executions`: erfolgreiche Runs, Deposits/Withdraws + dekodierte Fehlschläge (`Step N: <reason>`)
+- [x] 3.5 Leerzustand (Vault ohne Daten) klar von Fehler unterscheiden; alle Read-Tools bestätigungsfrei
+- [x] 3.6 `get_positions` über `GET /vaults/:address/positions` (USD-Positionssicht: idle + Gas-Reserve + Protokoll-Adapter + Netto-Equity; optional `refresh`), owner-isoliert
+- [x] 3.7 `get_performance` & `get_value_history` über `/performance` bzw. `/value-history` mit `range` (`24h|7d|30d|all`)
+- [x] 3.8 Tests: korrekter Endpunkt + Query, Passthrough der strukturierten View, Fremd-Vault (403) → Ablehnung
 
 ## 4. Katalog-Tools + Mindest-Annotations-Pass (Slice 04 — blocked by 1)
 

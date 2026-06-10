@@ -36,3 +36,22 @@ Das System SHALL bei einem Vault ohne Daten eine klare Leer-Antwort statt eines 
 
 - **WHEN** ein Lese-Tool aufgerufen wird
 - **THEN** wird kein Confirm-Gate ausgelöst
+
+### Requirement: DeFi-Positionen, Performance und Wertverlauf
+
+Das System SHALL owner-isolierte Tools `get_positions`, `get_performance` und `get_value_history` über die bestehenden Cockpit-Endpunkte (`GET /vaults/:address/positions`, `/performance`, `/value-history`) bereitstellen. `get_positions` SHALL die vereinheitlichte, USD-bewertete Positionssicht (Idle-Token, Gas-Reserve, Protokoll-Adapter-Positionen wie Aave/PancakeSwap, Netto-Equity) liefern. `get_performance` und `get_value_history` SHALL einen Zeitbereich (`24h|7d|30d|all`) akzeptieren. Fremd-Vault-Zugriff SHALL abgelehnt werden (owner-guarded), und diese Tools SHALL bestätigungsfrei sein.
+
+#### Scenario: Positionssicht des eigenen Vaults
+
+- **WHEN** `get_positions` für einen Vault der verbundenen Adresse aufgerufen wird
+- **THEN** liefert es die USD-bewertete Positionssicht inkl. Protokoll-Adapter-Positionen und Netto-Equity
+
+#### Scenario: Zeitbereich für Performance/Verlauf
+
+- **WHEN** `get_performance` oder `get_value_history` mit einem Bereich (`24h|7d|30d|all`) aufgerufen wird
+- **THEN** wird der Bereich an den Cockpit-Endpunkt durchgereicht
+
+#### Scenario: Fremder Vault wird abgelehnt
+
+- **WHEN** eines dieser Tools für einen fremden Vault aufgerufen wird
+- **THEN** wird der Zugriff abgelehnt (kein Daten-Leak)
