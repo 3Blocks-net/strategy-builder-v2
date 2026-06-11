@@ -23,7 +23,10 @@ pnpm --filter mcp build
 ## 1. Onboarding — Keystore-Passwort im OS-Keychain hinterlegen
 
 Das Keystore-Passwort wird **einmalig interaktiv** im OS-Keychain hinterlegt — nie auf der
-Platte, insbesondere **nicht** in `claude_desktop_config.json`:
+Platte, insbesondere **nicht** in `claude_desktop_config.json`. Das Init prüft das Passwort
+**gegen den Keystore (verify-before-store)** und schreibt es **nur bei Erfolg**; bei falschem
+Passwort wird nichts gespeichert. Danach gibt es deine Owner-Adresse + einen fertigen
+Config-Schnipsel aus. Den Keystore-Pfad liest es aus `PECUNITY_KEYSTORE_PATH` (oder fragt danach):
 
 ```bash
 pnpm --filter mcp run init

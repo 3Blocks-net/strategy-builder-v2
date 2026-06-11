@@ -1,22 +1,21 @@
 #!/usr/bin/env node
 import { createInterface } from 'node:readline';
+import { readFile } from 'node:fs/promises';
+import { homedir } from 'node:os';
 import { stdin, stdout, argv, exit } from 'node:process';
-import {
-  writeKeystorePassword,
-  deleteKeystorePassword,
-  KEYCHAIN_SERVICE,
-} from '../keychain.js';
+import { deleteKeystorePassword, writeKeystorePassword, KEYCHAIN_SERVICE } from '../keychain.js';
+import { performOnboarding } from '../onboarding.js';
+
+const expandHome = (p: string) => p.replace(/^~(?=$|\/|\\)/, homedir());
 
 /** Liest eine Zeile; bei `hidden` werden Tastenanschläge nicht angezeigt. */
 function ask(question: string, hidden = false): Promise<string> {
   const rl = createInterface({ input: stdin, output: stdout, terminal: true });
   return new Promise((resolve) => {
     if (hidden) {
-      // Eingabe maskieren: stdout-Echo der readline unterdrücken.
-      const mutableOut = rl as unknown as { output: NodeJS.WritableStream; _writeToOutput?: (s: string) => void };
+      const mutableOut = rl as unknown as { _writeToOutput?: (s: string) => void };
       mutableOut._writeToOutput = (str: string) => {
         if (str.includes(question)) stdout.write(str);
-        // Tastenanschläge der Antwort nicht echoen.
       };
     }
     rl.question(question, (answer) => {
@@ -42,26 +41,30 @@ async function main(): Promise<void> {
 
   stdout.write('Pecunity MCP — Onboarding\n');
   stdout.write(
-    'Hinterlegt das Passwort deines verschlüsselten Keystores sicher im OS-Keychain.\n' +
-      'Es wird NICHT auf der Platte oder in claude_desktop_config.json gespeichert.\n\n',
+    'Prüft dein Keystore-Passwort gegen den Keystore und hinterlegt es erst danach\n' +
+      'sicher im OS-Keychain (nie auf der Platte / in claude_desktop_config.json).\n\n',
   );
 
-  const password = await ask(`Keystore-Passwort (Account "${account}"): `, true);
-  if (!password) {
-    stdout.write('Abgebrochen: kein Passwort eingegeben.\n');
-    exit(1);
+  // Keystore-Pfad: Env oder interaktiv.
+  let keystorePath = process.env.PECUNITY_KEYSTORE_PATH?.trim();
+  if (!keystorePath) {
+    keystorePath = await ask('Pfad zum verschlüsselten Keystore: ');
   }
-  const confirm = await ask('Passwort bestätigen: ', true);
-  if (password !== confirm) {
-    stdout.write('Abgebrochen: Passwörter stimmen nicht überein.\n');
+  if (!keystorePath) {
+    stdout.write('Abgebrochen: kein Keystore-Pfad.\n');
     exit(1);
   }
 
-  await writeKeystorePassword(account, password);
-  stdout.write(
-    `\n✓ Passwort im OS-Keychain hinterlegt (Service "${KEYCHAIN_SERVICE}", Account "${account}").\n` +
-      'Der MCP-Server liest es zur Laufzeit headless. Du kannst Claude Desktop jetzt starten.\n',
-  );
+  await performOnboarding({
+    keystorePath: expandHome(keystorePath),
+    account,
+    backendUrl: process.env.PECUNITY_BACKEND_URL?.trim(),
+    frontendUrl: process.env.PECUNITY_FRONTEND_URL?.trim(),
+    readKeystoreFile: (path) => readFile(path, 'utf8'),
+    promptPassword: () => ask(`Keystore-Passwort (Account "${account}"): `, true),
+    writePassword: writeKeystorePassword,
+    output: (line) => stdout.write(line + '\n'),
+  });
 }
 
 main().catch((err: unknown) => {

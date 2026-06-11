@@ -115,12 +115,12 @@ Das Einlesen eines ROHEN Private Keys im Prompt ist sicherheitsrelevant
 der rohe Key bleibt das markierte Dev-Beispiel (make-keystore.mjs).
 -->
 
-- [ ] 12.1 `pecunity-mcp-init` führt durch: Keystore-Pfad übernehmen (Arg/Env/Prompt), Datei-Existenz + Lesbarkeit prüfen
-- [ ] 12.2 Passwort maskiert abfragen und **verify-before-store**: über `WalletSigner.fromKeystore` prüfen, dass es den Keystore wirklich entschlüsselt; bei Fehlschlag **nichts** in den Keychain schreiben (fail-fast)
-- [ ] 12.3 Erst nach erfolgreicher Verifikation Passwort in den OS-Keychain legen; abgeleitete Owner-Adresse ausgeben
-- [ ] 12.4 Fertigen `claude_desktop_config.json`-Schnipsel ausgeben (ohne Passwort)
-- [ ] 12.5 Tests: falsches Passwort → kein Keychain-Write; kein Key-/Passwort-Leak in Ausgaben
-- [ ] 12.6 **Ausgeschlossen (sicherheitsrelevant):** kein First-Class-Einlesen roher Private Keys — bleibt markiertes Dev-Beispiel
+- [x] 12.1 `pecunity-mcp-init` führt durch: Keystore-Pfad übernehmen (Arg/Env/Prompt), Datei-Existenz + Lesbarkeit prüfen
+- [x] 12.2 Passwort maskiert abfragen und **verify-before-store**: über `WalletSigner.fromKeystore` prüfen, dass es den Keystore wirklich entschlüsselt; bei Fehlschlag **nichts** in den Keychain schreiben (fail-fast)
+- [x] 12.3 Erst nach erfolgreicher Verifikation Passwort in den OS-Keychain legen; abgeleitete Owner-Adresse ausgeben
+- [x] 12.4 Fertigen `claude_desktop_config.json`-Schnipsel ausgeben (ohne Passwort)
+- [x] 12.5 Tests: falsches Passwort → kein Keychain-Write; kein Key-/Passwort-Leak in Ausgaben
+- [x] 12.6 **Ausgeschlossen (sicherheitsrelevant):** kein First-Class-Einlesen roher Private Keys — bleibt markiertes Dev-Beispiel
 
 ## 13. Folge-Task: Preis- & Health-Factor-Conditions (schaltet Stop-Loss / HF-Schutz-Recipes frei)
 
