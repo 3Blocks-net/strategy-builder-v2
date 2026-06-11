@@ -11,6 +11,7 @@ import { AutomationModule } from './automation/automation.module';
 import { TokensModule } from './tokens/tokens.module';
 import { IndexerModule } from './indexer/indexer.module';
 import { CockpitModule } from './cockpit/cockpit.module';
+import { RecipeModule } from './recipe/recipe.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { CockpitModule } from './cockpit/cockpit.module';
     TokensModule,
     IndexerModule,
     CockpitModule,
+    RecipeModule,
   ],
 })
 export class AppModule {}

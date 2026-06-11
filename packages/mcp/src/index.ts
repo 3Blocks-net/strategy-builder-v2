@@ -19,6 +19,7 @@ import {
   getValueHistory,
 } from './tools/read-tools.js';
 import { listStepTypes, describeStepType } from './tools/catalog-tools.js';
+import { listRecipes } from './tools/recipe-tools.js';
 import { SECURITY_NOTICE } from './security-notice.js';
 
 /** Read-Tool-Ergebnis als LLM-freundlicher, eingerückter JSON-Text. */
@@ -191,6 +192,19 @@ async function main(): Promise<void> {
       annotations: readOnly,
     },
     async ({ id }) => jsonResult(await describeStepType(backend, id)),
+  );
+
+  server.registerTool(
+    'list_recipes',
+    {
+      title: 'Recipe-Referenzen',
+      description:
+        'Kuratierte Beispiel-Shapes (z. B. DCA) als Few-Shot-Referenz für gute ' +
+        'Graph-Formen — Platzhalter-Graphen mit stabilen Step-Type-Namen, keine Adressen. ' +
+        'Anleitung, bevor frei aus dem Katalog assembliert wird.',
+      annotations: readOnly,
+    },
+    async () => jsonResult(await listRecipes(backend)),
   );
 
   const transport = new StdioServerTransport();

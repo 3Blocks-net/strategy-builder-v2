@@ -43,12 +43,12 @@ Story 7 (Schutz) wird mit Slice 6 designt; Security-Review-Gate vor jeder schrei
 
 ## 5. Recipes (Slice 05 — blocked by 1)
 
-- [ ] 5.1 Prisma-Recipe-Entity + Migration
-- [ ] 5.2 Seed mit DCA, Stop-Loss, HF-Schutz als Shape-mit-Platzhaltern (Step-Type-IDs, keine Adressen)
-- [ ] 5.3 Lese-Endpunkt (analog/neben `/step-types`) + MCP-Tool `list_recipes`
-- [ ] 5.4 Seed-Validierung gegen den Katalog: unbekannter Step-Type / Param-Drift → nicht ausgeliefert (Test)
-- [ ] 5.5 Sicherstellen: kein Schreibpfad für User/Community (nur seed-/team-kuratiert)
-- [ ] 5.6 **HITL:** Kuratierung der Strategien/Shapes mit dem Team reviewen
+- [x] 5.1 Prisma-Recipe-Entity + Migration
+- [x] 5.2 Seed mit DCA, Stop-Loss, HF-Schutz als Shape-mit-Platzhaltern (Step-Type-IDs, keine Adressen)
+- [x] 5.3 Lese-Endpunkt (analog/neben `/step-types`) + MCP-Tool `list_recipes`
+- [x] 5.4 Seed-Validierung gegen den Katalog: unbekannter Step-Type / Param-Drift → nicht ausgeliefert (Test)
+- [x] 5.5 Sicherstellen: kein Schreibpfad für User/Community (nur seed-/team-kuratiert)
+- [x] 5.6 **HITL:** Kuratierung der Strategien/Shapes mit dem Team reviewen
 
 ## 6. PolicyGate-Skelett + create_vault (Slice 06 — blocked by 1; Story-7-Design)
 

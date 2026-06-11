@@ -1,6 +1,8 @@
-import { PrismaClient, StepCategory } from '@prisma/client';
+import { PrismaClient, StepCategory, Prisma } from '@prisma/client';
 import * as fs from 'fs';
 import * as path from 'path';
+import { RECIPES } from '../src/recipe/recipe-seed-data';
+import { buildCatalog, validateRecipeShape } from '../src/recipe/recipe-validation';
 
 const prisma = new PrismaClient();
 
@@ -1119,6 +1121,38 @@ async function main() {
 
   console.log(
     `Seeded ${seeded} step types${skipped > 0 ? ` (skipped ${skipped} not-yet-deployed)` : ''}`,
+  );
+
+  // Curated few-shot recipe shapes — validated against the *deployed* catalog
+  // before insert (unknown step type / param drift => not delivered).
+  // Seed-/team-curated only; there is no user/community write path.
+  const catalog = buildCatalog(
+    stepTypes.filter((s) => s.contractAddress !== ZERO_ADDRESS),
+  );
+  let recipesSeeded = 0;
+  let recipesSkipped = 0;
+  for (const recipe of RECIPES) {
+    const errors = validateRecipeShape(recipe.shape, catalog);
+    if (errors.length > 0) {
+      console.warn(`  ⚠ skipping recipe "${recipe.key}" — ${errors.join('; ')}`);
+      recipesSkipped++;
+      continue;
+    }
+    const data = {
+      name: recipe.name,
+      description: recipe.description,
+      category: recipe.category,
+      shape: recipe.shape as unknown as Prisma.InputJsonValue,
+    };
+    await prisma.recipe.upsert({
+      where: { key: recipe.key },
+      update: data,
+      create: { key: recipe.key, ...data },
+    });
+    recipesSeeded++;
+  }
+  console.log(
+    `Seeded ${recipesSeeded} recipes${recipesSkipped > 0 ? ` (skipped ${recipesSkipped} invalid)` : ''}`,
   );
 
   // Curated per-protocol token allowlists (Aave reserves).

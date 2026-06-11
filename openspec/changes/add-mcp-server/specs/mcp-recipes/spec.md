@@ -2,12 +2,12 @@
 
 ### Requirement: Kuratierte Recipe-Shapes
 
-Das System SHALL kuratierte Beispiel-Shapes (mind. DCA, Stop-Loss, HF-Schutz) als Recipe-Tabelle (Prisma-Entity + Migration) bereitstellen, über einen Lese-Endpunkt ausliefern und über das MCP-Tool `list_recipes` an den Agenten reichen. Recipes SHALL Shapes mit Platzhaltern sein: stabile Step-Type-IDs, keine konkreten Contract-/Token-Adressen, Werte als Platzhalter (`TOKEN_IN`, `BETRAG`, `INTERVALL`). Recipes SHALL keine harten Templates sein, denen der Graph entsprechen muss.
+Das System SHALL kuratierte Beispiel-Shapes als Recipe-Tabelle (Prisma-Entity + Migration) bereitstellen, über einen Lese-Endpunkt ausliefern und über das MCP-Tool `list_recipes` an den Agenten reichen. Der MVP-Satz (HITL-kuratiert, mit dem heutigen Katalog ausdrückbar) ist: **DCA**, **Interval Aave Supply**, **PancakeSwap Auto-Reinvest** und **Interval Rebalance**. Preis-getriggerte Strategien (Stop-Loss) und Health-Factor-Schutz SHALL ausgelassen werden, bis entsprechende Preis-/HF-Conditions existieren (kein erfundenes Few-Shot-Beispiel). Recipes SHALL Shapes mit Platzhaltern sein: stabile Step-Type-Namen, keine konkreten Contract-/Token-Adressen, Werte als Platzhalter (`TOKEN_IN`, `BETRAG`, `INTERVALL`). Recipes SHALL keine harten Templates sein, denen der Graph entsprechen muss.
 
 #### Scenario: Recipes als Few-Shot-Referenz abrufen
 
 - **WHEN** der Agent `list_recipes` aufruft
-- **THEN** erhält er DCA-, Stop-Loss- und HF-Schutz-Shapes als Platzhalter-Formen (Step-Type-IDs, keine Adressen), JSON-Schema-konsumierbar
+- **THEN** erhält er die kuratierten Shapes (DCA, Interval Aave Supply, PancakeSwap Auto-Reinvest, Interval Rebalance) als Platzhalter-Formen (stabile Step-Type-Namen, keine Adressen), JSON-konsumierbar
 
 ### Requirement: Seed-Validierung gegen den Katalog
 

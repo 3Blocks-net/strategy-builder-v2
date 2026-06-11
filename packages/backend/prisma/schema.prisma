@@ -236,3 +236,19 @@ model StepType {
 
   @@unique([contractAddress, selector])
 }
+
+/// Curated few-shot reference shapes (DCA, stop-loss, HF-protection). A recipe is a
+/// placeholder GRAPH: nodes reference step types by their stable `name` (no contract/
+/// token addresses), values are placeholders (TOKEN_IN, BETRAG, INTERVALL). Robust
+/// against redeploy address drift. Seed-/team-curated only — there is no user/community
+/// write path. The seed validates every recipe against the live catalog before insert.
+model Recipe {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  name        String
+  description String
+  category    String
+  shape       Json
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
