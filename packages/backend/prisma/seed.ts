@@ -443,7 +443,7 @@ async function main() {
             type: 'integer',
             title: 'Amount',
             description:
-              'How the supplied amount is determined: a fixed value, a value from a previous step, or the full vault balance.',
+              'How the supplied amount is determined: 0 = FIXED (explicit amount), 1 = FROM_SLOT (amount from a previous step), 2 = MAX_AVAILABLE (full vault balance of the token), 3 = TARGET_HF (supply collateral until the position’s health factor rises to `targetHealthFactor`).',
             'x-ui-widget': 'aave-amount-mode',
             'x-ui-amount-field': 'amount',
             'x-ui-amount-token-field': 'asset',
@@ -479,7 +479,7 @@ async function main() {
             title: 'Target Health Factor',
             'x-ui-widget': 'health-factor',
             description:
-              'Reserved for the TARGET_HF mode (not yet available). Stored in 1e18 units.',
+              'Target health factor for mode 3 (TARGET_HF), in 1e18 WAD units (e.g. 1.5 → "1500000000000000000"). The action moves the position toward this HF and is a no-op if the position is already past the target (wrong direction). Must be > 1.05 ("1050000000000000000").',
             'x-ui-hidden': true,
             default: '0',
           },
@@ -529,7 +529,7 @@ async function main() {
             type: 'integer',
             title: 'Amount',
             description:
-              'How the withdrawn amount is determined: a fixed value, a value from a previous step, or your entire supplied balance.',
+              'How the withdrawn amount is determined: 0 = FIXED (explicit amount), 1 = FROM_SLOT (amount from a previous step), 2 = MAX_AVAILABLE (your entire supplied balance), 3 = TARGET_HF (withdraw collateral until the position’s health factor drops to `targetHealthFactor`).',
             'x-ui-widget': 'aave-amount-mode',
             'x-ui-amount-field': 'amount',
             'x-ui-amount-token-field': 'asset',
@@ -564,7 +564,7 @@ async function main() {
             title: 'Target Health Factor',
             'x-ui-widget': 'health-factor',
             description:
-              'Reserved for the TARGET_HF mode (not yet available). Stored in 1e18 units.',
+              'Target health factor for mode 3 (TARGET_HF), in 1e18 WAD units (e.g. 1.5 → "1500000000000000000"). The action moves the position toward this HF and is a no-op if the position is already past the target (wrong direction). Must be > 1.05 ("1050000000000000000").',
             'x-ui-hidden': true,
             default: '0',
           },
@@ -614,7 +614,7 @@ async function main() {
             type: 'integer',
             title: 'Amount',
             description:
-              'How the borrowed amount is determined: a fixed value or a value from a previous step.',
+              'How the borrowed amount is determined: 0 = FIXED (explicit amount), 1 = FROM_SLOT (amount from a previous step), 2 = MAX_AVAILABLE (maximum borrowable against current collateral), 3 = TARGET_HF (borrow until the position’s health factor drops to `targetHealthFactor`).',
             'x-ui-widget': 'aave-amount-mode',
             'x-ui-amount-field': 'amount',
             'x-ui-amount-token-field': 'asset',
@@ -646,7 +646,8 @@ async function main() {
             type: 'string',
             title: 'Target Health Factor',
             'x-ui-widget': 'health-factor',
-            description: 'Reserved for the TARGET_HF mode (not yet available). 1e18 units.',
+            description:
+              'Target health factor for mode 3 (TARGET_HF), in 1e18 WAD units (e.g. 1.5 → "1500000000000000000"). The action moves the position toward this HF and is a no-op if the position is already past the target (wrong direction). Must be > 1.05 ("1050000000000000000").',
             'x-ui-hidden': true,
             default: '0',
           },
@@ -696,7 +697,7 @@ async function main() {
             type: 'integer',
             title: 'Amount',
             description:
-              'How the repaid amount is determined: a fixed value, a value from a previous step, or your full outstanding debt.',
+              'How the repaid amount is determined: 0 = FIXED (explicit amount), 1 = FROM_SLOT (amount from a previous step), 2 = MAX_AVAILABLE (full outstanding debt, capped at your balance), 3 = TARGET_HF (repay debt until the position’s health factor rises to `targetHealthFactor`).',
             'x-ui-widget': 'aave-amount-mode',
             'x-ui-amount-field': 'amount',
             'x-ui-amount-token-field': 'asset',
@@ -731,7 +732,8 @@ async function main() {
             type: 'string',
             title: 'Target Health Factor',
             'x-ui-widget': 'health-factor',
-            description: 'Reserved for the TARGET_HF mode (not yet available). 1e18 units.',
+            description:
+              'Target health factor for mode 3 (TARGET_HF), in 1e18 WAD units (e.g. 1.5 → "1500000000000000000"). The action moves the position toward this HF and is a no-op if the position is already past the target (wrong direction). Must be > 1.05 ("1050000000000000000").',
             'x-ui-hidden': true,
             default: '0',
           },

@@ -21,10 +21,10 @@ import "../interfaces/external/IAaveOracle.sol";
  * plus `singleSlotDiff` for building the `(updatedSlots, updatedValues)` return.
  *
  * The Aave health-factor / oracle math (MAX_AVAILABLE per-action semantics for
- * Withdraw/Borrow/Repay and the TARGET_HF inverse math) is intentionally NOT in
- * v1 — it arrives in the HF/oracle slice. `AmountMode.TARGET_HF` is reserved in
- * the enum so the on-chain encoding is stable, but resolving it is the action's
- * responsibility and unsupported modes must revert there.
+ * Withdraw/Borrow/Repay and the TARGET_HF inverse math) lives here too
+ * (`targetDebtBase` / `requireValidTargetHF` and the per-action resolvers).
+ * Resolving a mode is the action's responsibility; any mode an action does not
+ * implement must revert there.
  */
 library ActionLib {
     /// Sentinel for "no context slot" (read or write skipped).
@@ -38,7 +38,7 @@ library ActionLib {
         FIXED, // 0 — use the explicit static amount
         FROM_SLOT, // 1 — read the amount from a context slot
         MAX_AVAILABLE, // 2 — per-action protocol maximum (Supply = full balance)
-        TARGET_HF // 3 — compute amount to reach a target health factor (later slice)
+        TARGET_HF // 3 — compute amount to reach a target health factor (HF/oracle math)
     }
 
     error SlotOutOfBounds(uint32 slot);

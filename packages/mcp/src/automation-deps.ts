@@ -45,22 +45,20 @@ export async function loadTokenDecimals(
       }
     }
   };
-  // Fehlende Protokolle/Endpunkte tolerieren — Best-effort.
+  // Alle Token-Endpunkte liefern `{ tokens: [...] }` (kein bare Array). Beide
+  // Formen tolerieren + fehlende Protokolle/Endpunkte best-effort schlucken
+  // (sonst kippt ein nicht-iterierbares Objekt die ganze Decimals-Ladung).
   const safe = async (path: string): Promise<RawToken[]> => {
     try {
-      return await backend.get<RawToken[]>(path);
+      const res = await backend.get<{ tokens?: RawToken[] } | RawToken[]>(path);
+      return Array.isArray(res) ? res : (res?.tokens ?? []);
     } catch {
       return [];
     }
   };
   add(await safe('/tokens?protocol=aave'));
   add(await safe('/tokens?protocol=pancakeswap'));
-  try {
-    const { tokens } = await backend.get<{ tokens: RawToken[] }>('/tokens/accepted');
-    add(tokens);
-  } catch {
-    /* optional */
-  }
+  add(await safe('/tokens/accepted'));
   return decimals;
 }
 

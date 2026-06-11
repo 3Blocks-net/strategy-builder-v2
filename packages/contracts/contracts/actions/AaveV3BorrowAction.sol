@@ -17,14 +17,13 @@ import "../libraries/ActionLib.sol";
  * path is disabled on every Aave V3 market, so hardcoding 2 means the action can
  * never revert on it.
  *
- * Amount modes (this slice — simple only)
- * ───────────────────────────────────────
- *   FIXED     — borrow the exact `amount`.
- *   FROM_SLOT — borrow the amount read from `amountFromSlot`.
- *
- * The oracle-bound `MAX_AVAILABLE` (`availableBorrowsBase` → token, minus a
- * haircut) and `TARGET_HF` paths require the HF/oracle engine and are a later
- * slice — they revert here.
+ * Amount modes
+ * ────────────
+ *   FIXED         — borrow the exact `amount`.
+ *   FROM_SLOT     — borrow the amount read from `amountFromSlot`.
+ *   MAX_AVAILABLE — oracle-bound max (`availableBorrowsBase` → token, minus a haircut).
+ *   TARGET_HF     — borrow until the position's health factor drops to
+ *                   `targetHealthFactor` (no-op when already at/below it).
  *
  * No approval is needed. The borrowed amount is written to the optional output
  * slot so a subsequent swap/transfer can consume it.
@@ -39,10 +38,10 @@ contract AaveV3BorrowAction is IAction {
 
     struct Params {
         address asset; // ERC-20 to borrow
-        uint8 mode; // ActionLib.AmountMode (FIXED or FROM_SLOT only here)
+        uint8 mode; // ActionLib.AmountMode (FIXED / FROM_SLOT / MAX_AVAILABLE / TARGET_HF)
         uint256 amount; // FIXED amount
         uint32 amountFromSlot; // FROM_SLOT source (else NO_SLOT)
-        uint256 targetHealthFactor; // TARGET_HF target (later slice)
+        uint256 targetHealthFactor; // TARGET_HF target (WAD, 1e18)
         uint32 amountToSlot; // optional: write the borrowed amount
     }
 
