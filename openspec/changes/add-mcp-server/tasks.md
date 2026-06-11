@@ -146,7 +146,7 @@ Reviews sind APPROVE; dies sind KEINE Merge-Blocker (info/warning-dormant). Bewu
 nachgelagert: erst nach Fertigstellung der Slices (10, 11) abarbeiten.
 -->
 
-- [ ] 14.1 **A2** (kosmetisch): `VAULT_FACTORY_ABI`-Event-Param-Namen in `chain.ts` korrigieren (`owner→vaultOwner`, `salt→vaultIndex`); Topic-Hash nutzt nur Typen → kein Verhaltensimpact
-- [ ] 14.2 **B1**: Startup-Config-Validierung — warnen, wenn `enabledSensitiveSteps`-Namen nicht zum Katalog passen (Tippfehler/Case → stiller Capability-Block) oder `addressAllowlist`-Einträge keine gültigen EVM-Adressen sind
-- [ ] 14.3 **B2**: Doc-Kommentar an `BackendClient.patch` (PATCH liefert heute kein 409; künftige „bereits finalisiert"-Semantik hier behandeln)
-- [ ] 14.4 **A1** (dormant): Signer-Hardening gegen Injection-Landmine (`sendContractTransaction`/`sendRawTransaction`). Heute isoliert (Tools bekommen nur Closures, nie den rohen Signer). Ansatz bei Umsetzung wählen: Branded-Type (Compile-Zeit, empfohlen) / Status-quo+Doku / Runtime-Selector-Allowlist
+- [x] 14.1 **A2** (kosmetisch): `VAULT_FACTORY_ABI`-Event-Param-Namen in `chain.ts` korrigieren (`owner→vaultOwner`, `salt→vaultIndex`); Topic-Hash nutzt nur Typen → kein Verhaltensimpact
+- [x] 14.2 **B1**: Startup-Config-Validierung — warnen, wenn `enabledSensitiveSteps`-Namen nicht zum Katalog passen (Tippfehler/Case → stiller Capability-Block) oder `addressAllowlist`-Einträge keine gültigen EVM-Adressen sind
+- [x] 14.3 **B2**: Doc-Kommentar an `BackendClient.patch` (PATCH liefert heute kein 409; künftige „bereits finalisiert"-Semantik hier behandeln)
+- [x] 14.4 **A1** (dormant): Signer-Hardening gegen Injection-Landmine (`sendContractTransaction`/`sendRawTransaction`). Heute isoliert (Tools bekommen nur Closures, nie den rohen Signer). Ansatz bei Umsetzung wählen: Branded-Type (Compile-Zeit, empfohlen) / Status-quo+Doku / Runtime-Selector-Allowlist

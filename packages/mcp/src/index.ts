@@ -44,6 +44,7 @@ import {
 import { DraftStore } from './draft-store.js';
 import { loadCatalog, loadTokenDecimals, makeGetPool } from './automation-deps.js';
 import { makeAssertOwnedVault } from './vault-guard.js';
+import { validateRuntimeConfig } from './config-validation.js';
 import { SECURITY_NOTICE } from './security-notice.js';
 
 /**
@@ -78,6 +79,21 @@ async function main(): Promise<void> {
   process.stderr.write(`[pecunity-mcp] Verbunden als ${session.address}\n`);
 
   const backend = new BackendClient({ backendUrl: config.backendUrl, auth: session.auth });
+
+  // Schreib-Config gegen den Katalog validieren (nur warnen, kein Abbruch) —
+  // fängt z. B. falsch geschriebene PECUNITY_ENABLED_SENSITIVE_STEPS-Namen.
+  if (config.enabledSensitiveSteps.size > 0 || config.addressAllowlist.size > 0) {
+    try {
+      const catalog = await loadCatalog(backend);
+      const names = new Set(Object.values(catalog).map((c) => c.name));
+      for (const w of validateRuntimeConfig(config, names)) {
+        process.stderr.write(`[pecunity-mcp] ⚠ Config: ${w}\n`);
+      }
+    } catch {
+      /* Katalog nicht ladbar → keine Validierung, kein Abbruch */
+    }
+  }
+
   const server = new McpServer({ name: 'pecunity-mcp', version: '1.0.0' });
 
   server.registerTool(

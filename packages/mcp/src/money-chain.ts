@@ -1,6 +1,6 @@
 import { createPublicClient, http, parseAbi, getAddress, maxUint256 } from 'viem';
 import type { InterfaceAbi } from 'ethers';
-import { WalletSigner } from './wallet-signer.js';
+import { WalletSigner, trustTx } from './wallet-signer.js';
 import type { MoneyDeps } from './tools/money-movement.js';
 import type { LifecycleDeps } from './tools/lifecycle.js';
 
@@ -35,22 +35,22 @@ export function buildDepositOnChain(
 
     if (allowance < need) {
       if (allowance > 0n && allowance < maxUint256 && token.toLowerCase() === USDT_BSC) {
-        await signer.sendContractTransaction({
+        await signer.sendContractTransaction(trustTx({
           rpcUrl, address: token, abi: ERC20_ABI as unknown as InterfaceAbi,
           functionName: 'approve', args: [vault, 0n], gasLimit: 100_000n,
-        });
+        }));
       }
-      await signer.sendContractTransaction({
+      await signer.sendContractTransaction(trustTx({
         rpcUrl, address: token, abi: ERC20_ABI as unknown as InterfaceAbi,
         functionName: 'approve', args: [vault, maxUint256], gasLimit: 100_000n,
-      });
+      }));
     }
 
     try {
-      const receipt = await signer.sendContractTransaction({
+      const receipt = await signer.sendContractTransaction(trustTx({
         rpcUrl, address: vault, abi: VAULT_MONEY_ABI as unknown as InterfaceAbi,
         functionName: 'deposit', args: [token, amountBase], gasLimit: 300_000n,
-      });
+      }));
       return receipt.hash;
     } catch (err) {
       const detail = err instanceof Error ? err.message : String(err);
@@ -66,10 +66,10 @@ export function buildWithdrawOnChain(
   rpcUrl: string,
 ): MoneyDeps['withdrawOnChain'] {
   return async ({ vault, token, amountBase, recipient }) => {
-    const receipt = await signer.sendContractTransaction({
+    const receipt = await signer.sendContractTransaction(trustTx({
       rpcUrl, address: vault, abi: VAULT_MONEY_ABI as unknown as InterfaceAbi,
       functionName: 'withdraw', args: [token, amountBase, recipient], gasLimit: 300_000n,
-    });
+    }));
     return receipt.hash;
   };
 }
@@ -83,30 +83,30 @@ const VAULT_LIFECYCLE_ABI = parseAbi([
 /** Lifecycle-Chain-Executors (depositFees / setMinFeeDeposit / setAutomationActive). */
 export function buildTopUpGasOnChain(signer: WalletSigner, rpcUrl: string): LifecycleDeps['topUpGasOnChain'] {
   return async ({ vault, token, amountBase }) => {
-    const r = await signer.sendContractTransaction({
+    const r = await signer.sendContractTransaction(trustTx({
       rpcUrl, address: vault, abi: VAULT_LIFECYCLE_ABI as unknown as InterfaceAbi,
       functionName: 'depositFees', args: [token, amountBase], gasLimit: 200_000n,
-    });
+    }));
     return r.hash;
   };
 }
 
 export function buildSetMinFeeOnChain(signer: WalletSigner, rpcUrl: string): LifecycleDeps['setMinFeeOnChain'] {
   return async ({ vault, amountBase }) => {
-    const r = await signer.sendContractTransaction({
+    const r = await signer.sendContractTransaction(trustTx({
       rpcUrl, address: vault, abi: VAULT_LIFECYCLE_ABI as unknown as InterfaceAbi,
       functionName: 'setMinFeeDeposit', args: [amountBase], gasLimit: 100_000n,
-    });
+    }));
     return r.hash;
   };
 }
 
 export function buildSetAutomationActiveOnChain(signer: WalletSigner, rpcUrl: string): LifecycleDeps['setAutomationActiveOnChain'] {
   return async ({ vault, onChainId, active }) => {
-    const r = await signer.sendContractTransaction({
+    const r = await signer.sendContractTransaction(trustTx({
       rpcUrl, address: vault, abi: VAULT_LIFECYCLE_ABI as unknown as InterfaceAbi,
       functionName: 'setAutomationActive', args: [onChainId, active], gasLimit: 100_000n,
-    });
+    }));
     return r.hash;
   };
 }

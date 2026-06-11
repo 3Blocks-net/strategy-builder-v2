@@ -41,6 +41,9 @@ export class BackendClient {
   }
 
   async patch<T>(path: string, body: unknown): Promise<T> {
+    // Hinweis: 409 wird auf PATCH heute NICHT erwartet (anders als beim POST-
+    // Registrieren). Führt das Backend künftig eine „bereits finalisiert"-Semantik
+    // ein, hier explizit behandeln (sonst fällt es in den generischen !ok-Fehler).
     return this.#send<T>('PATCH', path, body);
   }
 

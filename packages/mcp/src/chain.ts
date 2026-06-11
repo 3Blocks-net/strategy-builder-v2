@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { id, getAddress } from 'ethers';
-import { WalletSigner } from './wallet-signer.js';
+import { WalletSigner, trustTx } from './wallet-signer.js';
 import { BackendClient } from './backend-client.js';
 import type { SendCreateVault } from './tools/create-vault.js';
 import type { DeployOnChain } from './tools/deploy-automation.js';
@@ -9,7 +9,7 @@ import type { Draft } from './draft-store.js';
 /** Minimale Factory-ABI (nur was create_vault braucht). */
 export const VAULT_FACTORY_ABI = [
   'function createVault(address owner, address depositToken, bytes32 salt) returns (address vault)',
-  'event VaultCreated(address indexed vault, address indexed owner, uint256 salt)',
+  'event VaultCreated(address indexed vault, address indexed vaultOwner, uint256 vaultIndex)',
 ];
 
 const VAULT_CREATED_TOPIC = id('VaultCreated(address,address,uint256)');
@@ -28,14 +28,14 @@ export function buildSendCreateVault(
   config: { rpcUrl: string; factoryAddress: string },
 ): SendCreateVault {
   return async ({ owner, depositToken }) => {
-    const receipt = await signer.sendContractTransaction({
+    const receipt = await signer.sendContractTransaction(trustTx({
       rpcUrl: config.rpcUrl,
       address: config.factoryAddress,
       abi: VAULT_FACTORY_ABI,
       functionName: 'createVault',
       args: [owner, depositToken, generateSalt()],
       gasLimit: 500_000n,
-    });
+    }));
 
     let vaultAddress: string | undefined;
     for (const log of receipt.logs) {
@@ -87,23 +87,23 @@ export function buildDeployOnChain(
 
     const txHashes: string[] = [];
     if (enc.requiresContextTx && enc.contextCalldata) {
-      const ctx = await signer.sendRawTransaction({
+      const ctx = await signer.sendRawTransaction(trustTx({
         rpcUrl,
         to: draft.vaultAddress,
         data: enc.contextCalldata,
         gasLimit: 500_000n,
-      });
+      }));
       txHashes.push(ctx.hash);
     }
 
     let auto;
     try {
-      auto = await signer.sendRawTransaction({
+      auto = await signer.sendRawTransaction(trustTx({
         rpcUrl,
         to: draft.vaultAddress,
         data: enc.automationCalldata,
         gasLimit: 2_000_000n,
-      });
+      }));
     } catch (err) {
       const ctxNote = txHashes.length > 0
         ? ` Kontext-TX ${txHashes[0]} ist bereits bestätigt (Vault-Kontext mutiert) —`
