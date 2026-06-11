@@ -274,6 +274,9 @@ importers:
       keytar:
         specifier: ^7.9.0
         version: 7.9.0
+      shared:
+        specifier: workspace:*
+        version: link:../shared
       siwe:
         specifier: ^3.0.0
         version: 3.0.0(ethers@6.16.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))

@@ -62,11 +62,11 @@ Story 7 (Schutz) wird mit Slice 6 designt; Security-Review-Gate vor jeder schrei
 
 ## 7. SummaryDecoder (Slice 07 — blocked by 4)
 
-- [ ] 7.1 `SummaryDecoder` (deep module): raw graph / Calldata → strukturierte Summary (Funktion, Token, human-Betrag, Empfänger, Richtung, Trigger, `execution`)
-- [ ] 7.2 Schema-getrieben aus Rollen-Annotationen (kein per-step-type-Code); neuer annotierter Step braucht keinen Decoder-Code
-- [ ] 7.3 Beweis-Test: manipulierter raw graph → abweichende Summary (Summary aus TX, nicht aus Tool-Args)
-- [ ] 7.4 Step ohne Rollen-Annotation am Empfänger-/Betrag-Feld → Decode schlägt fehl/markiert (kein stilles Weglassen)
-- [ ] 7.5 Base-Units → human-Beträge mit korrekten Token-Decimals (table-driven Tests)
+- [x] 7.1 `SummaryDecoder` (deep module): raw graph / Calldata → strukturierte Summary (Funktion, Token, human-Betrag, Empfänger, Richtung, Trigger, `execution`)
+- [x] 7.2 Schema-getrieben aus Rollen-Annotationen (kein per-step-type-Code); neuer annotierter Step braucht keinen Decoder-Code
+- [x] 7.3 Beweis-Test: manipulierter raw graph → abweichende Summary (Summary aus TX, nicht aus Tool-Args)
+- [x] 7.4 Step ohne Rollen-Annotation am Empfänger-/Betrag-Feld → Decode schlägt fehl/markiert (kein stilles Weglassen)
+- [x] 7.5 Base-Units → human-Beträge mit korrekten Token-Decimals (table-driven Tests)
 
 ## 8. propose_automation + Intent-Cross-Check (Slice 08 — blocked by 2, 5, 7)
 
