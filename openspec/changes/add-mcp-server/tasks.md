@@ -98,10 +98,10 @@ Story 7 (Schutz) wird mit Slice 6 designt; Security-Review-Gate vor jeder schrei
 
 ## 11. Lifecycle 6b: Gas-Deposit + set_automation_active (Slice 11 — blocked by 6)
 
-- [ ] 11.1 `top_up_gas_deposit` (`depositFees`) füllt Gas-Comp-Reserve; neuer Stand in `get_vault`/`get_portfolio` + Web-UI
-- [ ] 11.2 `set_min_fee_deposit` setzt `minFeeDeposit` korrekt
-- [ ] 11.3 `set_automation_active` schaltet aktiv/pausiert; spiegelt sich in `list_automations` + Web-UI
-- [ ] 11.4 Writes durch PolicyGate (Confirm bei Sensibilität, Read-only respektiert); Revert → dekodierte Fehlermeldung
+- [x] 11.1 `top_up_gas_deposit` (`depositFees`) füllt Gas-Comp-Reserve; neuer Stand in `get_vault`/`get_portfolio` + Web-UI
+- [x] 11.2 `set_min_fee_deposit` setzt `minFeeDeposit` korrekt
+- [x] 11.3 `set_automation_active` schaltet aktiv/pausiert; spiegelt sich in `list_automations` + Web-UI
+- [x] 11.4 Writes durch PolicyGate (Confirm bei Sensibilität, Read-only respektiert); Revert → dekodierte Fehlermeldung
 - [ ] 11.5 Security-Review-Gate (schreibende Story)
 
 ## 12. Folge-Task: Geführtes Onboarding (`pecunity-mcp-init`-Ausbau)

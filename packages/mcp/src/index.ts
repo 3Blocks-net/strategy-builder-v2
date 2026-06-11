@@ -32,7 +32,15 @@ import { buildSendCreateVault, buildDeployOnChain } from './chain.js';
 import { proposeAutomation } from './tools/propose-automation.js';
 import { deployAutomation } from './tools/deploy-automation.js';
 import { deposit, withdraw, simulateAction } from './tools/money-movement.js';
-import { buildDepositOnChain, buildWithdrawOnChain, buildEstimate } from './money-chain.js';
+import { topUpGasDeposit, setMinFeeDeposit, setAutomationActive } from './tools/lifecycle.js';
+import {
+  buildDepositOnChain,
+  buildWithdrawOnChain,
+  buildEstimate,
+  buildTopUpGasOnChain,
+  buildSetMinFeeOnChain,
+  buildSetAutomationActiveOnChain,
+} from './money-chain.js';
 import { DraftStore } from './draft-store.js';
 import { loadCatalog, loadTokenDecimals, makeGetPool } from './automation-deps.js';
 import { SECURITY_NOTICE } from './security-notice.js';
@@ -450,6 +458,55 @@ async function main(): Promise<void> {
           ),
         );
       },
+    );
+
+    // --- Lifecycle (risikoärmere Writes, nicht-sensibel) ---
+    const lifecycleDeps = (tokenDecimals: Record<string, number>) => ({
+      gate,
+      tokenDecimals,
+      topUpGasOnChain: buildTopUpGasOnChain(session.signer, rpcUrl),
+      setMinFeeOnChain: buildSetMinFeeOnChain(session.signer, rpcUrl),
+      setAutomationActiveOnChain: buildSetAutomationActiveOnChain(session.signer, rpcUrl),
+    });
+
+    server.registerTool(
+      'top_up_gas_deposit',
+      {
+        title: 'Gas-Reserve auffüllen',
+        description: 'Füllt die Gas-Comp-Reserve des Vaults aus dem Vault-Guthaben auf (depositFees).',
+        inputSchema: { vault: addr, token: addr, amount: z.string().describe('Betrag in human units') },
+        annotations: { readOnlyHint: false, openWorldHint: true },
+      },
+      async ({ vault, token, amount }) => {
+        const tokenDecimals = await loadTokenDecimals(backend);
+        return jsonResult(await topUpGasDeposit(lifecycleDeps(tokenDecimals), { vault, token, amount }));
+      },
+    );
+
+    server.registerTool(
+      'set_min_fee_deposit',
+      {
+        title: 'Auto-Top-up-Ziel setzen',
+        description: 'Setzt minFeeDeposit (Auto-Top-up-Ziel der Gas-Reserve).',
+        inputSchema: { vault: addr, token: addr.describe('Token für Decimals'), amount: z.string() },
+        annotations: { readOnlyHint: false, openWorldHint: true },
+      },
+      async ({ vault, token, amount }) => {
+        const tokenDecimals = await loadTokenDecimals(backend);
+        return jsonResult(await setMinFeeDeposit(lifecycleDeps(tokenDecimals), { vault, token, amount }));
+      },
+    );
+
+    server.registerTool(
+      'set_automation_active',
+      {
+        title: 'Automation aktivieren/pausieren',
+        description: 'Schaltet eine Automation (per On-Chain-ID) aktiv oder pausiert.',
+        inputSchema: { vault: addr, onChainId: z.number().int().describe('On-Chain-Automation-ID'), active: z.boolean() },
+        annotations: { readOnlyHint: false, openWorldHint: true },
+      },
+      async ({ vault, onChainId, active }) =>
+        jsonResult(await setAutomationActive(lifecycleDeps({}), { vault, onChainId, active })),
     );
   }
 
