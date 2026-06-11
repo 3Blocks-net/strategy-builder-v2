@@ -21,7 +21,7 @@ pnpm-Monorepo (`packages/*`), Node ≥ 22, TypeScript (strict). Ziel-Chain: BSC.
 - **`backend`** — NestJS + Prisma + PostgreSQL; SIWE-Auth (JWT). Tests **Jest**; DB via `pnpm db:up`, Migration/Seed via Prisma (`pnpm db:migrate` / `db:seed`).
 - **`frontend`** — Vite + React 19, wagmi/viem, Tailwind v4, `@xyflow/react` (Graph-Editor). Tests **Vitest**.
 - **`contracts`** — Solidity + Hardhat (Ignition-Deploys, Fork-Tests). Tests `hardhat test`.
-- **`mcp`** — lokaler MCP-Server (stdio, offizielles MCP SDK), viem/ethers/siwe/keytar; steuert DeFi-Vaults per KI-Assistent. Tests **Vitest**.
+- **`mcp`** — lokaler MCP-Server (stdio, offizielles MCP SDK), viem/ethers/siwe/keytar; steuert DeFi-Vaults per KI-Assistent (Read- + Write-Tools, signierende/sensible Aktionen hinter dem PolicyGate-Confirm-Gate). Keystore-Passwort im OS-Keychain. Tests **Vitest**. Init lokal via `pnpm --filter mcp run init` (`pecunity-mcp-init` nur nach globalem Link).
 
 > Test-Runner ist gemischt: Backend = Jest, alles andere = Vitest. On-chain-Reads über viem; Keystore-Decrypt über ethers.
 >

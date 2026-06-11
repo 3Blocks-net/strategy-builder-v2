@@ -5,8 +5,8 @@ Der Server läuft **lokal** über stdio, signiert server-seitig in deinem Namen 
 ausschließlich auf den Vaults genau einer authentifizierten Owner-Adresse.
 
 > **Self-Custody:** Dein Private Key verlässt nie diesen Rechner und wird nie geloggt oder
-> an das Sprachmodell weitergegeben. Geldbewegende Aktionen erfordern eine explizite
-> Bestätigung (ab den Schreib-Slices).
+> an das Sprachmodell weitergegeben. Sensible/geldbewegende Aktionen erfordern eine explizite,
+> server-erzwungene Bestätigung (Confirm-Gate) — vom Sprachmodell nicht umgehbar.
 
 ## Voraussetzungen
 
@@ -91,12 +91,27 @@ wie du den Zugang entziehst) auf stderr an und verbindet sich per SIWE mit dem B
 - `get_performance` — PnL vs. Einzahlungen + Kosten (`range: 24h|7d|30d|all`).
 - `get_value_history` — USD-Wertverlauf + Deposit/Withdraw-Marker (`range`).
 
-**Katalog**
+**Katalog & Recipes**
 - `list_step_types` — deployte Bausteine (Conditions + Actions).
 - `describe_step_type` — `paramSchema` (JSON-Schema-treu) + gelesene/geschriebene Kontext-Slots.
+- `list_recipes` — kuratierte Few-Shot-Referenz-Shapes (DCA, Interval-Aave-Supply, Auto-Reinvest, Rebalance).
 
-> Schreibende/geldbewegende Tools (Vault erstellen, deposit/withdraw, Automations
-> deployen) folgen in späteren Slices und laufen dann durch ein erzwungenes Confirm-Gate.
+**AI-Building** (kein Signieren in `propose`)
+- `propose_automation` — baut aus einem Graphen einen validierten Entwurf: `shared`-Mapper →
+  Encode-Boundary (`/encode`) → Pool-/Token-Checks → **Intent-Cross-Check** (Intent ≠ Graph → Reject) →
+  gibt eine **Draft-ID** + Summary zurück.
+- `deploy_automation` — nimmt **nur die Draft-ID** und signiert exakt den gespeicherten Graphen
+  (Confirm bei Sensibilität, In-Automation-Empfänger-Allowlist, Capability-Opt-in).
+
+**Schreibend / geldbewegend** (Confirm-Gate + Schutzschichten)
+- `create_vault` — Vault erstellen (Deposit-Token gegen FeeRegistry validiert).
+- `deposit` / `withdraw` — ein-/auszahlen; Withdraw nur an Allowlist-Ziele, Max-Betrag pro Token, Fee transparent.
+- `simulate_action` — Dry-Run (Gas + Fees) für deposit/withdraw, **ohne** zu senden / ohne Confirm.
+- `top_up_gas_deposit`, `set_min_fee_deposit`, `set_automation_active` — Lifecycle (nicht-sensibel, confirm-frei, Read-only respektiert).
+
+> Schreibende Tools sind nur aktiv, wenn `PECUNITY_RPC_URL` (und für `create_vault`
+> `PECUNITY_FACTORY_ADDRESS`) gesetzt sind. Sensible Aktionen durchlaufen ein erzwungenes
+> Confirm-Gate (MCP-Elicitation, sonst lokale localhost-Bestätigungsseite).
 
 ## Konfiguration (Env)
 
@@ -105,9 +120,16 @@ wie du den Zugang entziehst) auf stderr an und verbindet sich per SIWE mit dem B
 | `PECUNITY_BACKEND_URL` | ja | Basis-URL des Pecunity-Backends |
 | `PECUNITY_FRONTEND_URL` | ja | Frontend-URL; ihr Host ist die SIWE-`domain` |
 | `PECUNITY_KEYSTORE_PATH` | ja | Pfad zum verschlüsselten JSON-Keystore |
-| `PECUNITY_CHAIN_ID` | nein (56) | Chain-ID (BSC mainnet) |
+| `PECUNITY_CHAIN_ID` | nein (56) | Chain-ID (BSC mainnet; Fork z. B. 31337) |
 | `PECUNITY_KEYCHAIN_ACCOUNT` | nein (`default`) | Keychain-Account-Schlüssel |
-| `PECUNITY_READ_ONLY` | nein (`false`) | deaktiviert (ab Schreib-Slices) alle write/signing-Tools |
+| `PECUNITY_READ_ONLY` | nein (`false`) | `true` deaktiviert **alle** write/signing-Tools |
+| `PECUNITY_RPC_URL` | für Writes | RPC-URL für On-chain-Sends/Reads; **ohne sie sind schreibende Tools aus** |
+| `PECUNITY_FACTORY_ADDRESS` | für `create_vault` | StrategyBuilderVaultFactory-Adresse |
+| `PECUNITY_PCS_FACTORY_ADDRESS` | nein (BSC-Default) | PancakeSwap-V3-Factory für den Pool-Existenz-Check |
+| `PECUNITY_ADDRESS_ALLOWLIST` | nein | Komma-Liste erlaubter Geld-Ziele (Withdraw/Transfer); Owner ist immer erlaubt |
+| `PECUNITY_ENABLED_SENSITIVE_STEPS` | nein | Komma-Liste freigeschalteter sensibler Step-Types (Capability-Opt-in), z. B. `ERC-20 Transfer` |
+| `PECUNITY_MAX_AMOUNT_PER_TOKEN` | nein | `token:max,token2:max` — Max-Betrag pro Einzelaktion (deposit/withdraw/top-up) |
+| `PECUNITY_AUDIT_LOG_PATH` | nein (`~/.pecunity/audit.log`) | append-only lokales Audit-Log |
 
 ## Manuelles Testen mit dem MCP Inspector
 
@@ -162,8 +184,20 @@ Ein direkter Runtime-Pfad für rohe Keys ist **nicht** vorgesehen (out of scope)
 
 ## Sicherheit
 
+Bedrohungsmodell: Schutzziel ist **Diebstahl** (z. B. via Prompt-Injection). Schutzschichten:
+
+- **Confirm-Gate (PolicyGate):** sensible/signierende Aktionen erfordern eine **server-erzwungene**
+  Bestätigung — primär MCP-Elicitation, sonst eine lokale localhost-Seite mit **einmaligem,
+  nicht fälschbarem Token**. Die Freigabe kommt nie über Tool-Argumente; **Timeout = hartes Fail**
+  (kein stilles Signieren). Die Summary wird server-seitig aus der kanonischen TX dekodiert.
+- **Adress-Allowlist** für Geld-Ziele (Withdraw-Empfänger + In-Automation-`ERC20Transfer`);
+  **Capability-Opt-in** für sensible Steps (per Default verboten); **Max-Betrag** pro Aktion;
+  **Read-only-Modus** deaktiviert alle Writes.
+- **Intent-Cross-Check** beim Bauen (Intent ≠ decodierter Graph → Reject) und dieselbe
+  **Encode-Boundary** wie die Web-UI (ungültige Graphen werden vor jedem Deploy abgelehnt).
+- **Append-only Audit-Log** (Zeitpunkt, Tool, Parameter, TX-Hash, Ergebnis).
 - Private Key / Keystore-Passwort erscheinen nie in Logs, Fehlern oder Tool-Ausgaben.
 - Genau **eine** Owner-Session; alle Tools sind an ihre Adresse gebunden — Fremd-Vault-Zugriff
-  ist unmöglich.
+  ist unmöglich (vor dem Signieren wird die Vault-Zugehörigkeit geprüft).
 - SIWE-Authentifizierung server-seitig gegen das bestehende Backend
   (`/auth/nonce` → `/auth/verify` → `/auth/refresh`), Frontend-Host als `domain`.
