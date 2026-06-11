@@ -47,7 +47,15 @@ export class BackendClient {
     return this.#send<T>('PATCH', path, body);
   }
 
-  async #send<T>(method: 'GET' | 'POST' | 'PATCH', path: string, body?: unknown): Promise<T> {
+  async delete<T>(path: string): Promise<T> {
+    return this.#send<T>('DELETE', path);
+  }
+
+  async #send<T>(
+    method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
+    path: string,
+    body?: unknown,
+  ): Promise<T> {
     let res = await this.#request(method, path, body);
     if (res.status === 401) {
       // Token abgelaufen → einmal erneuern und wiederholen.
@@ -66,10 +74,18 @@ export class BackendClient {
       throw new Error(`Backend-Abfrage fehlgeschlagen (${path}: HTTP ${res.status}).`);
     }
     const text = await res.text();
-    return (text ? JSON.parse(text) : undefined) as T;
+    try {
+      return (text ? JSON.parse(text) : undefined) as T;
+    } catch {
+      throw new Error(`Backend-Abfrage fehlgeschlagen (${path}: ungültige JSON-Antwort).`);
+    }
   }
 
-  #request(method: 'GET' | 'POST' | 'PATCH', path: string, body?: unknown): Promise<Response> {
+  #request(
+    method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
+    path: string,
+    body?: unknown,
+  ): Promise<Response> {
     return this.#fetchFn(`${this.#backendUrl}${path}`, {
       method,
       headers: {

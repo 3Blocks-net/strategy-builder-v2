@@ -128,4 +128,44 @@ describe('proposeAutomation', () => {
     const d = deps({ getPool: vi.fn(async () => '0x0000000000000000000000000000000000000000') });
     await expect(proposeAutomation(d, { vaultAddress: VAULT, graph: dcaGraph(), intent })).rejects.toThrow(/Pool/i);
   });
+
+  it.each([
+    ['Encode-Reject', () => backendTracked({ encodeStatus: 400 }), intent],
+    ['Intent-Mismatch', () => backendTracked(), { ...intent, actions: [{ token: TOKEN_IN, amount: '5000' }] }],
+  ] as const)(
+    'räumt die Backend-Draft-Automation nach %s wieder auf (kein Waisen-Record)',
+    async (_label, makeBackend, useIntent) => {
+      const { client, deletes } = makeBackend();
+      const d = deps({ backend: client });
+      await expect(
+        proposeAutomation(d, { vaultAddress: VAULT, graph: dcaGraph(), intent: useIntent as FlatIntent }),
+      ).rejects.toThrow();
+      expect(deletes).toContain(`/vaults/${VAULT}/automations/auto-1`);
+    },
+  );
 });
+
+/** Wie `backend()`, protokolliert aber DELETE-Pfade (für den Orphan-Cleanup-Test). */
+function backendTracked(over: { encodeStatus?: number } = {}): { client: BackendClient; deletes: string[] } {
+  const deletes: string[] = [];
+  const auth: AuthLike = { authHeader: () => ({ Authorization: 'Bearer t' }), refresh: vi.fn(async () => {}) };
+  const fetchFn = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+    const u = String(url);
+    const path = u.replace('http://localhost:3001', '');
+    if (init?.method === 'DELETE') {
+      deletes.push(path);
+      return new Response(null, { status: 204 });
+    }
+    if (u.endsWith('/automations') && init?.method === 'POST') {
+      return new Response(JSON.stringify({ id: 'auto-1' }), { status: 201 });
+    }
+    if (u.includes('/encode')) {
+      if (over.encodeStatus && over.encodeStatus >= 400) {
+        return new Response(JSON.stringify({ message: 'STEP_PARAM_INVALID' }), { status: over.encodeStatus });
+      }
+      return new Response(JSON.stringify({ ownerOnly: false, steps: [] }), { status: 200 });
+    }
+    return new Response('nf', { status: 404 });
+  }) as unknown as typeof fetch;
+  return { client: new BackendClient({ backendUrl: 'http://localhost:3001', auth, fetchFn }), deletes };
+}

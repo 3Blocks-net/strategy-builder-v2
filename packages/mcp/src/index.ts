@@ -80,6 +80,16 @@ async function main(): Promise<void> {
 
   const backend = new BackendClient({ backendUrl: config.backendUrl, auth: session.auth });
 
+  // Token-Decimals mit kurzer TTL cachen (on-chain immutabel) — von propose_automation
+  // und allen Geld-/Lifecycle-Tools geteilt.
+  let decimalsCache: { value: Record<string, number>; ts: number } | null = null;
+  const getTokenDecimals = async (): Promise<Record<string, number>> => {
+    if (!decimalsCache || Date.now() - decimalsCache.ts > 60_000) {
+      decimalsCache = { value: await loadTokenDecimals(backend), ts: Date.now() };
+    }
+    return decimalsCache.value;
+  };
+
   // Schreib-Config gegen den Katalog validieren (nur warnen, kein Abbruch) —
   // fängt z. B. falsch geschriebene PECUNITY_ENABLED_SENSITIVE_STEPS-Namen.
   if (config.enabledSensitiveSteps.size > 0 || config.addressAllowlist.size > 0) {
@@ -263,9 +273,10 @@ async function main(): Promise<void> {
 
   // --- Schreibende Tools: PolicyGate (Confirm-Gate) + Audit-Log ---
   const audit = fileAuditLog(config.auditLogPath);
+  const localhostConfirm = new LocalhostConfirmationProvider();
   const confirmation = new CompositeConfirmationProvider(
     new ElicitationConfirmationProvider(server.server),
-    new LocalhostConfirmationProvider(),
+    localhostConfirm,
     isElicitationUnsupported,
   );
   const gate = new PolicyGate({ readOnly: config.readOnly }, confirmation, audit);
@@ -315,7 +326,7 @@ async function main(): Promise<void> {
     async ({ vaultAddress, graph, intent }) => {
       const [catalog, tokenDecimals] = await Promise.all([
         loadCatalog(backend),
-        loadTokenDecimals(backend),
+        getTokenDecimals(),
       ]);
       const getPool = config.rpcUrl
         ? makeGetPool(config.rpcUrl, config.pcsFactoryAddress)
@@ -421,15 +432,6 @@ async function main(): Promise<void> {
     const topUpGasOnChain = buildTopUpGasOnChain(session.signer, rpcUrl);
     const setMinFeeOnChain = buildSetMinFeeOnChain(session.signer, rpcUrl);
     const setAutomationActiveOnChain = buildSetAutomationActiveOnChain(session.signer, rpcUrl);
-
-    // Token-Decimals mit kurzer TTL cachen (Decimals sind on-chain immutabel).
-    let decimalsCache: { value: Record<string, number>; ts: number } | null = null;
-    const getTokenDecimals = async (): Promise<Record<string, number>> => {
-      if (!decimalsCache || Date.now() - decimalsCache.ts > 60_000) {
-        decimalsCache = { value: await getTokenDecimals(), ts: Date.now() };
-      }
-      return decimalsCache.value;
-    };
 
     const moneyConfig = {
       ownerAddress: session.address,
@@ -539,6 +541,15 @@ async function main(): Promise<void> {
 
   const transport = new StdioServerTransport();
   await server.connect(transport);
+
+  // Sauberes Herunterfahren: den ggf. gestarteten lokalen Bestätigungs-Server
+  // (Fallback-Pfad) schließen, sonst bleibt ein offener Listener zurück.
+  const shutdown = () => {
+    localhostConfirm.close();
+    process.exit(0);
+  };
+  process.once('SIGINT', shutdown);
+  process.once('SIGTERM', shutdown);
 }
 
 main().catch((err: unknown) => {

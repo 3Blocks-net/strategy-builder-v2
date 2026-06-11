@@ -49,7 +49,8 @@ export async function deposit(
   const amountBase = toBaseUnits(params.amount, decimals);
   const fee = await feeLine(deps.backend, 'deposit');
   const summary =
-    `Einzahlung: ${params.amount} (Token ${params.token}) in Vault ${params.vault}. ${fee}.`;
+    `Einzahlung: ${params.amount} (Token ${params.token}) in Vault ${params.vault}. ` +
+    `Kann eine einmalige ERC20-Freigabe (bis maxUint256) an den Vault auslösen. ${fee}.`;
 
   return deps.gate.guard(
     {

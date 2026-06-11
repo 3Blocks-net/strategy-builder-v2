@@ -114,6 +114,11 @@ export async function proposeAutomation(
     `/vaults/${vaultAddress}/automations`,
     { label: 'MCP-Entwurf' },
   );
+  // Best-effort: bei jedem Fehlschlag nach dem Anlegen die Backend-Draft-Automation
+  // wieder entfernen (sonst sammeln sich verwaiste Einträge an).
+  const cleanupDraftAuto = () =>
+    deps.backend.delete(`/vaults/${vaultAddress}/automations/${draftAuto.id}`).catch(() => {});
+
   let ownerOnly: boolean;
   try {
     const encodeResult = await deps.backend.post<{ ownerOnly: boolean }>(
@@ -122,6 +127,7 @@ export async function proposeAutomation(
     );
     ownerOnly = Boolean(encodeResult.ownerOnly);
   } catch (err) {
+    await cleanupDraftAuto();
     const detail = err instanceof Error ? err.message : String(err);
     throw new Error(`Graph von der Encode-Boundary abgelehnt (kein Deploy): ${detail}`);
   }
@@ -138,6 +144,7 @@ export async function proposeAutomation(
     branched: isBranched(rawGraph),
   });
   if (!check.ok) {
+    await cleanupDraftAuto();
     throw new Error(
       `Intent ≠ Graph — abgelehnt (kein Deploy):\n- ${check.diffs.join('\n- ')}`,
     );

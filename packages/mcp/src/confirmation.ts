@@ -161,9 +161,20 @@ export class LocalhostConfirmationProvider implements ConfirmationProvider {
   }
 
   #handleRequest(
-    httpReq: { url?: string; method?: string },
+    httpReq: { url?: string; method?: string; headers?: { host?: string } },
     httpRes: import('node:http').ServerResponse,
   ): void {
+    // SICHERHEIT (DNS-Rebinding): nur Anfragen mit loopback-Host akzeptieren. Ein
+    // fremder Host-Header bedeutet, dass eine Webseite den Port über einen rebound
+    // Hostnamen anspricht — abweisen, bevor irgendein Token eingelöst werden kann.
+    const host = httpReq.headers?.host;
+    if (host !== undefined) {
+      const hostname = host.replace(/:\d+$/, '');
+      if (hostname !== '127.0.0.1' && hostname !== 'localhost') {
+        httpRes.writeHead(403).end('Forbidden');
+        return;
+      }
+    }
     const match = /^\/confirm\/([0-9a-f]{64})(?:\/(approve|deny))?$/.exec(httpReq.url ?? '');
     if (!match) {
       httpRes.writeHead(404).end('Not found');

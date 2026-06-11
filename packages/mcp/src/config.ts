@@ -1,3 +1,5 @@
+import { homedir } from 'node:os';
+
 export interface McpConfig {
   /** Basis-URL des Pecunity-Backends. */
   backendUrl: string;
@@ -42,8 +44,6 @@ function parseList(value: string | undefined): string[] {
     .map((s) => s.trim())
     .filter((s) => s.length > 0);
 }
-
-import { homedir } from 'node:os';
 
 /** Expandiert ein führendes `~` (Env-Pfade werden nicht von der Shell expandiert). */
 function expandHome(path: string): string {

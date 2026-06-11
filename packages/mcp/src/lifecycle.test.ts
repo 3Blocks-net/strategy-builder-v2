@@ -51,10 +51,32 @@ describe('setMinFeeDeposit', () => {
 });
 
 describe('setAutomationActive', () => {
-  it('schaltet eine Automation aktiv/pausiert', async () => {
-    const d = deps();
+  it('Pausieren (active=false) läuft confirm-frei durchs Gate', async () => {
+    const { gate: g, confirmation } = gate();
+    const d = deps({ gate: g });
     const r = await setAutomationActive(d, { vault: VAULT, onChainId: 7, active: false });
     expect(r.txHash).toBe('0xact');
     expect(d.setAutomationActiveOnChain).toHaveBeenCalledWith({ vault: VAULT, onChainId: 7, active: false });
+    expect(confirmation.requestApproval).not.toHaveBeenCalled();
+  });
+
+  it('Reaktivieren (active=true) erfordert Confirm — abgelehnt ⇒ kein Send', async () => {
+    const { gate: g, confirmation } = gate(); // mock lehnt ab (false)
+    const d = deps({ gate: g });
+    await expect(
+      setAutomationActive(d, { vault: VAULT, onChainId: 7, active: true }),
+    ).rejects.toThrow();
+    expect(confirmation.requestApproval).toHaveBeenCalledOnce();
+    expect(d.setAutomationActiveOnChain).not.toHaveBeenCalled();
+  });
+
+  it('Reaktivieren mit Freigabe sendet', async () => {
+    const confirmation: ConfirmationProvider = { requestApproval: vi.fn(async () => true) };
+    const g = new PolicyGate({ readOnly: false }, confirmation, new AuditLog({ append: async () => {} }));
+    const d = deps({ gate: g });
+    const r = await setAutomationActive(d, { vault: VAULT, onChainId: 7, active: true });
+    expect(r.txHash).toBe('0xact');
+    expect(confirmation.requestApproval).toHaveBeenCalledOnce();
+    expect(d.setAutomationActiveOnChain).toHaveBeenCalledWith({ vault: VAULT, onChainId: 7, active: true });
   });
 });

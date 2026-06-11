@@ -33,6 +33,7 @@ export function buildDepositOnChain(
       args: [getAddress(ownerAddress), getAddress(vault)],
     })) as bigint;
 
+    let approveIssued = false;
     if (allowance < need) {
       if (allowance > 0n && allowance < maxUint256 && token.toLowerCase() === USDT_BSC) {
         await signer.sendContractTransaction(trustTx({
@@ -44,6 +45,7 @@ export function buildDepositOnChain(
         rpcUrl, address: token, abi: ERC20_ABI as unknown as InterfaceAbi,
         functionName: 'approve', args: [vault, maxUint256], gasLimit: 100_000n,
       }));
+      approveIssued = true;
     }
 
     try {
@@ -54,7 +56,7 @@ export function buildDepositOnChain(
       return receipt.hash;
     } catch (err) {
       const detail = err instanceof Error ? err.message : String(err);
-      const note = allowance < need ? ` Hinweis: ERC20-Allowance für ${vault} wurde gesetzt und bleibt bestehen.` : '';
+      const note = approveIssued ? ` Hinweis: ERC20-Allowance für ${vault} wurde gesetzt und bleibt bestehen.` : '';
       throw new Error(`Einzahlung fehlgeschlagen (revert): ${detail}.${note}`);
     }
   };

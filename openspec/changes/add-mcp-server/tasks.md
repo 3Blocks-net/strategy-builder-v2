@@ -150,3 +150,30 @@ nachgelagert: erst nach Fertigstellung der Slices (10, 11) abarbeiten.
 - [x] 14.2 **B1**: Startup-Config-Validierung — warnen, wenn `enabledSensitiveSteps`-Namen nicht zum Katalog passen (Tippfehler/Case → stiller Capability-Block) oder `addressAllowlist`-Einträge keine gültigen EVM-Adressen sind
 - [x] 14.3 **B2**: Doc-Kommentar an `BackendClient.patch` (PATCH liefert heute kein 409; künftige „bereits finalisiert"-Semantik hier behandeln)
 - [x] 14.4 **A1** (dormant): Signer-Hardening gegen Injection-Landmine (`sendContractTransaction`/`sendRawTransaction`). Heute isoliert (Tools bekommen nur Closures, nie den rohen Signer). Ansatz bei Umsetzung wählen: Branded-Type (Compile-Zeit, empfohlen) / Status-quo+Doku / Runtime-Selector-Allowlist
+## 15. Folge-Task: Holistic-Review der MCP-Integration (Findings)
+
+<!--
+Gesamtreview des `packages/mcp`-Pakets (Architektur + Security + Code). Die zwei
+Criticals + die sicherheits-/korrektheitsrelevanten Warnings wurden SOFORT behoben
+(inkl. Regressionstests, 113 grün). Die verbleibenden Punkte sind Tech-Debt /
+größere Refactors ohne Merge-Blocker-Charakter und bewusst nachgelagert.
+-->
+
+### Sofort behoben (in diesem Review)
+- [x] 15.1 **C1 (critical)**: `getTokenDecimals` rekursiver Selbstaufruf in `index.ts` → Absturz aller Geld-/Lifecycle-Tools. Cache hochgezogen, teilt sich jetzt zwischen propose + money/lifecycle.
+- [x] 15.2 **C2 (critical)**: Verwaiste Backend-Draft-Automations bei Encode-Reject / Intent-Mismatch. Best-effort `backend.delete()`-Cleanup auf beiden Fehlerpfaden in `propose-automation.ts` (+ `BackendClient.delete`, + Regressionstest).
+- [x] 15.3 **Sec W2**: Deposit-Summary offenbart die mögliche einmalige ERC20-Freigabe (bis maxUint256) vor dem Confirm.
+- [x] 15.4 **Sec W3**: `set_automation_active` — Reaktivieren (`active=true`) ist jetzt confirm-pflichtig (`sensitive = params.active`); Pausieren bleibt confirm-frei (+ Regressionstests).
+- [x] 15.5 **Sec W4**: Localhost-Confirm prüft den Host-Header (Loopback-only) → DNS-Rebinding-Schutz.
+- [x] 15.6 **Code W3**: Deposit-Revert-Hinweis an tatsächlich erteilte Freigabe gekoppelt (`approveIssued`-Flag statt `allowance<need`).
+- [x] 15.7 **Code W6**: Lokaler Confirm-Server wird bei SIGINT/SIGTERM sauber geschlossen (kein offener Listener).
+- [x] 15.8 **Code W8**: `BackendClient` JSON-Parsing gegen ungültige Antworten gehärtet (try/catch → klarer Fehler).
+- [x] 15.9 **Hygiene**: `homedir`-Import in `config.ts` an den Dateikopf.
+
+### Nachgelagert (Tech-Debt, kein Merge-Blocker)
+- [ ] 15.10 **Arch W3**: `index.ts` ist ein ~550-Zeilen-Wiring-God-File. Tool-Registrierung pro Domäne (read/build/money/lifecycle) in eigene `register*`-Module extrahieren.
+- [ ] 15.11 **Test-Lücke**: `index.ts`-Wiring + `chain.ts`/`money-chain.ts`-Executors + `LocalhostConfirmationProvider`-HTTP-Pfad sind ungetestet (Unit-Tests injizieren Deps direkt — genau hier schlüpfte C1 durch). Integrationstest für den Host/405/Token-Pfad ohne realen Browser-Spawn (openBrowser injizierbar machen).
+- [ ] 15.12 **Code W7**: `graph as never` / `intent as never` an der propose-Boundary in `index.ts` — Zod-Schemas und `FriendlyNode`/`FlatIntent` angleichen, damit der Cast entfällt.
+- [ ] 15.13 **Code W4**: viem/ethers ABI-Casts (`as unknown as InterfaceAbi`) in `money-chain.ts`/`chain.ts` zentralisieren/typisieren.
+- [ ] 15.14 **Arch W1/W2**: Upward-Type-Imports (`money-chain.ts` → `tools/*`) und `vault-guard`-Kopplung — Abhängigkeitsrichtung begradigen (Deps-Interfaces in eine eigene Schicht).
+- [ ] 15.15 **DRY**: `EVM_ADDRESS`-Regex (`/^0x[0-9a-fA-F]{40}$/`) ist mehrfach dupliziert (config-validation, index, money-movement, propose) — einmal exportieren und wiederverwenden.

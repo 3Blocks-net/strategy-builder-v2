@@ -74,7 +74,9 @@ export async function setAutomationActive(
   return deps.gate.guard(
     {
       tool: 'set_automation_active',
-      sensitive: false,
+      // Reaktivieren erfordert Confirm (eine bewusst pausierte Automation darf nicht
+      // still wieder anlaufen, z. B. via Prompt-Injection); Pausieren ist confirm-frei.
+      sensitive: params.active,
       summary: `Automation #${params.onChainId} ${params.active ? 'aktivieren' : 'pausieren'} (Vault ${params.vault}).`,
       details: { vault: params.vault, onChainId: params.onChainId, active: params.active },
     },
