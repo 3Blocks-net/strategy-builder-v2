@@ -29,6 +29,9 @@ import {
 } from './confirmation.js';
 import { createVault } from './tools/create-vault.js';
 import { buildSendCreateVault } from './chain.js';
+import { proposeAutomation } from './tools/propose-automation.js';
+import { DraftStore } from './draft-store.js';
+import { loadCatalog, loadTokenDecimals, makeGetPool } from './automation-deps.js';
 import { SECURITY_NOTICE } from './security-notice.js';
 
 /**
@@ -238,6 +241,65 @@ async function main(): Promise<void> {
     isElicitationUnsupported,
   );
   const gate = new PolicyGate({ readOnly: config.readOnly }, confirmation, audit);
+  const draftStore = new DraftStore();
+
+  // --- AI-Building: propose_automation (Build ohne Deploy) ---
+  const nodeSchema = z.object({
+    id: z.string(),
+    type: z.string().optional().describe("'CONDITION' oder 'ACTION'"),
+    data: z.object({ stepTypeId: z.string(), params: z.record(z.string(), z.unknown()) }),
+  });
+  const edgeSchema = z.object({
+    source: z.string(),
+    target: z.string(),
+    sourceHandle: z.string().nullable().optional().describe("'true' | 'false' | 'out'"),
+  });
+  const intentSchema = z.object({
+    execution: z.enum(['public', 'owner']).describe('autonom feuernd (public) vs. nur durch Owner'),
+    trigger: z.object({ periodSeconds: z.number().int().optional() }).optional(),
+    actions: z
+      .array(
+        z.object({
+          token: z.string().optional(),
+          direction: z.union([z.string(), z.number()]).optional(),
+          amount: z.string().optional().describe('human-Betrag, z. B. "50"'),
+        }),
+      )
+      .describe('geordnete Action-Liste — muss zum Graphen passen, sonst Reject'),
+  });
+
+  server.registerTool(
+    'propose_automation',
+    {
+      title: 'Automation vorschlagen (ohne Deploy)',
+      description:
+        'Baut aus einem Graphen einen validierten Entwurf — OHNE zu signieren. friendly→raw ' +
+        'über die Encode-Boundary (ungültig → Ablehnung mit Erklärung), Pool-/Token-Checks, ' +
+        'und ein Intent-Cross-Check (deklarierter Intent vs. server-decodierter Graph → Reject ' +
+        'bei Abweichung). Gibt eine Draft-ID + Summary zurück; deploy_automation nimmt nur die ID.',
+      inputSchema: {
+        vaultAddress: z.string().regex(/^0x[0-9a-fA-F]{40}$/).describe('Vault-Adresse (0x…)'),
+        graph: z.object({ nodes: z.array(nodeSchema), edges: z.array(edgeSchema) }),
+        intent: intentSchema,
+      },
+      annotations: { readOnlyHint: false, openWorldHint: true },
+    },
+    async ({ vaultAddress, graph, intent }) => {
+      const [catalog, tokenDecimals] = await Promise.all([
+        loadCatalog(backend),
+        loadTokenDecimals(backend),
+      ]);
+      const getPool = config.rpcUrl
+        ? makeGetPool(config.rpcUrl, config.pcsFactoryAddress)
+        : undefined;
+      return jsonResult(
+        await proposeAutomation(
+          { backend, draftStore, catalog, tokenDecimals, getPool },
+          { vaultAddress, graph: graph as never, intent: intent as never },
+        ),
+      );
+    },
+  );
 
   if (config.rpcUrl && config.factoryAddress) {
     const sendCreateVault = buildSendCreateVault(session.signer, {

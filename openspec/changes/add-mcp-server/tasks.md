@@ -70,12 +70,12 @@ Story 7 (Schutz) wird mit Slice 6 designt; Security-Review-Gate vor jeder schrei
 
 ## 8. propose_automation + Intent-Cross-Check (Slice 08 — blocked by 2, 5, 7)
 
-- [ ] 8.1 `propose_automation`: Agent-Graph → `shared`-Mapper → bestehendes `/encode` (raw-mode-Validierung); ungültige Graphen mit Erklärung ablehnen (kein Deploy)
-- [ ] 8.2 Server-interner Draft-Store (in-memory, pro Session, TTL); Draft-ID zurückgeben; LLM kann Entwurf nicht mutieren
-- [ ] 8.3 Intent-Cross-Check: flacher Intent vs. `SummaryDecoder`-Decode → Reject mit Diff bei Abweichung; `execution` ≠ Topologie → Reject; verzweigte Graphen markieren
-- [ ] 8.4 Pool-Existenz-Check (`factory.getPool` via viem) + Token-Allowlist über `tokenDecimals`-Auflösung (nicht-kuratierter Token → harter Fail vor TX)
-- [ ] 8.5 Keine erfundenen Adressen/Selektoren (nur seed-/katalog-gestützte StepTypes)
-- [ ] 8.6 Prompt-Injection-Testfall: Bauen am Cross-Check vorbei wird abgelehnt
+- [x] 8.1 `propose_automation`: Agent-Graph → `shared`-Mapper → bestehendes `/encode` (raw-mode-Validierung); ungültige Graphen mit Erklärung ablehnen (kein Deploy)
+- [x] 8.2 Server-interner Draft-Store (in-memory, pro Session, TTL); Draft-ID zurückgeben; LLM kann Entwurf nicht mutieren
+- [x] 8.3 Intent-Cross-Check: flacher Intent vs. `SummaryDecoder`-Decode → Reject mit Diff bei Abweichung; `execution` ≠ Topologie → Reject; verzweigte Graphen markieren
+- [x] 8.4 Pool-Existenz-Check (`factory.getPool` via viem) + Token-Allowlist über `tokenDecimals`-Auflösung (nicht-kuratierter Token → harter Fail vor TX)
+- [x] 8.5 Keine erfundenen Adressen/Selektoren (nur seed-/katalog-gestützte StepTypes)
+- [x] 8.6 Prompt-Injection-Testfall: Bauen am Cross-Check vorbei wird abgelehnt
 
 ## 9. deploy_automation (Slice 09 — blocked by 6, 8)
 

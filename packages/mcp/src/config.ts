@@ -15,6 +15,8 @@ export interface McpConfig {
   rpcUrl?: string;
   /** Adresse der StrategyBuilderVaultFactory (nötig für create_vault). */
   factoryAddress?: string;
+  /** PancakeSwap-V3-Factory (Pool-Existenz-Check); Default BSC-Mainnet. */
+  pcsFactoryAddress: string;
   /** Pfad der lokalen append-only Audit-Log-Datei. */
   auditLogPath: string;
 }
@@ -47,6 +49,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): McpConfig {
     readOnly: env.PECUNITY_READ_ONLY === 'true',
     rpcUrl: env.PECUNITY_RPC_URL?.trim() || undefined,
     factoryAddress: env.PECUNITY_FACTORY_ADDRESS?.trim() || undefined,
+    pcsFactoryAddress:
+      env.PECUNITY_PCS_FACTORY_ADDRESS?.trim() ||
+      '0x0BFbCF9fa4f9C56B0F40a671Ad40E0805A091865',
     auditLogPath: expandHome(
       env.PECUNITY_AUDIT_LOG_PATH?.trim() || '~/.pecunity/audit.log',
     ),
