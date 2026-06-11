@@ -43,6 +43,7 @@ import {
 } from './money-chain.js';
 import { DraftStore } from './draft-store.js';
 import { loadCatalog, loadTokenDecimals, makeGetPool } from './automation-deps.js';
+import { makeAssertOwnedVault } from './vault-guard.js';
 import { SECURITY_NOTICE } from './security-notice.js';
 
 /**
@@ -394,20 +395,34 @@ async function main(): Promise<void> {
 
   if (config.rpcUrl) {
     const rpcUrl = config.rpcUrl;
+    const addr = z.string().regex(/^0x[0-9a-fA-F]{40}$/);
+    const assertVault = makeAssertOwnedVault(backend);
+
+    // Chain-Executors einmal bauen (Signer + rpcUrl sind pro Session konstant).
+    const depositOnChain = buildDepositOnChain(session.signer, rpcUrl, session.address);
+    const withdrawOnChain = buildWithdrawOnChain(session.signer, rpcUrl);
+    const estimate = buildEstimate(rpcUrl, session.address);
+    const topUpGasOnChain = buildTopUpGasOnChain(session.signer, rpcUrl);
+    const setMinFeeOnChain = buildSetMinFeeOnChain(session.signer, rpcUrl);
+    const setAutomationActiveOnChain = buildSetAutomationActiveOnChain(session.signer, rpcUrl);
+
+    // Token-Decimals mit kurzer TTL cachen (Decimals sind on-chain immutabel).
+    let decimalsCache: { value: Record<string, number>; ts: number } | null = null;
+    const getTokenDecimals = async (): Promise<Record<string, number>> => {
+      if (!decimalsCache || Date.now() - decimalsCache.ts > 60_000) {
+        decimalsCache = { value: await getTokenDecimals(), ts: Date.now() };
+      }
+      return decimalsCache.value;
+    };
+
     const moneyConfig = {
       ownerAddress: session.address,
       addressAllowlist: new Set([session.address.toLowerCase(), ...config.addressAllowlist]),
       maxPerToken: config.maxPerToken,
     };
-    const moneyDepsBase = () => ({
-      gate,
-      backend,
-      tokenDecimals: {} as Record<string, number>,
-      config: moneyConfig,
-      depositOnChain: buildDepositOnChain(session.signer, rpcUrl, session.address),
-      withdrawOnChain: buildWithdrawOnChain(session.signer, rpcUrl),
+    const moneyDepsBase = (tokenDecimals: Record<string, number>) => ({
+      gate, backend, tokenDecimals, config: moneyConfig, assertVault, depositOnChain, withdrawOnChain,
     });
-    const addr = z.string().regex(/^0x[0-9a-fA-F]{40}$/);
 
     server.registerTool(
       'deposit',
@@ -417,10 +432,8 @@ async function main(): Promise<void> {
         inputSchema: { vault: addr.describe('Vault-Adresse'), token: addr.describe('Token-Adresse'), amount: z.string().describe('Betrag in human units, z. B. "50"') },
         annotations: { readOnlyHint: false, openWorldHint: true },
       },
-      async ({ vault, token, amount }) => {
-        const tokenDecimals = await loadTokenDecimals(backend);
-        return jsonResult(await deposit({ ...moneyDepsBase(), tokenDecimals }, { vault, token, amount }));
-      },
+      async ({ vault, token, amount }) =>
+        jsonResult(await deposit(moneyDepsBase(await getTokenDecimals()), { vault, token, amount })),
     );
 
     server.registerTool(
@@ -431,10 +444,8 @@ async function main(): Promise<void> {
         inputSchema: { vault: addr.describe('Vault-Adresse'), token: addr.describe('Token-Adresse'), amount: z.string().describe('Betrag in human units'), recipient: addr.describe('Empfänger (muss in der Allowlist sein)') },
         annotations: { readOnlyHint: false, openWorldHint: true },
       },
-      async ({ vault, token, amount, recipient }) => {
-        const tokenDecimals = await loadTokenDecimals(backend);
-        return jsonResult(await withdraw({ ...moneyDepsBase(), tokenDecimals }, { vault, token, amount, recipient }));
-      },
+      async ({ vault, token, amount, recipient }) =>
+        jsonResult(await withdraw(moneyDepsBase(await getTokenDecimals()), { vault, token, amount, recipient })),
     );
 
     server.registerTool(
@@ -449,24 +460,24 @@ async function main(): Promise<void> {
         },
         annotations: { readOnlyHint: true, openWorldHint: true },
       },
-      async ({ type, vault, token, amount, recipient }) => {
-        const tokenDecimals = await loadTokenDecimals(backend);
-        return jsonResult(
+      async ({ type, vault, token, amount, recipient }) =>
+        jsonResult(
           await simulateAction(
-            { backend, tokenDecimals, estimate: buildEstimate(rpcUrl, session.address) },
+            { backend, tokenDecimals: await getTokenDecimals(), estimate },
             { type, vault, token, amount, recipient },
           ),
-        );
-      },
+        ),
     );
 
     // --- Lifecycle (risikoärmere Writes, nicht-sensibel) ---
     const lifecycleDeps = (tokenDecimals: Record<string, number>) => ({
       gate,
       tokenDecimals,
-      topUpGasOnChain: buildTopUpGasOnChain(session.signer, rpcUrl),
-      setMinFeeOnChain: buildSetMinFeeOnChain(session.signer, rpcUrl),
-      setAutomationActiveOnChain: buildSetAutomationActiveOnChain(session.signer, rpcUrl),
+      maxPerToken: config.maxPerToken,
+      assertVault,
+      topUpGasOnChain,
+      setMinFeeOnChain,
+      setAutomationActiveOnChain,
     });
 
     server.registerTool(
@@ -478,7 +489,7 @@ async function main(): Promise<void> {
         annotations: { readOnlyHint: false, openWorldHint: true },
       },
       async ({ vault, token, amount }) => {
-        const tokenDecimals = await loadTokenDecimals(backend);
+        const tokenDecimals = await getTokenDecimals();
         return jsonResult(await topUpGasDeposit(lifecycleDeps(tokenDecimals), { vault, token, amount }));
       },
     );
@@ -492,7 +503,7 @@ async function main(): Promise<void> {
         annotations: { readOnlyHint: false, openWorldHint: true },
       },
       async ({ vault, token, amount }) => {
-        const tokenDecimals = await loadTokenDecimals(backend);
+        const tokenDecimals = await getTokenDecimals();
         return jsonResult(await setMinFeeDeposit(lifecycleDeps(tokenDecimals), { vault, token, amount }));
       },
     );

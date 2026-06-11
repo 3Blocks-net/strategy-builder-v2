@@ -40,6 +40,7 @@ function deps(over: Partial<MoneyDeps> = {}): MoneyDeps {
     backend: backend(),
     tokenDecimals: { [TOKEN18.toLowerCase()]: 18 },
     config: { ownerAddress: OWNER, addressAllowlist: new Set([OWNER.toLowerCase(), ALLOWED.toLowerCase()]), maxPerToken: new Map() },
+    assertVault: vi.fn(async () => {}),
     depositOnChain: vi.fn(async () => '0xdep'),
     withdrawOnChain: vi.fn(async () => '0xwd'),
     ...over,
@@ -72,6 +73,12 @@ describe('deposit', () => {
     const { gate } = capturingGate(true, true);
     const d = deps({ gate });
     await expect(deposit(d, { vault: VAULT, token: TOKEN18, amount: '1' })).rejects.toThrow();
+    expect(d.depositOnChain).not.toHaveBeenCalled();
+  });
+
+  it('fremder/injizierter Vault (assertVault wirft) → keine TX', async () => {
+    const d = deps({ assertVault: vi.fn(async () => { throw new Error('Vault gehört nicht zur verbundenen Adresse'); }) });
+    await expect(deposit(d, { vault: '0xFremd', token: TOKEN18, amount: '1' })).rejects.toThrow(/gehört nicht/i);
     expect(d.depositOnChain).not.toHaveBeenCalled();
   });
 });

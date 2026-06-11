@@ -15,6 +15,8 @@ function deps(over: Partial<LifecycleDeps> = {}): LifecycleDeps {
   return {
     gate: gate().gate,
     tokenDecimals: { [TOKEN18.toLowerCase()]: 18 },
+    maxPerToken: new Map(),
+    assertVault: vi.fn(async () => {}),
     topUpGasOnChain: vi.fn(async () => '0xgas'),
     setMinFeeOnChain: vi.fn(async () => '0xmin'),
     setAutomationActiveOnChain: vi.fn(async () => '0xact'),

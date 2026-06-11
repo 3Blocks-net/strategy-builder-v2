@@ -1,10 +1,15 @@
 import { toBaseUnits } from 'shared';
 import { PolicyGate } from '../policy-gate.js';
+import { decimalsOf, checkMax } from '../token-utils.js';
 
 export interface LifecycleDeps {
   gate: PolicyGate;
   /** lowercased Token-Adresse → Decimals. */
   tokenDecimals: Record<string, number>;
+  /** lowercased Token-Adresse → human Max-Betrag (für topUp). */
+  maxPerToken: Map<string, string>;
+  /** Wirft, wenn der Vault nicht zur Owner-Adresse gehört (vor dem Signieren). */
+  assertVault: (vault: string) => Promise<void>;
   topUpGasOnChain: (a: { vault: string; token: string; amountBase: string }) => Promise<string>;
   setMinFeeOnChain: (a: { vault: string; amountBase: string }) => Promise<string>;
   setAutomationActiveOnChain: (a: {
@@ -12,14 +17,6 @@ export interface LifecycleDeps {
     onChainId: number;
     active: boolean;
   }) => Promise<string>;
-}
-
-function decimalsOf(tokenDecimals: Record<string, number>, token: string): number {
-  const d = tokenDecimals[token.toLowerCase()];
-  if (d === undefined) {
-    throw new Error(`Nicht-kuratierter Token ${token} (unbekannte Decimals).`);
-  }
-  return d;
 }
 
 /**
@@ -31,7 +28,10 @@ export async function topUpGasDeposit(
   deps: LifecycleDeps,
   params: { vault: string; token: string; amount: string },
 ): Promise<{ txHash: string }> {
-  const amountBase = toBaseUnits(params.amount, decimalsOf(deps.tokenDecimals, params.token));
+  await deps.assertVault(params.vault);
+  const decimals = decimalsOf(deps.tokenDecimals, params.token);
+  checkMax(deps.maxPerToken, params.token, params.amount, decimals);
+  const amountBase = toBaseUnits(params.amount, decimals);
   return deps.gate.guard(
     {
       tool: 'top_up_gas_deposit',
@@ -50,6 +50,7 @@ export async function setMinFeeDeposit(
   deps: LifecycleDeps,
   params: { vault: string; token: string; amount: string },
 ): Promise<{ txHash: string }> {
+  await deps.assertVault(params.vault);
   const amountBase = toBaseUnits(params.amount, decimalsOf(deps.tokenDecimals, params.token));
   return deps.gate.guard(
     {
@@ -69,6 +70,7 @@ export async function setAutomationActive(
   deps: LifecycleDeps,
   params: { vault: string; onChainId: number; active: boolean },
 ): Promise<{ txHash: string }> {
+  await deps.assertVault(params.vault);
   return deps.gate.guard(
     {
       tool: 'set_automation_active',

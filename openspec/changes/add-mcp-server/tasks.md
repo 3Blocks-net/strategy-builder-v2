@@ -94,7 +94,7 @@ Story 7 (Schutz) wird mit Slice 6 designt; Security-Review-Gate vor jeder schrei
 - [x] 10.3 Max-Betrag-Limit pro Aktion (pro Token, Config) → Überschreitung blockiert/erfordert Freigabe; Read-only-Modus deaktiviert alle Write-Tools (Tests)
 - [x] 10.4 `Simulator`: Dry-Run via viem `simulateContract`/`estimateGas` für deposit/withdraw (erwartetes Ergebnis + Fees/Gas, ohne Senden)
 - [x] 10.5 Fees (Deposit/Withdraw-BPS) vor Bestätigung transparent machen; Revert → dekodierte Fehlermeldung
-- [ ] 10.6 Security-Review-Gate (schreibende Story)
+- [x] 10.6 Security-Review-Gate (schreibende Story)
 
 ## 11. Lifecycle 6b: Gas-Deposit + set_automation_active (Slice 11 — blocked by 6)
 
@@ -102,7 +102,7 @@ Story 7 (Schutz) wird mit Slice 6 designt; Security-Review-Gate vor jeder schrei
 - [x] 11.2 `set_min_fee_deposit` setzt `minFeeDeposit` korrekt
 - [x] 11.3 `set_automation_active` schaltet aktiv/pausiert; spiegelt sich in `list_automations` + Web-UI
 - [x] 11.4 Writes durch PolicyGate (Confirm bei Sensibilität, Read-only respektiert); Revert → dekodierte Fehlermeldung
-- [ ] 11.5 Security-Review-Gate (schreibende Story)
+- [x] 11.5 Security-Review-Gate (schreibende Story)
 
 ## 12. Folge-Task: Geführtes Onboarding (`pecunity-mcp-init`-Ausbau)
 
