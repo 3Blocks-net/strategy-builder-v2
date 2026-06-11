@@ -33,25 +33,42 @@ export class BackendClient {
   }
 
   async get<T>(path: string): Promise<T> {
-    let res = await this.#request(path);
+    return this.#send<T>('GET', path);
+  }
+
+  async post<T>(path: string, body: unknown): Promise<T> {
+    return this.#send<T>('POST', path, body);
+  }
+
+  async #send<T>(method: 'GET' | 'POST', path: string, body?: unknown): Promise<T> {
+    let res = await this.#request(method, path, body);
     if (res.status === 401) {
       // Token abgelaufen → einmal erneuern und wiederholen.
       await this.#auth.refresh();
-      res = await this.#request(path);
+      res = await this.#request(method, path, body);
     }
     if (res.status === 403) {
       throw new ForbiddenVaultError(extractAddress(path));
     }
+    // 409 (Conflict) beim Registrieren = bereits vorhanden ⇒ als Erfolg behandeln.
+    if (res.status === 409) {
+      return undefined as T;
+    }
     if (!res.ok) {
       throw new Error(`Backend-Abfrage fehlgeschlagen (${path}: HTTP ${res.status}).`);
     }
-    return (await res.json()) as T;
+    const text = await res.text();
+    return (text ? JSON.parse(text) : undefined) as T;
   }
 
-  #request(path: string): Promise<Response> {
+  #request(method: 'GET' | 'POST', path: string, body?: unknown): Promise<Response> {
     return this.#fetchFn(`${this.#backendUrl}${path}`, {
-      method: 'GET',
-      headers: { ...this.#auth.authHeader() },
+      method,
+      headers: {
+        ...this.#auth.authHeader(),
+        ...(body !== undefined ? { 'content-type': 'application/json' } : {}),
+      },
+      body: body !== undefined ? JSON.stringify(body) : undefined,
     });
   }
 }

@@ -22,6 +22,7 @@ const cfg: McpConfig = {
   keystorePath: '/secure/keystore.json',
   keychainAccount: 'default',
   readOnly: false,
+  auditLogPath: '/tmp/pecunity-test-audit.log',
 };
 
 function okFetch() {

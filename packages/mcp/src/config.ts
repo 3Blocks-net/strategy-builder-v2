@@ -9,8 +9,14 @@ export interface McpConfig {
   keystorePath: string;
   /** Keychain-Account-Schlüssel, unter dem das Keystore-Passwort liegt. */
   keychainAccount: string;
-  /** Read-only-Modus: deaktiviert (in späteren Slices) alle write/signing-Tools. */
+  /** Read-only-Modus: deaktiviert alle write/signing-Tools. */
   readOnly: boolean;
+  /** RPC-URL für On-chain-Reads/Sends (nötig für schreibende Tools). */
+  rpcUrl?: string;
+  /** Adresse der StrategyBuilderVaultFactory (nötig für create_vault). */
+  factoryAddress?: string;
+  /** Pfad der lokalen append-only Audit-Log-Datei. */
+  auditLogPath: string;
 }
 
 import { homedir } from 'node:os';
@@ -39,5 +45,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): McpConfig {
     keystorePath: expandHome(required(env, 'PECUNITY_KEYSTORE_PATH')),
     keychainAccount: env.PECUNITY_KEYCHAIN_ACCOUNT?.trim() || 'default',
     readOnly: env.PECUNITY_READ_ONLY === 'true',
+    rpcUrl: env.PECUNITY_RPC_URL?.trim() || undefined,
+    factoryAddress: env.PECUNITY_FACTORY_ADDRESS?.trim() || undefined,
+    auditLogPath: expandHome(
+      env.PECUNITY_AUDIT_LOG_PATH?.trim() || '~/.pecunity/audit.log',
+    ),
   };
 }

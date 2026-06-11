@@ -1,4 +1,19 @@
-import { Wallet, type HDNodeWallet } from 'ethers';
+import { Wallet, Contract, JsonRpcProvider, type HDNodeWallet, type InterfaceAbi } from 'ethers';
+
+export interface ContractTxRequest {
+  rpcUrl: string;
+  address: string;
+  abi: InterfaceAbi;
+  functionName: string;
+  args: unknown[];
+  gasLimit?: bigint;
+}
+
+export interface ContractTxReceipt {
+  hash: string;
+  blockNumber: number;
+  logs: readonly { topics: readonly string[]; data: string; address: string }[];
+}
 
 const REDACTED = '[WalletSigner: redacted]';
 
@@ -49,6 +64,29 @@ export class WalletSigner {
   /** EIP-191 personal_sign über die kanonische Nachricht (z. B. SIWE). */
   async signMessage(message: string): Promise<string> {
     return this.#wallet.signMessage(message);
+  }
+
+  /**
+   * Signiert + sendet eine Contract-Transaktion und wartet auf den Receipt.
+   * Der Key bleibt im Signer; bei Revert (status 0) wird hart geworfen.
+   */
+  async sendContractTransaction(req: ContractTxRequest): Promise<ContractTxReceipt> {
+    const provider = new JsonRpcProvider(req.rpcUrl);
+    const wallet = this.#wallet.connect(provider);
+    const contract = new Contract(req.address, req.abi, wallet);
+    const tx = await contract.getFunction(req.functionName)(
+      ...req.args,
+      req.gasLimit ? { gasLimit: req.gasLimit } : {},
+    );
+    const receipt = await tx.wait();
+    if (!receipt || receipt.status === 0) {
+      throw new Error('Transaktion fehlgeschlagen (revert).');
+    }
+    return {
+      hash: receipt.hash,
+      blockNumber: receipt.blockNumber,
+      logs: receipt.logs as ContractTxReceipt['logs'],
+    };
   }
 
   toJSON(): { address: `0x${string}` } {

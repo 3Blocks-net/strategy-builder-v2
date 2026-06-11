@@ -20,7 +20,22 @@ import {
 } from './tools/read-tools.js';
 import { listStepTypes, describeStepType } from './tools/catalog-tools.js';
 import { listRecipes } from './tools/recipe-tools.js';
+import { fileAuditLog } from './audit-log.js';
+import { PolicyGate } from './policy-gate.js';
+import {
+  ElicitationConfirmationProvider,
+  LocalhostConfirmationProvider,
+  CompositeConfirmationProvider,
+} from './confirmation.js';
+import { createVault } from './tools/create-vault.js';
+import { buildSendCreateVault } from './chain.js';
 import { SECURITY_NOTICE } from './security-notice.js';
+
+/** Elicitation-Fehler, die „Client unterstützt das nicht" bedeuten → localhost-Fallback. */
+function isElicitationUnsupported(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  return /elicit|not support|method not found|-32601|capab/i.test(msg);
+}
 
 /** Read-Tool-Ergebnis als LLM-freundlicher, eingerückter JSON-Text. */
 function jsonResult(data: unknown) {
@@ -206,6 +221,54 @@ async function main(): Promise<void> {
     },
     async () => jsonResult(await listRecipes(backend)),
   );
+
+  // --- Schreibende Tools: PolicyGate (Confirm-Gate) + Audit-Log ---
+  const audit = fileAuditLog(config.auditLogPath);
+  const confirmation = new CompositeConfirmationProvider(
+    new ElicitationConfirmationProvider(server.server),
+    new LocalhostConfirmationProvider(),
+    isElicitationUnsupported,
+  );
+  const gate = new PolicyGate({ readOnly: config.readOnly }, confirmation, audit);
+
+  if (config.rpcUrl && config.factoryAddress) {
+    const sendCreateVault = buildSendCreateVault(session.signer, {
+      rpcUrl: config.rpcUrl,
+      factoryAddress: config.factoryAddress,
+    });
+    server.registerTool(
+      'create_vault',
+      {
+        title: 'Vault erstellen',
+        description:
+          'Erstellt in deinem Namen einen neuen Vault (Deposit-Token, optional Label). ' +
+          'Validiert den Deposit-Token gegen die FeeRegistry, erfordert eine explizite ' +
+          'Bestätigung (Confirm-Gate) und signiert die Transaktion.',
+        inputSchema: {
+          depositToken: z.string().describe('Deposit-Token-Adresse (0x…), von der FeeRegistry akzeptiert'),
+          label: z.string().optional().describe('Optionales Label des Vaults'),
+        },
+        annotations: { readOnlyHint: false, openWorldHint: true },
+      },
+      async ({ depositToken, label }) =>
+        jsonResult(
+          await createVault(
+            {
+              backend,
+              gate,
+              ownerAddress: session.address,
+              chainId: config.chainId,
+              sendCreateVault,
+            },
+            { depositToken, label },
+          ),
+        ),
+    );
+  } else {
+    process.stderr.write(
+      '[pecunity-mcp] Hinweis: create_vault deaktiviert — PECUNITY_RPC_URL und PECUNITY_FACTORY_ADDRESS setzen, um schreibende Tools zu aktivieren.\n',
+    );
+  }
 
   const transport = new StdioServerTransport();
   await server.connect(transport);
