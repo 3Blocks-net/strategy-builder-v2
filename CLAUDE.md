@@ -24,6 +24,8 @@ pnpm-Monorepo (`packages/*`), Node ≥ 22, TypeScript (strict). Ziel-Chain: BSC.
 - **`mcp`** — lokaler MCP-Server (stdio, offizielles MCP SDK), viem/ethers/siwe/keytar; steuert DeFi-Vaults per KI-Assistent. Tests **Vitest**.
 
 > Test-Runner ist gemischt: Backend = Jest, alles andere = Vitest. On-chain-Reads über viem; Keystore-Decrypt über ethers.
+>
+> Ports: backend **3001**, frontend **5173**, Hardhat-Fork **8545**. `backend:dev` läuft im Watch-Mode (hot-reload) → reine Seed-Daten-Änderungen brauchen nur `pnpm db:seed` (kein Restart), Schema-/Model-Änderungen `prisma migrate dev`. Recipes/StepTypes werden beim Seed gegen den deployten Katalog validiert (ungültige werden übersprungen).
 
 ## Konventionen
 
