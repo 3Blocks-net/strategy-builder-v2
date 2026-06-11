@@ -31,6 +31,8 @@ import { createVault } from './tools/create-vault.js';
 import { buildSendCreateVault, buildDeployOnChain } from './chain.js';
 import { proposeAutomation } from './tools/propose-automation.js';
 import { deployAutomation } from './tools/deploy-automation.js';
+import { deposit, withdraw, simulateAction } from './tools/money-movement.js';
+import { buildDepositOnChain, buildWithdrawOnChain, buildEstimate } from './money-chain.js';
 import { DraftStore } from './draft-store.js';
 import { loadCatalog, loadTokenDecimals, makeGetPool } from './automation-deps.js';
 import { SECURITY_NOTICE } from './security-notice.js';
@@ -376,6 +378,75 @@ async function main(): Promise<void> {
               deployOnChain,
             },
             { draftId },
+          ),
+        );
+      },
+    );
+  }
+
+  if (config.rpcUrl) {
+    const rpcUrl = config.rpcUrl;
+    const moneyConfig = {
+      ownerAddress: session.address,
+      addressAllowlist: new Set([session.address.toLowerCase(), ...config.addressAllowlist]),
+      maxPerToken: config.maxPerToken,
+    };
+    const moneyDepsBase = () => ({
+      gate,
+      backend,
+      tokenDecimals: {} as Record<string, number>,
+      config: moneyConfig,
+      depositOnChain: buildDepositOnChain(session.signer, rpcUrl, session.address),
+      withdrawOnChain: buildWithdrawOnChain(session.signer, rpcUrl),
+    });
+    const addr = z.string().regex(/^0x[0-9a-fA-F]{40}$/);
+
+    server.registerTool(
+      'deposit',
+      {
+        title: 'In Vault einzahlen',
+        description: 'Zahlt einen Token-Betrag in einen Vault ein (ggf. ERC20-Approve). Confirm-Gate, Fee transparent.',
+        inputSchema: { vault: addr.describe('Vault-Adresse'), token: addr.describe('Token-Adresse'), amount: z.string().describe('Betrag in human units, z. B. "50"') },
+        annotations: { readOnlyHint: false, openWorldHint: true },
+      },
+      async ({ vault, token, amount }) => {
+        const tokenDecimals = await loadTokenDecimals(backend);
+        return jsonResult(await deposit({ ...moneyDepsBase(), tokenDecimals }, { vault, token, amount }));
+      },
+    );
+
+    server.registerTool(
+      'withdraw',
+      {
+        title: 'Aus Vault auszahlen',
+        description: 'Zahlt einen Token-Betrag an einen Empfänger aus (nur Allowlist-Ziele). Confirm-Gate, Fee transparent.',
+        inputSchema: { vault: addr.describe('Vault-Adresse'), token: addr.describe('Token-Adresse'), amount: z.string().describe('Betrag in human units'), recipient: addr.describe('Empfänger (muss in der Allowlist sein)') },
+        annotations: { readOnlyHint: false, openWorldHint: true },
+      },
+      async ({ vault, token, amount, recipient }) => {
+        const tokenDecimals = await loadTokenDecimals(backend);
+        return jsonResult(await withdraw({ ...moneyDepsBase(), tokenDecimals }, { vault, token, amount, recipient }));
+      },
+    );
+
+    server.registerTool(
+      'simulate_action',
+      {
+        title: 'Geldbewegung simulieren (Dry-Run)',
+        description: 'Schätzt Gas + Fees für deposit/withdraw, OHNE zu senden und ohne Bestätigung.',
+        inputSchema: {
+          type: z.enum(['deposit', 'withdraw']),
+          vault: addr, token: addr, amount: z.string(),
+          recipient: addr.optional().describe('nur für withdraw'),
+        },
+        annotations: { readOnlyHint: true, openWorldHint: true },
+      },
+      async ({ type, vault, token, amount, recipient }) => {
+        const tokenDecimals = await loadTokenDecimals(backend);
+        return jsonResult(
+          await simulateAction(
+            { backend, tokenDecimals, estimate: buildEstimate(rpcUrl, session.address) },
+            { type, vault, token, amount, recipient },
           ),
         );
       },

@@ -89,11 +89,11 @@ Story 7 (Schutz) wird mit Slice 6 designt; Security-Review-Gate vor jeder schrei
 
 ## 10. Geldbewegung 6a: deposit / withdraw + Schutzschichten (Slice 10 — blocked by 6)
 
-- [ ] 10.1 `deposit`/`withdraw`: Beträge korrekt in Base-Units (Token-Decimals); durch Confirm-Gate mit dekodierter Summary
-- [ ] 10.2 Adress-Allowlist: Withdraw-Empfänger außerhalb der Allowlist → Ablehnung (Verhaltenstest)
-- [ ] 10.3 Max-Betrag-Limit pro Aktion (pro Token, Config) → Überschreitung blockiert/erfordert Freigabe; Read-only-Modus deaktiviert alle Write-Tools (Tests)
-- [ ] 10.4 `Simulator`: Dry-Run via viem `simulateContract`/`estimateGas` für deposit/withdraw (erwartetes Ergebnis + Fees/Gas, ohne Senden)
-- [ ] 10.5 Fees (Deposit/Withdraw-BPS) vor Bestätigung transparent machen; Revert → dekodierte Fehlermeldung
+- [x] 10.1 `deposit`/`withdraw`: Beträge korrekt in Base-Units (Token-Decimals); durch Confirm-Gate mit dekodierter Summary
+- [x] 10.2 Adress-Allowlist: Withdraw-Empfänger außerhalb der Allowlist → Ablehnung (Verhaltenstest)
+- [x] 10.3 Max-Betrag-Limit pro Aktion (pro Token, Config) → Überschreitung blockiert/erfordert Freigabe; Read-only-Modus deaktiviert alle Write-Tools (Tests)
+- [x] 10.4 `Simulator`: Dry-Run via viem `simulateContract`/`estimateGas` für deposit/withdraw (erwartetes Ergebnis + Fees/Gas, ohne Senden)
+- [x] 10.5 Fees (Deposit/Withdraw-BPS) vor Bestätigung transparent machen; Revert → dekodierte Fehlermeldung
 - [ ] 10.6 Security-Review-Gate (schreibende Story)
 
 ## 11. Lifecycle 6b: Gas-Deposit + set_automation_active (Slice 11 — blocked by 6)
@@ -137,3 +137,16 @@ bewusst ausgelassen (siehe recipe-seed-data.ts + Spec mcp-recipes).
 - [ ] 13.3 Recipe **Stop-Loss** (Preis-Condition → Swap) ergänzen; Seed-Validierung muss greifen
 - [ ] 13.4 Recipe **HF-Schutz** (HF-Condition → Aave Repay) ergänzen
 - [ ] 13.5 Spec `mcp-recipes` zurück auf den vollen Satz (inkl. Stop-Loss/HF) aktualisieren, sobald ausdrückbar
+
+## 14. Folge-Task: Offene Security-Review-Findings (deferred)
+
+<!--
+Reste aus den Security-Review-Gates Slice 6 (A1/A2) und Slice 9 (B1/B2). Beide
+Reviews sind APPROVE; dies sind KEINE Merge-Blocker (info/warning-dormant). Bewusst
+nachgelagert: erst nach Fertigstellung der Slices (10, 11) abarbeiten.
+-->
+
+- [ ] 14.1 **A2** (kosmetisch): `VAULT_FACTORY_ABI`-Event-Param-Namen in `chain.ts` korrigieren (`owner→vaultOwner`, `salt→vaultIndex`); Topic-Hash nutzt nur Typen → kein Verhaltensimpact
+- [ ] 14.2 **B1**: Startup-Config-Validierung — warnen, wenn `enabledSensitiveSteps`-Namen nicht zum Katalog passen (Tippfehler/Case → stiller Capability-Block) oder `addressAllowlist`-Einträge keine gültigen EVM-Adressen sind
+- [ ] 14.3 **B2**: Doc-Kommentar an `BackendClient.patch` (PATCH liefert heute kein 409; künftige „bereits finalisiert"-Semantik hier behandeln)
+- [ ] 14.4 **A1** (dormant): Signer-Hardening gegen Injection-Landmine (`sendContractTransaction`/`sendRawTransaction`). Heute isoliert (Tools bekommen nur Closures, nie den rohen Signer). Ansatz bei Umsetzung wählen: Branded-Type (Compile-Zeit, empfohlen) / Status-quo+Doku / Runtime-Selector-Allowlist

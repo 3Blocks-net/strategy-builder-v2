@@ -23,6 +23,17 @@ export interface McpConfig {
   addressAllowlist: Set<string>;
   /** Freigeschaltete sensible Step-Types (Namen) — Capability-Opt-in. */
   enabledSensitiveSteps: Set<string>;
+  /** lowercased Token-Adresse → human Max-Betrag pro Einzelaktion (deposit/withdraw). */
+  maxPerToken: Map<string, string>;
+}
+
+function parseTokenAmounts(value: string | undefined): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const entry of (value ?? '').split(',')) {
+    const [addr, amount] = entry.split(':').map((s) => s.trim());
+    if (addr && amount) map.set(addr.toLowerCase(), amount);
+  }
+  return map;
 }
 
 function parseList(value: string | undefined): string[] {
@@ -70,5 +81,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): McpConfig {
       parseList(env.PECUNITY_ADDRESS_ALLOWLIST).map((a) => a.toLowerCase()),
     ),
     enabledSensitiveSteps: new Set(parseList(env.PECUNITY_ENABLED_SENSITIVE_STEPS)),
+    maxPerToken: parseTokenAmounts(env.PECUNITY_MAX_AMOUNT_PER_TOKEN),
   };
 }
