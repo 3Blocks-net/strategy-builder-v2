@@ -31,10 +31,18 @@ import { createVault } from './tools/create-vault.js';
 import { buildSendCreateVault } from './chain.js';
 import { SECURITY_NOTICE } from './security-notice.js';
 
-/** Elicitation-Fehler, die „Client unterstützt das nicht" bedeuten → localhost-Fallback. */
+/**
+ * Nur **strukturelle** „Client unterstützt Elicitation nicht"-Fehler → localhost-
+ * Fallback. Schema-/Validierungsfehler der Elicitation-Antwort dürfen NICHT
+ * herfallen (sonst stilles Umleiten) — sie propagieren als hartes Fail.
+ */
 function isElicitationUnsupported(err: unknown): boolean {
   const msg = err instanceof Error ? err.message : String(err);
-  return /elicit|not support|method not found|-32601|capab/i.test(msg);
+  return (
+    /Client does not support (form |url )?elicitation/i.test(msg) ||
+    /method not found/i.test(msg) ||
+    msg.includes('-32601')
+  );
 }
 
 /** Read-Tool-Ergebnis als LLM-freundlicher, eingerückter JSON-Text. */
@@ -245,8 +253,11 @@ async function main(): Promise<void> {
           'Validiert den Deposit-Token gegen die FeeRegistry, erfordert eine explizite ' +
           'Bestätigung (Confirm-Gate) und signiert die Transaktion.',
         inputSchema: {
-          depositToken: z.string().describe('Deposit-Token-Adresse (0x…), von der FeeRegistry akzeptiert'),
-          label: z.string().optional().describe('Optionales Label des Vaults'),
+          depositToken: z
+            .string()
+            .regex(/^0x[0-9a-fA-F]{40}$/, 'Ungültige EVM-Adresse (erwartet 0x + 40 Hex-Zeichen)')
+            .describe('Deposit-Token-Adresse (0x…), von der FeeRegistry akzeptiert'),
+          label: z.string().max(64).optional().describe('Optionales Label des Vaults (max. 64 Zeichen)'),
         },
         annotations: { readOnlyHint: false, openWorldHint: true },
       },

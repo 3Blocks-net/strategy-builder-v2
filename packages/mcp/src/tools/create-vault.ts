@@ -48,9 +48,13 @@ export async function createVault(
     );
   }
 
+  // Label ist LLM-kontrolliert → für die Confirm-Summary entschärfen
+  // (Zeilenumbrüche raus, hart kappen), damit kein irreführender Text in den
+  // Bestätigungsdialog injiziert werden kann.
+  const safeLabel = params.label ? params.label.replace(/[\r\n\t]+/g, ' ').slice(0, 64) : undefined;
   const summary =
     `Vault erstellen — Deposit-Token ${params.depositToken}` +
-    (params.label ? `, Label "${params.label}"` : '') +
+    (safeLabel ? `, Label "${safeLabel}"` : '') +
     '.';
 
   // 2. Durch das Confirm-Gate (sensibel), dann signieren + senden + registrieren.
@@ -66,14 +70,25 @@ export async function createVault(
         owner: deps.ownerAddress,
         depositToken: params.depositToken,
       });
-      await deps.backend.post('/vaults', {
-        address: vaultAddress,
-        chainId: deps.chainId,
-        depositToken: params.depositToken,
-        txHash,
-        createdAtBlock: blockNumber,
-        label: params.label,
-      });
+      try {
+        await deps.backend.post('/vaults', {
+          address: vaultAddress,
+          chainId: deps.chainId,
+          depositToken: params.depositToken,
+          txHash,
+          createdAtBlock: blockNumber,
+          label: params.label,
+        });
+      } catch (regErr) {
+        // Vault ist on-chain erstellt, Backend-Registrierung schlug fehl → den
+        // Teil-Zustand sichtbar machen, damit manuelle Wiederholung möglich ist.
+        const detail = regErr instanceof Error ? regErr.message : String(regErr);
+        throw new Error(
+          `Vault ${vaultAddress} wurde on-chain erstellt (TX ${txHash}), konnte aber nicht ` +
+            `im Backend registriert werden: ${detail}. Bitte POST /vaults manuell mit ` +
+            `address=${vaultAddress} wiederholen.`,
+        );
+      }
       return { result: { vaultAddress, txHash }, txHash };
     },
   );

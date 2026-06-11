@@ -69,6 +69,11 @@ export class WalletSigner {
   /**
    * Signiert + sendet eine Contract-Transaktion und wartet auf den Receipt.
    * Der Key bleibt im Signer; bei Revert (status 0) wird hart geworfen.
+   *
+   * SICHERHEIT: `address`, `functionName` und `args` dürfen NIEMALS direkt aus
+   * LLM-/User-Input stammen — sonst lässt sich ein beliebiger Contract-Call im
+   * Namen des Owners signieren. Aufrufer müssen sie aus vertrauenswürdiger,
+   * server-seitiger Quelle setzen (z. B. fixe Factory-ABI in chain.ts).
    */
   async sendContractTransaction(req: ContractTxRequest): Promise<ContractTxReceipt> {
     const provider = new JsonRpcProvider(req.rpcUrl);
@@ -76,7 +81,7 @@ export class WalletSigner {
     const contract = new Contract(req.address, req.abi, wallet);
     const tx = await contract.getFunction(req.functionName)(
       ...req.args,
-      req.gasLimit ? { gasLimit: req.gasLimit } : {},
+      req.gasLimit !== undefined ? { gasLimit: req.gasLimit } : {},
     );
     const receipt = await tx.wait();
     if (!receipt || receipt.status === 0) {

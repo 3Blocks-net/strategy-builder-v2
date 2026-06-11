@@ -57,8 +57,8 @@ Story 7 (Schutz) wird mit Slice 6 designt; Security-Review-Gate vor jeder schrei
 - [x] 6.3 Freigabe = server-interner Zustand (einmaliges Approval-Token, vom LLM nicht fälschbar); write-Tool blockiert synchron; Timeout = hartes Fail
 - [x] 6.4 `AuditLog` (module): append-only lokale Datei (Zeitpunkt, Tool, Parameter, TX-Hash, Ergebnis); jeder Confirm-Pfad schreibt Summary + Outcome
 - [x] 6.5 `create_vault`: Deposit-Token gegen FeeRegistry validieren (sonst klare Fehlermeldung, keine TX); sign+send; neue Vault-Adresse + TX-Hash; Revert → dekodiert
-- [ ] 6.6 Verhaltenstests: Prompt-Injection-Versuch, simulierte LLM-Selbstbestätigung wird abgelehnt, Timeout-Fail; Vault erscheint in `list_vaults` + Web-UI
-- [ ] 6.7 Security-Review-Gate (Key-Handling + Prompt-Injection)
+- [x] 6.6 Verhaltenstests: Prompt-Injection-Versuch, simulierte LLM-Selbstbestätigung wird abgelehnt, Timeout-Fail; Vault erscheint in `list_vaults` + Web-UI
+- [x] 6.7 Security-Review-Gate (Key-Handling + Prompt-Injection)
 
 ## 7. SummaryDecoder (Slice 07 — blocked by 4)
 

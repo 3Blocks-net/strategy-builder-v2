@@ -100,7 +100,9 @@ function openBrowser(url: string): void {
  */
 export class LocalhostConfirmationProvider implements ConfirmationProvider {
   readonly #pending = new PendingApprovals();
+  readonly #summaries = new Map<string, string>();
   #server?: HttpServer;
+  #startingUp?: Promise<void>;
   #port = 0;
 
   constructor(private readonly timeoutMs = 120_000) {}
@@ -128,9 +130,10 @@ export class LocalhostConfirmationProvider implements ConfirmationProvider {
     }
   }
 
-  readonly #summaries = new Map<string, string>();
-
   #renderUrl(req: ConfirmationRequest, url: string): void {
+    // SICHERHEIT: Die URL enthält den einmaligen Approval-Token. Sie geht bewusst
+    // nur auf stderr (nicht stdout = MCP-Kanal) und darf NIE in ein LLM-sichtbares
+    // Channel geroutet werden — sonst könnte das LLM den /approve-Pfad selbst aufrufen.
     process.stderr.write(
       `\n[pecunity-mcp] Bestätigung nötig für "${req.tool}":\n  ${req.summary}\n  Öffne zum Freigeben/Ablehnen: ${url}\n`,
     );
@@ -138,35 +141,55 @@ export class LocalhostConfirmationProvider implements ConfirmationProvider {
 
   #ensureServer(): Promise<void> {
     if (this.#server) return Promise.resolve();
-    return new Promise((resolve) => {
-      this.#server = createServer((httpReq, httpRes) => {
-        const match = /^\/confirm\/([0-9a-f]{64})(?:\/(approve|deny))?$/.exec(httpReq.url ?? '');
-        if (!match) {
-          httpRes.writeHead(404).end('Not found');
-          return;
-        }
-        const [, token, decision] = match;
-        const summary = this.#summaries.get(token) ?? '(keine Zusammenfassung)';
-        if (decision) {
-          const ok = this.#pending.redeem(token, decision === 'approve');
-          httpRes.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }).end(
-            `<h2>${ok ? (decision === 'approve' ? '✓ Freigegeben' : '✗ Abgelehnt') : 'Token ungültig oder bereits benutzt'}</h2><p>Du kannst dieses Fenster schließen.</p>`,
-          );
-          return;
-        }
-        httpRes.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }).end(
-          `<h2>Pecunity — Aktion bestätigen</h2><pre>${escapeHtml(summary)}</pre>
-           <p>Diese Aktion signiert in deinem Namen.</p>
-           <a href="/confirm/${token}/approve"><button>Freigeben</button></a>
-           <a href="/confirm/${token}/deny"><button>Ablehnen</button></a>`,
-        );
+    if (this.#startingUp) return this.#startingUp;
+    this.#startingUp = new Promise<void>((resolve, reject) => {
+      const srv = createServer((req, res) => this.#handleRequest(req, res));
+      srv.once('error', (err) => {
+        this.#startingUp = undefined;
+        reject(err);
       });
-      this.#server.listen(0, '127.0.0.1', () => {
-        const addr = this.#server!.address();
+      srv.listen(0, '127.0.0.1', () => {
+        srv.removeAllListeners('error');
+        const addr = srv.address();
         this.#port = typeof addr === 'object' && addr ? addr.port : 0;
+        this.#server = srv;
+        this.#startingUp = undefined;
         resolve();
       });
     });
+    return this.#startingUp;
+  }
+
+  #handleRequest(
+    httpReq: { url?: string; method?: string },
+    httpRes: import('node:http').ServerResponse,
+  ): void {
+    const match = /^\/confirm\/([0-9a-f]{64})(?:\/(approve|deny))?$/.exec(httpReq.url ?? '');
+    if (!match) {
+      httpRes.writeHead(404).end('Not found');
+      return;
+    }
+    const [, token, decision] = match;
+    const summary = this.#summaries.get(token) ?? '(keine Zusammenfassung)';
+    if (decision) {
+      // Freigeben/Ablehnen nur per POST — passive Navigation (img/prefetch) kann
+      // so nicht freigeben.
+      if (httpReq.method !== 'POST') {
+        httpRes.writeHead(405, { Allow: 'POST' }).end('Method Not Allowed');
+        return;
+      }
+      const ok = this.#pending.redeem(token, decision === 'approve');
+      httpRes.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }).end(
+        `<h2>${ok ? (decision === 'approve' ? '✓ Freigegeben' : '✗ Abgelehnt') : 'Token ungültig oder bereits benutzt'}</h2><p>Du kannst dieses Fenster schließen.</p>`,
+      );
+      return;
+    }
+    httpRes.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }).end(
+      `<h2>Pecunity — Aktion bestätigen</h2><pre>${escapeHtml(summary)}</pre>
+       <p>Diese Aktion signiert in deinem Namen.</p>
+       <form method="POST" action="/confirm/${token}/approve" style="display:inline"><button type="submit">Freigeben</button></form>
+       <form method="POST" action="/confirm/${token}/deny" style="display:inline"><button type="submit">Ablehnen</button></form>`,
+    );
   }
 
   close(): void {

@@ -50,8 +50,9 @@ export class BackendClient {
     if (res.status === 403) {
       throw new ForbiddenVaultError(extractAddress(path));
     }
-    // 409 (Conflict) beim Registrieren = bereits vorhanden ⇒ als Erfolg behandeln.
-    if (res.status === 409) {
+    // 409 (Conflict) beim POST-Registrieren = bereits vorhanden ⇒ als Erfolg
+    // behandeln. Nur für POST, dessen Ergebnis verworfen wird (z. B. /vaults).
+    if (res.status === 409 && method === 'POST') {
       return undefined as T;
     }
     if (!res.ok) {

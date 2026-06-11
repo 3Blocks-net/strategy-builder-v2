@@ -35,7 +35,8 @@ describe('PolicyGate', () => {
 
     expect(result).toEqual({ vault: '0xV' });
     expect(execute).toHaveBeenCalledTimes(1);
-    expect(entries.map((e) => e.outcome)).toContain('success');
+    // requested → approved → success (Freigabe wird explizit protokolliert)
+    expect(entries.map((e) => e.outcome)).toEqual(['requested', 'approved', 'success']);
     expect(entries.at(-1).txHash).toBe('0xtx');
   });
 

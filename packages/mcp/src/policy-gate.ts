@@ -87,6 +87,7 @@ export class PolicyGate {
         await this.audit.record({ ...base, outcome: 'denied' });
         throw new PolicyError('Aktion abgelehnt — es wurde nicht signiert.');
       }
+      await this.audit.record({ ...base, outcome: 'approved' });
     }
 
     try {
