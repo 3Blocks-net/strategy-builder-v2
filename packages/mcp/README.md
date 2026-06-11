@@ -60,6 +60,10 @@ In `claude_desktop_config.json` (Claude Desktop → Settings → Developer):
 ```
 
 > Das **Passwort** steht bewusst **nicht** hier — es kommt aus dem OS-Keychain (Schritt 1).
+>
+> **Lokale Entwicklung:** Das Backend läuft per Default auf **Port 3001**, das Frontend auf
+> **5173** — also `PECUNITY_BACKEND_URL=http://localhost:3001` und
+> `PECUNITY_FRONTEND_URL=http://localhost:5173` (Chain-ID je nach Fork, z. B. `31337`).
 
 Beim Start zeigt der Server einen **Sicherheitshinweis** (er kann in deinem Namen signieren,
 wie du den Zugang entziehst) auf stderr an und verbindet sich per SIWE mit dem Backend.
@@ -115,8 +119,8 @@ pnpm --filter mcp inspect
 Env-Variablen mitgeben (zwei Wege):
 
 ```bash
-# (a) per Shell-Export vor dem Start
-export PECUNITY_BACKEND_URL=http://localhost:3000
+# (a) per Shell-Export vor dem Start (Backend lokal auf Port 3001)
+export PECUNITY_BACKEND_URL=http://localhost:3001
 export PECUNITY_FRONTEND_URL=http://localhost:5173
 export PECUNITY_KEYSTORE_PATH=/sicherer/pfad/keystore.json
 pnpm --filter mcp inspect
