@@ -28,15 +28,20 @@ Platte, insbesondere **nicht** in `claude_desktop_config.json`. Das Init prüft 
 Passwort wird nichts gespeichert. Danach gibt es deine Owner-Adresse + einen fertigen
 Config-Schnipsel aus. Den Keystore-Pfad liest es aus `PECUNITY_KEYSTORE_PATH` (oder fragt danach):
 
+Vorher einmal bauen (`init` läuft gegen `dist/`): `pnpm --filter mcp build`.
+
 ```bash
-pnpm --filter mcp run init
-# oder nach globaler Installation:  pecunity-mcp-init
+# Lokale Entwicklung (in diesem Monorepo):
+pnpm --filter mcp run init        # WICHTIG: "run" — sonst greift pnpms eingebautes init
+# Nur nach globaler Installation/Link (pnpm --filter mcp link --global):
+pecunity-mcp-init
 ```
 
 Zum **Trennen/Entfernen** des Zugangs (löscht das Passwort aus dem Keychain):
 
 ```bash
-pecunity-mcp-init --remove
+pnpm --filter mcp run init -- --remove   # lokal (Flag mit -- durchreichen)
+# nach globaler Installation:  pecunity-mcp-init --remove
 ```
 
 ## 2. Registrierung in Claude Desktop
@@ -148,8 +153,8 @@ OUT=~/.pecunity/keystore.json \
 node packages/mcp/scripts/make-keystore.mjs
 # → schreibt ~/.pecunity/keystore.json (Adresse 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266)
 
-# Danach Passwort im Keychain hinterlegen und registrieren:
-pecunity-mcp-init                 # dasselbe Passwort eingeben (pecunity-dev)
+# Danach Passwort im Keychain hinterlegen und registrieren (lokal):
+PECUNITY_KEYSTORE_PATH=~/.pecunity/keystore.json pnpm --filter mcp run init   # Passwort: pecunity-dev
 # PECUNITY_KEYSTORE_PATH=~/.pecunity/keystore.json in der Config setzen (siehe oben).
 ```
 
