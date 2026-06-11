@@ -121,3 +121,19 @@ der rohe Key bleibt das markierte Dev-Beispiel (make-keystore.mjs).
 - [ ] 12.4 Fertigen `claude_desktop_config.json`-Schnipsel ausgeben (ohne Passwort)
 - [ ] 12.5 Tests: falsches Passwort → kein Keychain-Write; kein Key-/Passwort-Leak in Ausgaben
 - [ ] 12.6 **Ausgeschlossen (sicherheitsrelevant):** kein First-Class-Einlesen roher Private Keys — bleibt markiertes Dev-Beispiel
+
+## 13. Folge-Task: Preis- & Health-Factor-Conditions (schaltet Stop-Loss / HF-Schutz-Recipes frei)
+
+<!--
+Wahrscheinlich EIGENES Epic/PRD: berührt die Contracts-Schicht (neue Condition-
+Contracts), nicht nur den MCP-Change. Hier nur als Referenz getrackt, damit es
+nicht vergessen wird. Aktuell fehlen im Katalog Preis- und Health-Factor-
+Conditions → Stop-Loss und HF-Schutz sind nicht ausdrückbar und wurden in Slice 5
+bewusst ausgelassen (siehe recipe-seed-data.ts + Spec mcp-recipes).
+-->
+
+- [ ] 13.1 **Preis-Condition** (StepType): on-chain Preis-Trigger (z. B. PancakeSwap-V3-Pool/Oracle) — Contract + Seed mit `paramSchema`/`abiFragment` + Rollen-Annotationen
+- [ ] 13.2 **Health-Factor-Condition** (StepType): Aave-HF unter/über Schwelle — Contract + Seed
+- [ ] 13.3 Recipe **Stop-Loss** (Preis-Condition → Swap) ergänzen; Seed-Validierung muss greifen
+- [ ] 13.4 Recipe **HF-Schutz** (HF-Condition → Aave Repay) ergänzen
+- [ ] 13.5 Spec `mcp-recipes` zurück auf den vollen Satz (inkl. Stop-Loss/HF) aktualisieren, sobald ausdrückbar
