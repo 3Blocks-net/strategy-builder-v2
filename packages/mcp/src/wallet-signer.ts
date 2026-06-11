@@ -94,6 +94,36 @@ export class WalletSigner {
     };
   }
 
+  /**
+   * Signiert + sendet eine **rohe** Transaktion (to + data) und wartet auf den
+   * Receipt. Für vorab encodete Calldata (z. B. Automation-Deploy an den Vault).
+   * Gleiche Sicherheitsregel wie sendContractTransaction: `to`/`data` nie direkt
+   * aus LLM-Input — nur aus vertrauenswürdiger, server-seitig encodeter Quelle.
+   */
+  async sendRawTransaction(req: {
+    rpcUrl: string;
+    to: string;
+    data: string;
+    gasLimit?: bigint;
+  }): Promise<ContractTxReceipt> {
+    const provider = new JsonRpcProvider(req.rpcUrl);
+    const wallet = this.#wallet.connect(provider);
+    const tx = await wallet.sendTransaction({
+      to: req.to,
+      data: req.data,
+      ...(req.gasLimit !== undefined ? { gasLimit: req.gasLimit } : {}),
+    });
+    const receipt = await tx.wait();
+    if (!receipt || receipt.status === 0) {
+      throw new Error('Transaktion fehlgeschlagen (revert).');
+    }
+    return {
+      hash: receipt.hash,
+      blockNumber: receipt.blockNumber,
+      logs: receipt.logs as ContractTxReceipt['logs'],
+    };
+  }
+
   toJSON(): { address: `0x${string}` } {
     // Nur die öffentliche Adresse, niemals Key-Material.
     return { address: this.#address };

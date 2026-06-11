@@ -24,6 +24,8 @@ const cfg: McpConfig = {
   readOnly: false,
   auditLogPath: '/tmp/pecunity-test-audit.log',
   pcsFactoryAddress: '0x0BFbCF9fa4f9C56B0F40a671Ad40E0805A091865',
+  addressAllowlist: new Set<string>(),
+  enabledSensitiveSteps: new Set<string>(),
 };
 
 function okFetch() {

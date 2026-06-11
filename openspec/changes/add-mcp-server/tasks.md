@@ -79,11 +79,11 @@ Story 7 (Schutz) wird mit Slice 6 designt; Security-Review-Gate vor jeder schrei
 
 ## 9. deploy_automation (Slice 09 — blocked by 6, 8)
 
-- [ ] 9.1 `deploy_automation` nimmt **nur** die Draft-ID; signiert Kontext-Setup + create/update; liefert On-Chain-Automation-ID + TX-Hash(es)
-- [ ] 9.2 Confirm zeigt `SummaryDecoder`-Decode des gespeicherten Entwurfs inkl. `execution`; verzweigte Graphen hervorgehoben
-- [ ] 9.3 Sensibilitäts-Gate: sensibel markierter Step erzwingt Confirm (PolicyGate); ohne Bestätigung kein Deploy
-- [ ] 9.4 In-Automation-Adress-Allowlist: `ERC20Transfer.recipient` schema-getrieben prüfen → Nicht-Allowlist-Ziel ablehnen; Capability-Opt-in: nicht freigeschaltete sensible Steps nicht verbaubar
-- [ ] 9.5 Automation erscheint in `list_automations` + Web-UI; Revert → dekodierte Fehlermeldung
+- [x] 9.1 `deploy_automation` nimmt **nur** die Draft-ID; signiert Kontext-Setup + create/update; liefert On-Chain-Automation-ID + TX-Hash(es)
+- [x] 9.2 Confirm zeigt `SummaryDecoder`-Decode des gespeicherten Entwurfs inkl. `execution`; verzweigte Graphen hervorgehoben
+- [x] 9.3 Sensibilitäts-Gate: sensibel markierter Step erzwingt Confirm (PolicyGate); ohne Bestätigung kein Deploy
+- [x] 9.4 In-Automation-Adress-Allowlist: `ERC20Transfer.recipient` schema-getrieben prüfen → Nicht-Allowlist-Ziel ablehnen; Capability-Opt-in: nicht freigeschaltete sensible Steps nicht verbaubar
+- [x] 9.5 Automation erscheint in `list_automations` + Web-UI; Revert → dekodierte Fehlermeldung
 - [ ] 9.6 E2E-Fork: ≥1 AI-Muster end-to-end bis zur feuernden Automation; ungültiger Graph abgelehnt; kein Deploy ohne Bestätigung
 - [ ] 9.7 Security-Review-Gate (schreibende Story)
 

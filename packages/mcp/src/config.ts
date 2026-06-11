@@ -19,6 +19,17 @@ export interface McpConfig {
   pcsFactoryAddress: string;
   /** Pfad der lokalen append-only Audit-Log-Datei. */
   auditLogPath: string;
+  /** Erlaubte Geld-Ziele (lowercased) für Withdraw/Transfer; Owner wird ergänzt. */
+  addressAllowlist: Set<string>;
+  /** Freigeschaltete sensible Step-Types (Namen) — Capability-Opt-in. */
+  enabledSensitiveSteps: Set<string>;
+}
+
+function parseList(value: string | undefined): string[] {
+  return (value ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
 }
 
 import { homedir } from 'node:os';
@@ -55,5 +66,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): McpConfig {
     auditLogPath: expandHome(
       env.PECUNITY_AUDIT_LOG_PATH?.trim() || '~/.pecunity/audit.log',
     ),
+    addressAllowlist: new Set(
+      parseList(env.PECUNITY_ADDRESS_ALLOWLIST).map((a) => a.toLowerCase()),
+    ),
+    enabledSensitiveSteps: new Set(parseList(env.PECUNITY_ENABLED_SENSITIVE_STEPS)),
   };
 }

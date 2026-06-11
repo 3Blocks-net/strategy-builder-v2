@@ -28,8 +28,9 @@ import {
   CompositeConfirmationProvider,
 } from './confirmation.js';
 import { createVault } from './tools/create-vault.js';
-import { buildSendCreateVault } from './chain.js';
+import { buildSendCreateVault, buildDeployOnChain } from './chain.js';
 import { proposeAutomation } from './tools/propose-automation.js';
+import { deployAutomation } from './tools/deploy-automation.js';
 import { DraftStore } from './draft-store.js';
 import { loadCatalog, loadTokenDecimals, makeGetPool } from './automation-deps.js';
 import { SECURITY_NOTICE } from './security-notice.js';
@@ -340,6 +341,46 @@ async function main(): Promise<void> {
   } else {
     process.stderr.write(
       '[pecunity-mcp] Hinweis: create_vault deaktiviert — PECUNITY_RPC_URL und PECUNITY_FACTORY_ADDRESS setzen, um schreibende Tools zu aktivieren.\n',
+    );
+  }
+
+  if (config.rpcUrl) {
+    server.registerTool(
+      'deploy_automation',
+      {
+        title: 'Automation deployen',
+        description:
+          'Deployt einen mit propose_automation erstellten Entwurf — nimmt NUR die Draft-ID ' +
+          'und signiert exakt den gespeicherten Graphen. Confirm-Gate bei sensiblen Steps ' +
+          '(Summary aus dem gespeicherten Entwurf); In-Automation-Empfänger-Allowlist + ' +
+          'Capability-Opt-in werden erzwungen. Liefert On-Chain-Automation-ID + TX-Hashes.',
+        inputSchema: { draftId: z.string().describe('Draft-ID aus propose_automation') },
+        annotations: { readOnlyHint: false, openWorldHint: true },
+      },
+      async ({ draftId }) => {
+        const catalog = await loadCatalog(backend);
+        const deployOnChain = buildDeployOnChain(session.signer, backend, config.rpcUrl!);
+        return jsonResult(
+          await deployAutomation(
+            {
+              gate,
+              draftStore,
+              catalog,
+              config: {
+                ownerAddress: session.address,
+                // Owner ist immer ein erlaubtes Geld-Ziel.
+                addressAllowlist: new Set([
+                  session.address.toLowerCase(),
+                  ...config.addressAllowlist,
+                ]),
+                enabledSensitiveSteps: config.enabledSensitiveSteps,
+              },
+              deployOnChain,
+            },
+            { draftId },
+          ),
+        );
+      },
     );
   }
 

@@ -40,7 +40,11 @@ export class BackendClient {
     return this.#send<T>('POST', path, body);
   }
 
-  async #send<T>(method: 'GET' | 'POST', path: string, body?: unknown): Promise<T> {
+  async patch<T>(path: string, body: unknown): Promise<T> {
+    return this.#send<T>('PATCH', path, body);
+  }
+
+  async #send<T>(method: 'GET' | 'POST' | 'PATCH', path: string, body?: unknown): Promise<T> {
     let res = await this.#request(method, path, body);
     if (res.status === 401) {
       // Token abgelaufen → einmal erneuern und wiederholen.
@@ -62,7 +66,7 @@ export class BackendClient {
     return (text ? JSON.parse(text) : undefined) as T;
   }
 
-  #request(method: 'GET' | 'POST', path: string, body?: unknown): Promise<Response> {
+  #request(method: 'GET' | 'POST' | 'PATCH', path: string, body?: unknown): Promise<Response> {
     return this.#fetchFn(`${this.#backendUrl}${path}`, {
       method,
       headers: {
