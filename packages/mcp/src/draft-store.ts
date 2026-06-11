@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import type { RawGraph } from 'shared';
-import type { DecodedSummary } from './summary-decoder.js';
+import type { DecodedSummary, DecoderCatalog } from './summary-decoder.js';
 
 /** Server-intern gehaltener, validierter Automation-Entwurf (kein Backend-State). */
 export interface Draft {
@@ -10,6 +10,9 @@ export interface Draft {
   contextOverrides: Record<string, string>;
   ownerOnly: boolean;
   summary: DecodedSummary;
+  /** Katalog-Snapshot aus propose — deploy prüft dagegen, nicht gegen einen frischen
+   *  (so ist „was du gesehen hast = was du deployst" auch bei Katalog-Drift gewahrt). */
+  catalog: DecoderCatalog;
 }
 
 export interface DraftStoreOptions {
@@ -50,5 +53,15 @@ export class DraftStore {
       return undefined;
     }
     return entry.draft;
+  }
+
+  /**
+   * Liest **und entfernt** einen Entwurf (einmalig). Verhindert Replay: dieselbe
+   * Draft-ID kann nicht zweimal deployt werden (sonst verwaiste On-Chain-Automations).
+   */
+  consume(id: string): Draft | undefined {
+    const draft = this.get(id);
+    if (draft) this.#map.delete(id);
+    return draft;
   }
 }

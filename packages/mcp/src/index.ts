@@ -358,14 +358,12 @@ async function main(): Promise<void> {
         annotations: { readOnlyHint: false, openWorldHint: true },
       },
       async ({ draftId }) => {
-        const catalog = await loadCatalog(backend);
         const deployOnChain = buildDeployOnChain(session.signer, backend, config.rpcUrl!);
         return jsonResult(
           await deployAutomation(
             {
               gate,
               draftStore,
-              catalog,
               config: {
                 ownerAddress: session.address,
                 // Owner ist immer ein erlaubtes Geld-Ziel.

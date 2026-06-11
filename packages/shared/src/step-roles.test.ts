@@ -11,7 +11,11 @@ describe('resolveFieldRole', () => {
   it('leitet die Rolle aus dem x-ui-widget ab', () => {
     expect(resolveFieldRole({ 'x-ui-widget': 'token-selector' })).toBe('token');
     expect(resolveFieldRole({ 'x-ui-widget': 'token-amount' })).toBe('amount');
-    expect(resolveFieldRole({ 'x-ui-widget': 'account-selector' })).toBe('recipient');
+  });
+
+  it('account-selector ist KEINE recipient-Rolle (Watch-Adresse) — nur explizit', () => {
+    // account-selector wird auch für Lese-/Watch-Adressen genutzt → kein Geld-Ziel.
+    expect(resolveFieldRole({ 'x-ui-widget': 'account-selector' })).toBeUndefined();
   });
 
   it('explizite Rolle schlägt die Widget-Ableitung', () => {
@@ -57,12 +61,12 @@ describe('findUnannotatedRecipients', () => {
     expect(findUnannotatedRecipients([transferOk])).toEqual([]);
   });
 
-  it('akzeptiert account-selector als Empfänger-Markierung (abgeleitet)', () => {
+  it('account-selector allein markiert ein Empfänger-Feld NICHT — wird als Lücke erkannt', () => {
     const viaWidget: StepSchema & { name: string } = {
       ...transferOk,
       paramSchema: { properties: { recipient: { 'x-ui-widget': 'account-selector' } } },
     };
-    expect(findUnannotatedRecipients([viaWidget])).toEqual([]);
+    expect(findUnannotatedRecipients([viaWidget])).toEqual([{ step: 'ERC-20 Transfer', field: 'recipient' }]);
   });
 
   it('ignoriert Nicht-Adress-Felder und Nicht-Empfänger-Namen', () => {

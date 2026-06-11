@@ -84,8 +84,8 @@ Story 7 (Schutz) wird mit Slice 6 designt; Security-Review-Gate vor jeder schrei
 - [x] 9.3 Sensibilitäts-Gate: sensibel markierter Step erzwingt Confirm (PolicyGate); ohne Bestätigung kein Deploy
 - [x] 9.4 In-Automation-Adress-Allowlist: `ERC20Transfer.recipient` schema-getrieben prüfen → Nicht-Allowlist-Ziel ablehnen; Capability-Opt-in: nicht freigeschaltete sensible Steps nicht verbaubar
 - [x] 9.5 Automation erscheint in `list_automations` + Web-UI; Revert → dekodierte Fehlermeldung
-- [ ] 9.6 E2E-Fork: ≥1 AI-Muster end-to-end bis zur feuernden Automation; ungültiger Graph abgelehnt; kein Deploy ohne Bestätigung
-- [ ] 9.7 Security-Review-Gate (schreibende Story)
+- [x] 9.6 E2E-Fork: ≥1 AI-Muster end-to-end bis zur feuernden Automation; ungültiger Graph abgelehnt; kein Deploy ohne Bestätigung
+- [x] 9.7 Security-Review-Gate (schreibende Story)
 
 ## 10. Geldbewegung 6a: deposit / withdraw + Schutzschichten (Slice 10 — blocked by 6)
 

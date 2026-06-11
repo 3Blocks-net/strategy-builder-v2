@@ -39,6 +39,7 @@ function draftWith(rawGraph: RawGraph): Draft {
     contextOverrides: {},
     ownerOnly: false,
     summary: { steps: [], execution: 'public', warnings: [] },
+    catalog,
   };
 }
 
@@ -57,7 +58,6 @@ function deps(over: Partial<DeployDeps> = {}, store = new DraftStore({ genId: ()
   const base: DeployDeps = {
     gate: gate(true),
     draftStore: store,
-    catalog,
     config: { ownerAddress: OWNER, addressAllowlist: new Set([OWNER.toLowerCase(), ALLOWED.toLowerCase()]), enabledSensitiveSteps: new Set(['ERC-20 Transfer']) },
     deployOnChain: vi.fn(async () => ({ onChainId: 42, txHashes: ['0xctx', '0xauto'] })),
   };
@@ -111,5 +111,14 @@ describe('deployAutomation', () => {
     const r = await deployAutomation(d, { draftId: id });
     expect(r.onChainId).toBe(42);
     expect(d.deployOnChain).toHaveBeenCalledTimes(1);
+  });
+
+  it('Replay-Schutz: dieselbe Draft-ID kann nicht zweimal deployt werden', async () => {
+    const store = new DraftStore({ genId: () => 'd1' });
+    const id = store.create(draftWith(swapGraph));
+    const d = deps({}, store);
+    await deployAutomation(d, { draftId: id });
+    await expect(deployAutomation(d, { draftId: id })).rejects.toThrow(/Draft/i);
+    expect(d.deployOnChain).toHaveBeenCalledTimes(1); // nur einmal on-chain
   });
 });

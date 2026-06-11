@@ -2,6 +2,7 @@ import { resolveFieldRole, type RawGraph } from 'shared';
 import { PolicyGate } from '../policy-gate.js';
 import { DraftStore, type Draft } from '../draft-store.js';
 import type { DecoderCatalog } from '../summary-decoder.js';
+import { isBranched } from '../graph-utils.js';
 
 export interface DeployConfig {
   ownerAddress: string;
@@ -19,7 +20,6 @@ export type DeployOnChain = (
 export interface DeployDeps {
   gate: PolicyGate;
   draftStore: DraftStore;
-  catalog: DecoderCatalog;
   config: DeployConfig;
   deployOnChain: DeployOnChain;
 }
@@ -54,10 +54,13 @@ function inspectGraph(rawGraph: RawGraph, catalog: DecoderCatalog, config: Deplo
     for (const [field, schema] of Object.entries(props)) {
       if (resolveFieldRole(schema) === 'recipient') {
         nodeSensitive = true;
-        const recipient = String(node.data.params[field] ?? '');
-        if (recipient && !config.addressAllowlist.has(recipient.toLowerCase())) {
+        const raw = node.data.params[field];
+        if (raw === undefined || raw === null || raw === '') {
+          // Leeres Geld-Ziel umgeht die Allowlist nicht still → harter Reject.
+          errors.push(`${step.name}: Empfänger-Feld „${field}" ist leer/fehlt — abgelehnt.`);
+        } else if (!config.addressAllowlist.has(String(raw).toLowerCase())) {
           errors.push(
-            `${step.name}: Empfänger ${recipient} ist nicht in der Adress-Allowlist — abgelehnt.`,
+            `${step.name}: Empfänger ${String(raw)} ist nicht in der Adress-Allowlist — abgelehnt.`,
           );
         }
       }
@@ -74,15 +77,6 @@ function inspectGraph(rawGraph: RawGraph, catalog: DecoderCatalog, config: Deplo
   }
 
   return { sensitive, errors };
-}
-
-function isBranched(rawGraph: RawGraph): boolean {
-  return rawGraph.nodes.some((node) => {
-    const handles = new Set(
-      rawGraph.edges.filter((e) => e.source === node.id).map((e) => e.sourceHandle),
-    );
-    return handles.has('true') && handles.has('false');
-  });
 }
 
 /** Confirm-Summary aus dem GESPEICHERTEN Entwurf (nicht aus LLM-Args). */
@@ -115,14 +109,17 @@ export async function deployAutomation(
   deps: DeployDeps,
   params: { draftId: string },
 ): Promise<DeployResult> {
-  const draft = deps.draftStore.get(params.draftId);
+  // consume = einmalig: verhindert Replay/Doppel-Deploy derselben Draft-ID.
+  const draft = deps.draftStore.consume(params.draftId);
   if (!draft) {
     throw new Error(
-      'Draft-ID unbekannt oder abgelaufen — bitte propose_automation erneut ausführen.',
+      'Draft-ID unbekannt oder bereits verwendet/abgelaufen — bitte propose_automation erneut ausführen.',
     );
   }
 
-  const { sensitive, errors } = inspectGraph(draft.rawGraph, deps.catalog, deps.config);
+  // Gegen den im Draft gespeicherten Katalog-Snapshot prüfen (nicht gegen einen
+  // frischen) — so kann Katalog-Drift die Sensibilitäts-Erkennung nicht aushebeln.
+  const { sensitive, errors } = inspectGraph(draft.rawGraph, draft.catalog, deps.config);
   if (errors.length > 0) {
     throw new Error(`Deploy abgelehnt:\n- ${errors.join('\n- ')}`);
   }

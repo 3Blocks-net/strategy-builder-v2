@@ -3,6 +3,7 @@ import { BackendClient } from '../backend-client.js';
 import { DraftStore } from '../draft-store.js';
 import { decodeRawGraph, type DecoderCatalog } from '../summary-decoder.js';
 import { crossCheckIntent, type FlatIntent } from '../intent-check.js';
+import { isBranched } from '../graph-utils.js';
 
 interface FriendlyNode {
   id: string;
@@ -56,16 +57,6 @@ function extractTriggerSeconds(rawGraph: RawGraph, catalog: DecoderCatalog): num
     }
   }
   return undefined;
-}
-
-/** Verzweigt = eine Condition mit getrennten true/false-Pfaden. */
-function isBranched(rawGraph: RawGraph): boolean {
-  return rawGraph.nodes.some((node) => {
-    const handles = new Set(
-      rawGraph.edges.filter((e) => e.source === node.id).map((e) => e.sourceHandle),
-    );
-    return handles.has('true') && handles.has('false');
-  });
 }
 
 /**
@@ -160,6 +151,7 @@ export async function proposeAutomation(
     contextOverrides,
     ownerOnly,
     summary,
+    catalog: deps.catalog,
   });
 
   return { draftId, ownerOnly, summary, warnings: check.warnings };

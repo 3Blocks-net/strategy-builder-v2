@@ -13,11 +13,15 @@ export type FieldRole = 'token' | 'amount' | 'recipient' | 'direction';
 
 const FIELD_ROLES: readonly FieldRole[] = ['token', 'amount', 'recipient', 'direction'];
 
-/** Ableitung der Rolle aus dem UI-Widget, wenn keine explizite Rolle gesetzt ist. */
+/**
+ * Ableitung der Rolle aus dem UI-Widget, wenn keine explizite Rolle gesetzt ist.
+ * Bewusst NICHT `account-selector` → das Widget bezeichnet auch reine Watch-/
+ * Lese-Adressen (z. B. TokenBalanceCondition.account), die KEIN Geld-Ziel sind.
+ * Ein echtes Geld-Ziel muss explizit `x-ui-role: 'recipient'` tragen.
+ */
 const WIDGET_ROLE: Record<string, FieldRole> = {
   'token-selector': 'token',
   'token-amount': 'amount',
-  'account-selector': 'recipient',
   'aave-amount-mode': 'direction',
 };
 

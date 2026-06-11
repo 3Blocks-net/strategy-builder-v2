@@ -77,6 +77,13 @@ export function buildDeployOnChain(
       `/vaults/${draft.vaultAddress}/automations/${draft.automationId}/encode`,
       { graph: draft.rawGraph, contextOverrides: draft.contextOverrides },
     );
+    // Encode-Antwort konsistent? (TS-Typ garantiert das Runtime nicht.)
+    if (enc.requiresContextTx && !enc.contextCalldata) {
+      throw new Error('Encode-Antwort inkonsistent: requiresContextTx=true, aber contextCalldata fehlt.');
+    }
+    if (!enc.automationCalldata) {
+      throw new Error('Encode-Antwort unvollständig: automationCalldata fehlt — kein Deploy.');
+    }
 
     const txHashes: string[] = [];
     if (enc.requiresContextTx && enc.contextCalldata) {
@@ -89,12 +96,21 @@ export function buildDeployOnChain(
       txHashes.push(ctx.hash);
     }
 
-    const auto = await signer.sendRawTransaction({
-      rpcUrl,
-      to: draft.vaultAddress,
-      data: enc.automationCalldata,
-      gasLimit: 2_000_000n,
-    });
+    let auto;
+    try {
+      auto = await signer.sendRawTransaction({
+        rpcUrl,
+        to: draft.vaultAddress,
+        data: enc.automationCalldata,
+        gasLimit: 2_000_000n,
+      });
+    } catch (err) {
+      const ctxNote = txHashes.length > 0
+        ? ` Kontext-TX ${txHashes[0]} ist bereits bestätigt (Vault-Kontext mutiert) —`
+        : '';
+      const detail = err instanceof Error ? err.message : String(err);
+      throw new Error(`Automation-TX fehlgeschlagen:${ctxNote} ${detail}`);
+    }
     txHashes.push(auto.hash);
 
     let onChainId: number | undefined;
@@ -105,15 +121,28 @@ export function buildDeployOnChain(
       }
     }
     if (onChainId === undefined) {
-      throw new Error('On-Chain-Automation-ID konnte nicht aus der Transaktion gelesen werden.');
+      throw new Error(
+        `Automation on-chain erstellt (TX ${auto.hash}), aber On-Chain-ID nicht lesbar.`,
+      );
     }
 
-    await backend.patch(`/vaults/${draft.vaultAddress}/automations/${draft.automationId}`, {
-      onChainId,
-      txHash: auto.hash,
-      ownerOnly: enc.ownerOnly,
-      stepCount: enc.stepCount,
-    });
+    try {
+      await backend.patch(`/vaults/${draft.vaultAddress}/automations/${draft.automationId}`, {
+        onChainId,
+        txHash: auto.hash,
+        ownerOnly: enc.ownerOnly,
+        stepCount: enc.stepCount,
+      });
+    } catch (err) {
+      // On-chain erfolgreich, Backend-Registrierung fehlgeschlagen → Recovery-Infos
+      // surfacen (landen via PolicyGate-Audit im detail-Feld).
+      const detail = err instanceof Error ? err.message : String(err);
+      throw new Error(
+        `Automation on-chain deployt (onChainId=${onChainId}, TX ${auto.hash}), Backend-` +
+          `Registrierung fehlgeschlagen: ${detail}. Bitte PATCH /vaults/${draft.vaultAddress}` +
+          `/automations/${draft.automationId} manuell wiederholen.`,
+      );
+    }
 
     return { onChainId, txHashes };
   };

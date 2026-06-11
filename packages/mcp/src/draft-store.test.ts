@@ -8,6 +8,7 @@ const draft: Draft = {
   contextOverrides: {},
   ownerOnly: false,
   summary: { steps: [], execution: 'public', warnings: [] },
+  catalog: {},
 };
 
 describe('DraftStore', () => {
@@ -32,6 +33,14 @@ describe('DraftStore', () => {
     expect(store.get('d')).toEqual(draft); // noch gültig
     now = 1101;
     expect(store.get('d')).toBeUndefined(); // abgelaufen
+  });
+
+  it('consume liefert den Entwurf genau einmal (Replay-Schutz)', () => {
+    const store = new DraftStore({ genId: () => 'd' });
+    store.create(draft);
+    expect(store.consume('d')).toEqual(draft);
+    expect(store.consume('d')).toBeUndefined(); // einmalig
+    expect(store.get('d')).toBeUndefined();
   });
 
   it('hat keinen Update-Pfad — der gespeicherte Graph ist immutabel (LLM kann ihn nicht ändern)', () => {
