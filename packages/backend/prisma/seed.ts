@@ -4,6 +4,7 @@ import * as path from 'path';
 import { RECIPES } from '../src/recipe/recipe-seed-data';
 import { buildCatalog, validateRecipeShape } from '../src/recipe/recipe-validation';
 import { STEP_TYPE_CATALOG } from './seed/step-types';
+import { PANCAKESWAP_BSC_TOKENS, AAVE_BSC_TOKENS } from './seed/catalog/tokens';
 
 const prisma = new PrismaClient();
 
@@ -99,31 +100,6 @@ function loadContractAddresses(): Record<string, string> {
       '0x0000000000000000000000000000000000000000',
   };
 }
-
-// Curated PancakeSwap V3 test pairs (BSC, all 18 decimals) — standard ERC-20s
-// only (no fee-on-transfer / rebasing). `decimals` feeds the frontend
-// tokenDecimals map for correct token-amount → base-units conversion.
-const PANCAKESWAP_BSC_TOKENS = [
-  { symbol: 'WBNB', address: '0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c', decimals: 18 },
-  { symbol: 'USDT', address: '0x55d398326f99059fF775485246999027B3197955', decimals: 18 },
-  { symbol: 'USDC', address: '0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d', decimals: 18 },
-  { symbol: 'BTCB', address: '0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c', decimals: 18 },
-  { symbol: 'ETH', address: '0x2170Ed0880ac9A755fd29B2688956BD959F933F8', decimals: 18 },
-  { symbol: 'CAKE', address: '0x0E09FaBB73Bd3Ade0a17ECC321fD13a19e81cE82', decimals: 18 },
-];
-
-// Curated Aave V3 BSC reserves (all 18 decimals on BSC). `decimals` feeds the
-// frontend tokenDecimals map for correct token-amount → base-units conversion.
-const AAVE_BSC_TOKENS = [
-  { symbol: 'WBNB', address: '0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c', decimals: 18 },
-  { symbol: 'USDT', address: '0x55d398326f99059fF775485246999027B3197955', decimals: 18 },
-  { symbol: 'USDC', address: '0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d', decimals: 18 },
-  { symbol: 'BTCB', address: '0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c', decimals: 18 },
-  { symbol: 'ETH', address: '0x2170Ed0880ac9A755fd29B2688956BD959F933F8', decimals: 18 },
-  { symbol: 'CAKE', address: '0x0E09FaBB73Bd3Ade0a17ECC321fD13a19e81cE82', decimals: 18 },
-  { symbol: 'FDUSD', address: '0xc5f0f7b66764F6ec8C8Dff7BA683102295E16409', decimals: 18 },
-  { symbol: 'wstETH', address: '0x26c5e01524d2E6280A48F2c50fF6De7e52E9611C', decimals: 18 },
-];
 
 
 async function main() {

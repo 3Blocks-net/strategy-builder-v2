@@ -49,19 +49,19 @@ R1 (split) under an equivalence assertion. TDD per slice (RED → GREEN → REFA
 ## 4. Catalog de-monolithization (R1, behaviour-neutral)
 
 - [x] 4.1 Snapshot/equivalence baseline established (catalog-hash assertion; identical after extraction).
-- [ ] 4.2 Split `prisma/seed/step-types.ts` further into per-domain modules under
+- [x] 4.2 Split `prisma/seed/step-types.ts` further into per-domain modules under
       `prisma/seed/catalog/` (`core`/`aave`/`pancakeswap`) + `tokens`/`recipes` — pure move, no
       value edits. (Single-module extraction done in 0.1; per-domain split pending.)
-- [ ] 4.3 Reduce `seed.ts` to a thin orchestrator: import + concatenate the modules, run the
+- [x] 4.3 Reduce `seed.ts` to a thin orchestrator: import + concatenate the modules, run the
       existing deployed-catalog validation + upserts unchanged. (Largely done in 0.2; finalize with 4.2.)
-- [ ] 4.4 Equivalence assertion: composed catalog deep-equals the 4.1 snapshot (no added/removed/
+- [x] 4.4 Equivalence assertion: composed catalog deep-equals the 4.1 snapshot (no added/removed/
       changed entries). Re-seed locally and confirm identical DB rows.
 
 ## 5. Definition of Done
 
-- [ ] 5.1 `pnpm backend:test` green (guard + equivalence); `pnpm --filter shared test` green if
+- [x] 5.1 `pnpm backend:test` green (guard + equivalence); `pnpm --filter shared test` green if
       helpers were touched.
-- [ ] 5.2 `openspec validate harden-step-catalog --strict` passes.
-- [ ] 5.3 Re-seed (`pnpm db:seed`) produces the identical catalog; MCP `describe_step_type` and
+- [x] 5.2 `openspec validate harden-step-catalog --strict` passes.
+- [x] 5.3 Re-seed (`pnpm db:seed`) produces the identical catalog; MCP `describe_step_type` and
       the editor render unchanged (spot-check Aave Borrow TARGET_HF).
 - [ ] 5.4 Code-review without open hard blockers.
