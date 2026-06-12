@@ -70,10 +70,10 @@ recipes. Everything else reuses existing actions.
 
 ## 6. Definition of Done
 
-- [ ] 6.1 `hardhat test` green (condition fork tests incl. in/out/wick/cooldown/cardinality-revert).
-- [ ] 6.2 `pnpm backend:test` green (catalog integrity + recipe seed validation); reseed identical
+- [x] 6.1 `hardhat test` green (condition fork tests incl. in/out/wick/cooldown/cardinality-revert).
+- [x] 6.2 `pnpm backend:test` green (catalog integrity + recipe seed validation); reseed identical
       except the intended new entries.
-- [ ] 6.3 `openspec validate wick-and-wait-strategy --strict` passes.
+- [x] 6.3 `openspec validate wick-and-wait-strategy --strict` passes.
 - [ ] 6.4 Manual fork run: instantiate the three automations on a vault, exercise a real rebalance
       (persistent move) and confirm a wick does NOT trigger; auto-compound increases the position.
 - [ ] 6.5 Code-review without open hard blockers.

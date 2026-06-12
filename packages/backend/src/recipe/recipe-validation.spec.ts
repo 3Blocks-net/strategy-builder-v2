@@ -1,24 +1,10 @@
 import { buildCatalog, validateRecipeShape, type RecipeShape } from './recipe-validation';
 import { RECIPES } from './recipe-seed-data';
+import { STEP_TYPE_CATALOG } from '../../prisma/seed/step-types';
 
-const catalog = buildCatalog([
-  { name: 'Interval Condition', paramSchema: { properties: { interval: {}, startTime: {}, timeSlot: {} } } },
-  {
-    name: 'PancakeSwap V3 Swap',
-    paramSchema: { properties: { tokenIn: {}, tokenOut: {}, fee: {}, amountIn: {} } },
-  },
-  {
-    name: 'Aave V3 Supply',
-    paramSchema: { properties: { asset: {}, mode: {}, amount: {}, amountFromSlot: {}, targetHealthFactor: {}, amountToSlot: {} } },
-  },
-  { name: 'PancakeSwap V3 Collect', paramSchema: { properties: { tokenIdFromSlot: {} } } },
-  {
-    name: 'PancakeSwap V3 Increase Liquidity',
-    paramSchema: {
-      properties: { tokenA: {}, tokenB: {}, tokenIdFromSlot: {}, amountADesired: {}, amountAFromSlot: {}, amountBDesired: {}, amountBFromSlot: {} },
-    },
-  },
-]);
+// Build the fixture from the real catalog so the "all recipes valid" check can't
+// drift when a new step type or recipe is added (mirrors the integrity guard).
+const catalog = buildCatalog(STEP_TYPE_CATALOG);
 
 describe('validateRecipeShape', () => {
   it('akzeptiert eine katalog-konforme Form', () => {
