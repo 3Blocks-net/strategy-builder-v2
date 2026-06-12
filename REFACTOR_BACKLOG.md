@@ -11,8 +11,9 @@ nur referenziert.
 
 | # | Auffälligkeit | Datei(en) | Aufwand | Wert | Status |
 |---|---|---|---|---|---|
-| R1 | `seed.ts`-Monolith aufteilen | `backend/prisma/seed.ts` | M | Hoch | → `harden-step-catalog` |
-| R2 | Schema↔Contract-Integritäts-Guard | `backend` Test | S–M | Hoch | → `harden-step-catalog` |
+| R1 | `seed.ts`-Monolith aufteilen | `backend/prisma/seed.ts` | M | Hoch | ✅ `harden-step-catalog` |
+| R2 | Schema↔Contract-Integritäts-Guard | `backend` Test | S–M | Hoch | ✅ `harden-step-catalog` |
+| R7 | harden-step-catalog Review-Follow-ups | `backend/src/catalog` | S | Niedrig–Mittel | offen |
 | R3 | `dynamic-form.tsx` God-File + Widget-`if`-Kette | `frontend` | M | Mittel | offen |
 | R4 | Cross-Package-Konstanten dupliziert | mehrere | S–M | Mittel | offen |
 | R5 | `cockpit.module` Adapter-Factory koppelt 3 Edits | `backend` | S | Niedrig | offen |
@@ -85,6 +86,30 @@ importieren direkt aus der Modul-Datei).
 öffentliche API-Oberfläche auf das tatsächlich Konsumierte.
 
 ---
+
+## R7 — harden-step-catalog: deferred Review-Findings
+
+Aus dem `/code-review` des Branches (alle non-blocking; die zwei Hard-Recommendations
+— Withdraw `x-ui-modes`, `\breserved\b`-Regex — sind bereits gefixt). Offen:
+
+- **Äquivalenz-Test fehlt (Refactor-Schutz):** Task 4.4 ist nur ein **manueller** Hash-Check,
+  kein committeter CI-Test. Ein kleiner Snapshot-/Deep-Equal-Test über `STEP_TYPE_CATALOG`
+  würde stille Mutationen bei künftigen Katalog-Edits blocken.
+- **Guard-Edge-Cases ungetestet:** null/leeres `abiFragment`/`paramSchema`; ein Step mit
+  Capability aber ohne `aave-amount-mode`-Feld (Mode-Regeln skippen, ABI/Rollen-Regeln greifen);
+  ein Step ohne Capability; der `?? zero-address`-Fallback in `seed.ts`.
+- **`AMOUNT_MODE_WIDGET` ist ein einzelner Hardcode** (`catalog-integrity.ts:48`) → bei einem
+  künftigen Nicht-Aave-Mode-Widget skippt der Guard dessen Mode-Regeln still. Zu `Set` generalisieren.
+- **`FRIENDLY_WIDGETS` spiegelt `shared/encode-boundary.ts`** ohne Compile-Link → ein neues
+  friendly-Widget dort ohne Guard-Update erzeugt false-positive `abi-schema-drift`-CI-Fails.
+  Guard-Test ergänzen oder das Set aus `shared` exportieren.
+- **`ACTION_CAPABILITIES`-Keys nicht compile-gelinkt** zu den Katalog-`contractKey`-Werten →
+  ein Rename trennt die Capability-Lookup still. Key-Konstanten exportieren.
+- **`StepTypeDef.paramSchema`/`abiFragment` sind `unknown`** → erzwingt den
+  `as Parameters<…>[0]`-Cast im Rollen-Check. Mit `shared` `ParamSchema`/`AbiFragment` typisieren,
+  Cast entfällt, `satisfies` erzwingt die Form.
+- **tsconfig-Pfad-Alias** für den `src/`-Test-Import aus `prisma/seed/step-types` (stabil, falls
+  der Katalog später nach `shared` wandert).
 
 ## Bereits getrackt (archivierter Change `add-mcp-server`, §15)
 
