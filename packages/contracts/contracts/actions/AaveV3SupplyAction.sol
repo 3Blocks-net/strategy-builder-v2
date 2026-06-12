@@ -16,12 +16,13 @@ import "../libraries/ActionLib.sol";
  *         delegatecall — runs in the vault's storage/balance context, so the
  *         supplied aTokens belong to the vault.
  *
- * Amount modes (this slice)
- * ─────────────────────────
+ * Amount modes
+ * ────────────
  *   FIXED         — supply the exact `amount`.
  *   FROM_SLOT     — supply the amount read from `amountFromSlot`.
  *   MAX_AVAILABLE — supply the full vault balance of `asset`.
- *   TARGET_HF     — reserved; reverts until the HF/oracle slice ships it.
+ *   TARGET_HF     — supply collateral until the position's health factor rises to
+ *                   `targetHealthFactor` (no-op when already at/above it).
  *
  * Approval hygiene
  * ────────────────
@@ -42,7 +43,7 @@ contract AaveV3SupplyAction is IAction {
         uint8 mode; // ActionLib.AmountMode
         uint256 amount; // FIXED amount
         uint32 amountFromSlot; // FROM_SLOT source (else NO_SLOT)
-        uint256 targetHealthFactor; // TARGET_HF target (later slice)
+        uint256 targetHealthFactor; // TARGET_HF target (WAD, 1e18)
         uint32 amountToSlot; // optional: write supplied amount (else NO_SLOT)
     }
 

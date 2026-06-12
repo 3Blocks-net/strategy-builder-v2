@@ -36,15 +36,24 @@ R1 (split) under an equivalence assertion. TDD per slice (RED → GREEN → REFA
 - [ ] 3.2 Confirm it passes GREEN on today's (already-corrected) catalog; verify it would have
       caught the TARGET_HF drift (temporarily reintroduce the stale text in a test, not in seed).
 
+## 0. Enabling extraction + contract-doc fixes (done this session)
+
+- [x] 0.1 Extract the static catalog into `prisma/seed/step-types.ts`
+      (`STEP_TYPE_CATALOG`, `contractKey` instead of resolved address; `satisfies StepTypeDef[]`
+      preserves the concrete JSON literal types Prisma/recipe-validation need). seed.ts: 1199→250 LOC.
+- [x] 0.2 `seed.ts` maps `contractKey → address` and strips the key (Prisma-valid upsert).
+- [x] 0.3 Behaviour-neutral verified: catalog hash identical before/after reseed (`5088dccee0824f4e`).
+- [x] 0.4 De-stale the 3 remaining contract comment blocks (Supply/Withdraw/Repay) — TARGET_HF is
+      live in code (`_targetHf*`), comments said "reserved/later slice" (same drift as Borrow).
+
 ## 4. Catalog de-monolithization (R1, behaviour-neutral)
 
-- [ ] 4.1 Snapshot the current composed catalog (sorted/normalized) as the equivalence fixture
-      (D5) — captured BEFORE moving any code.
-- [ ] 4.2 Extract per-domain modules under `prisma/seed/catalog/`: `core.ts` (conditions, fee,
-      transfer), `aave.ts`, `pancakeswap.ts`, `tokens.ts`, `recipes.ts` — pure move + re-export,
-      no value edits.
+- [x] 4.1 Snapshot/equivalence baseline established (catalog-hash assertion; identical after extraction).
+- [ ] 4.2 Split `prisma/seed/step-types.ts` further into per-domain modules under
+      `prisma/seed/catalog/` (`core`/`aave`/`pancakeswap`) + `tokens`/`recipes` — pure move, no
+      value edits. (Single-module extraction done in 0.1; per-domain split pending.)
 - [ ] 4.3 Reduce `seed.ts` to a thin orchestrator: import + concatenate the modules, run the
-      existing deployed-catalog validation + upserts unchanged.
+      existing deployed-catalog validation + upserts unchanged. (Largely done in 0.2; finalize with 4.2.)
 - [ ] 4.4 Equivalence assertion: composed catalog deep-equals the 4.1 snapshot (no added/removed/
       changed entries). Re-seed locally and confirm identical DB rows.
 
