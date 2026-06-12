@@ -56,6 +56,9 @@ async function main() {
   const PancakeSwapV3DecreaseLiquidityAction = await deploy("PancakeSwapV3DecreaseLiquidityAction", [PancakeSwapV3Registry]);
   const PancakeSwapV3CollectAction = await deploy("PancakeSwapV3CollectAction", [PancakeSwapV3Registry]);
 
+  console.log("Deploying Wick-&-Wait rebalance condition...");
+  const WickWaitRebalanceCondition = await deploy("WickWaitRebalanceCondition", [PancakeSwapV3Registry]);
+
   const additions = {
     AaveV3Registry,
     AaveV3SupplyAction,
@@ -68,6 +71,7 @@ async function main() {
     PancakeSwapV3IncreaseLiquidityAction,
     PancakeSwapV3DecreaseLiquidityAction,
     PancakeSwapV3CollectAction,
+    WickWaitRebalanceCondition,
   };
 
   const outPath = join(__dirname, "../deployments/fork-latest.json");

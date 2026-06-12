@@ -52,6 +52,9 @@ function loadContractAddresses(): Record<string, string> {
       PancakeSwapV3CollectAction:
         data.PancakeSwapV3CollectAction ??
         '0x0000000000000000000000000000000000000000',
+      WickWaitRebalanceCondition:
+        data.WickWaitRebalanceCondition ??
+        '0x0000000000000000000000000000000000000000',
     };
   }
 
@@ -97,6 +100,9 @@ function loadContractAddresses(): Record<string, string> {
       '0x0000000000000000000000000000000000000000',
     PancakeSwapV3CollectAction:
       process.env.PANCAKESWAP_V3_COLLECT_ACTION_ADDRESS ??
+      '0x0000000000000000000000000000000000000000',
+    WickWaitRebalanceCondition:
+      process.env.WICK_WAIT_REBALANCE_CONDITION_ADDRESS ??
       '0x0000000000000000000000000000000000000000',
   };
 }

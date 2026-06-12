@@ -281,4 +281,60 @@ export const CORE_STEP_TYPES = [
         required: ['feeRegistry', 'token', 'topUpAmount'],
       },
     },
+    {
+      name: 'Wick & Wait Rebalance',
+      description:
+        'Fires only when the pool’s time-weighted-average price has left the open position’s range for the configured window (so short wicks are ignored) and a cooldown since the last rebalance has elapsed. Use it as the trigger of a concentrated-liquidity rebalance automation.',
+      category: StepCategory.CONDITION,
+      contractKey: 'WickWaitRebalanceCondition',
+      selector: CHECK_SELECTOR,
+      afterExecutionSelector: AFTER_EXECUTION_SELECTOR,
+      abiFragment: {
+        type: 'tuple',
+        components: [
+          { name: 'tokenIdSlot', type: 'uint32' },
+          { name: 'twapWindow', type: 'uint32' },
+          { name: 'cooldown', type: 'uint256' },
+          { name: 'lastRebalanceSlot', type: 'uint32' },
+        ],
+      },
+      paramSchema: {
+        type: 'object',
+        properties: {
+          tokenIdSlot: {
+            type: 'integer',
+            title: 'Position Token-Id Slot',
+            description:
+              'Context slot holding the LP position token-id (written by the Mint action). The condition reads the position’s range and pool from it.',
+            'x-ui-widget': 'context-slot',
+            'x-ui-slot-access': 'read',
+          },
+          twapWindow: {
+            type: 'object',
+            title: 'TWAP Window',
+            description:
+              'The averaging window. A move shorter than this (a wick) barely shifts the average and does not trigger a rebalance. Conservative 1h / Balanced 30m / Aggressive 10m.',
+            'x-ui-widget': 'duration',
+            default: { value: 30, unit: 'minutes' },
+          },
+          cooldown: {
+            type: 'object',
+            title: 'Rebalance Cooldown',
+            description:
+              'Minimum time between rebalances, so small positions are not rebalanced too often. The trigger stays silent until this has elapsed since the last rebalance.',
+            'x-ui-widget': 'duration',
+            default: { value: 3, unit: 'days' },
+          },
+          lastRebalanceSlot: {
+            type: 'integer',
+            title: 'Last-Rebalance Slot',
+            description:
+              'Context slot storing the timestamp of the last rebalance. Advanced automatically after each firing; 0 means never rebalanced.',
+            'x-ui-widget': 'context-slot',
+            'x-ui-slot-access': 'read-write',
+          },
+        },
+        required: ['tokenIdSlot', 'twapWindow', 'cooldown', 'lastRebalanceSlot'],
+      },
+    },
 ] satisfies StepTypeDef[];

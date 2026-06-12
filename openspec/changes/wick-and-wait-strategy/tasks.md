@@ -28,12 +28,12 @@ recipes. Everything else reuses existing actions.
 
 ## 3. Deploy + catalog entry
 
-- [ ] 3.1 Add `WickWaitRebalanceCondition` to the fork deploy script; write its address to
+- [x] 3.1 Add `WickWaitRebalanceCondition` to the fork deploy script; write its address to
       `deployments/fork-latest.json` + `loadContractAddresses()`.
-- [ ] 3.2 Seed catalog entry under `prisma/seed/catalog/` (new `conditions`/extend `core`): `name`,
+- [x] 3.2 Seed catalog entry under `prisma/seed/catalog/` (new `conditions`/extend `core`): `name`,
       `category: CONDITION`, `selector`, `abiFragment`, `paramSchema` with `x-ui` widgets/roles
       (token-id context-slot field, duration widget for `W`, duration for cooldown, etc.).
-- [ ] 3.3 Confirm `checkCatalogIntegrity` passes for the new entry (ABI↔schema lockstep, role
+- [x] 3.3 Confirm `checkCatalogIntegrity` passes for the new entry (ABI↔schema lockstep, role
       resolution, no stale phrases); reseed (`pnpm db:seed`) and verify it serves.
 
 ## 4. Off-chain single-sided sizing
