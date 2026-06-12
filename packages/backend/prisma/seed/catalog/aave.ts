@@ -128,6 +128,7 @@ export const AAVE_STEP_TYPES = [
             'x-ui-amount-token-field': 'asset',
             'x-ui-slot-field': 'amountFromSlot',
             'x-ui-target-hf-field': 'targetHealthFactor',
+            'x-ui-modes': [0, 1, 2, 3],
             'x-ui-max-label': 'Withdraw everything',
             'x-ui-max-note':
               'Withdraws your entire supplied balance of the selected token from Aave.',

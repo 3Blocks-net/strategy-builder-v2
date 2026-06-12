@@ -36,7 +36,7 @@ export interface Violation {
 }
 
 /** Availability disclaimers that must not appear on an *offered* field. */
-const STALE_PHRASES = [/not yet available/i, /later slice/i, /reserved for/i];
+const STALE_PHRASES = [/not yet available/i, /later slice/i, /\breserved\b/i];
 
 /**
  * Widgets the shared encode-boundary (`mapParamsToRaw`) strips as friendly-only,

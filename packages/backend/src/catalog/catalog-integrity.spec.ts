@@ -80,6 +80,13 @@ describe('checkCatalogIntegrity — rules', () => {
     expect(v.map((x) => x.rule)).not.toContain('stale-phrase');
   });
 
+  it('2.4 catches the bare Solidity wording "reserved; reverts…"', () => {
+    const v = checkCatalogIntegrity([
+      aaveEntry({ hfDescription: 'reserved; reverts until the HF/oracle slice ships it.' }),
+    ]);
+    expect(v.find((x) => x.rule === 'stale-phrase')?.field).toBe('targetHealthFactor');
+  });
+
   it('2.5 abiFragment component without a schema property → abi-schema-drift', () => {
     const e = aaveEntry();
     (e.abiFragment as { components: { name: string; type: string }[] }).components.push({
