@@ -64,4 +64,4 @@ R1 (split) under an equivalence assertion. TDD per slice (RED → GREEN → REFA
 - [x] 5.2 `openspec validate harden-step-catalog --strict` passes.
 - [x] 5.3 Re-seed (`pnpm db:seed`) produces the identical catalog; MCP `describe_step_type` and
       the editor render unchanged (spot-check Aave Borrow TARGET_HF).
-- [ ] 5.4 Code-review without open hard blockers.
+- [x] 5.4 Code-review without open hard blockers (APPROVE — Withdraw x-ui-modes + stale-phrase regex fixed; rest tracked as R7 in REFACTOR_BACKLOG).
