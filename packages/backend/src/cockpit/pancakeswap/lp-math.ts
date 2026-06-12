@@ -84,3 +84,44 @@ export function getAmountsForLiquidity(
   }
   return { amount0, amount1 };
 }
+
+/**
+ * Single-sided **entry sizing** for a concentrated-liquidity position.
+ *
+ * The Wick-&-Wait strategy always starts from the vault's deposit token (one LP
+ * leg). Given the current tick and the chosen range, this returns the fraction
+ * (0..1) of the deposit token to swap into the *other* pool token so the resulting
+ * two-token balance matches the position's required ratio at the current price; the
+ * remainder of the deposit token is provided as-is.
+ *
+ * Off-chain hint (dust-tolerant — price impact/slippage are not modelled): the
+ * recipe multiplies this by the deposit balance to get the swap amount.
+ *
+ * @param currentTick      pool.slot0().tick (or the TWAP tick)
+ * @param tickLower        position lower tick
+ * @param tickUpper        position upper tick
+ * @param depositIsToken0  true when the vault deposit token is the pool's token0
+ */
+export function depositSwapFraction(
+  currentTick: number,
+  tickLower: number,
+  tickUpper: number,
+  depositIsToken0: boolean,
+): number {
+  if (tickLower >= tickUpper) throw new Error('lp-math: tickLower must be < tickUpper');
+  const sp = getSqrtRatioAtTick(currentTick);
+  const spa = getSqrtRatioAtTick(tickLower);
+  const spb = getSqrtRatioAtTick(tickUpper);
+  const { amount0, amount1 } = getAmountsForLiquidity(sp, spa, spb, Q96);
+
+  // value0 (in token1 units) ∝ amount0 · price = amount0 · sp²/Q96². Compare value0
+  // and value1 in the same scaled units (× Q96²) to keep BigInt precision.
+  const v0 = amount0 * sp * sp;
+  const v1 = amount1 * Q96 * Q96;
+  const total = v0 + v1;
+  // r0 = fraction of the position's value that must be held as token0.
+  const r0 = total === 0n ? 0 : Number((v0 * 1_000_000_000_000_000_000n) / total) / 1e18;
+
+  // Deposit is token0 → swap the token1 share (1 − r0); deposit is token1 → swap r0.
+  return depositIsToken0 ? 1 - r0 : r0;
+}

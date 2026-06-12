@@ -38,10 +38,10 @@ recipes. Everything else reuses existing actions.
 
 ## 4. Off-chain single-sided sizing
 
-- [ ] 4.1 Add/extend a shared `lp-math` helper that, given pool price + chosen range, returns the
+- [x] 4.1 Add/extend a shared `lp-math` helper that, given pool price + chosen range, returns the
       fraction of the deposit token to swap into the other token for a balanced fill. Unit-test it
       against known range/price cases.
-- [ ] 4.2 Expose the computed fraction as the Swap action's amount input (param/slot) in the recipe
+- [ ] 4.2 (pairs with Task 5; helper lives in backend lp-math — promote to `shared` or a backend endpoint for frontend/MCP) Expose the computed fraction as the Swap action's amount input (param/slot) in the recipe
       builders (frontend/MCP consume the helper). No on-chain sizing contract.
 
 ## 5. Three curated recipes + presets
