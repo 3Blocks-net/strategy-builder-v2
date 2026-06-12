@@ -16,16 +16,16 @@ import "../libraries/ActionLib.sol";
  *         repaid debt belongs to the vault. Interest-rate mode is always `2`
  *         (variable) — the deprecated stable path is disabled on Aave V3.
  *
- * Amount modes (this slice — simple only)
- * ───────────────────────────────────────
+ * Amount modes
+ * ────────────
  *   FIXED         — repay the exact `amount` (Aave caps at the outstanding debt).
  *   FROM_SLOT     — repay the amount read from `amountFromSlot`.
  *   MAX_AVAILABLE — "repay full debt", revert-free: caps at `min(debt, balance)`.
  *                   Passes `uint256.max` (Aave repays the whole debt) when the
  *                   balance covers it, otherwise repays the full balance. If
  *                   there is no debt or no balance it is a no-op.
- *
- * `TARGET_HF` requires the HF/oracle engine and is a later slice (reverts here).
+ *   TARGET_HF     — repay debt until the position's health factor rises to
+ *                   `targetHealthFactor` (no-op when already at/above it).
  *
  * Approval hygiene: `forceApprove` the amount the Pool may pull, then
  * `forceApprove(pool, 0)` after (Repay-MAX over-approves vs. what is consumed).
@@ -47,7 +47,7 @@ contract AaveV3RepayAction is IAction {
         uint8 mode; // ActionLib.AmountMode
         uint256 amount; // FIXED amount
         uint32 amountFromSlot; // FROM_SLOT source (else NO_SLOT)
-        uint256 targetHealthFactor; // TARGET_HF target (later slice)
+        uint256 targetHealthFactor; // TARGET_HF target (WAD, 1e18)
         uint32 amountToSlot; // optional: write the ACTUAL repaid amount
     }
 

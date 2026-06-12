@@ -15,14 +15,15 @@ import "../libraries/ActionLib.sol";
  *         vault. Called via delegatecall — the burned aTokens and the received
  *         underlying belong to the vault.
  *
- * Amount modes (this slice — simple only)
- * ───────────────────────────────────────
+ * Amount modes
+ * ────────────
  *   FIXED         — withdraw the exact `amount`.
  *   FROM_SLOT     — withdraw the amount read from `amountFromSlot`.
  *   MAX_AVAILABLE — "withdraw everything": passes `type(uint256).max`, so Aave
- *                   withdraws the full aToken balance. (The debt-aware
- *                   max-safe-withdraw and TARGET_HF paths are a later slice; if
- *                   an open loan would breach the health factor, Aave reverts.)
+ *                   withdraws the full aToken balance. (If an open loan would
+ *                   breach the health factor, Aave reverts.)
+ *   TARGET_HF     — withdraw collateral until the position's health factor drops
+ *                   to `targetHealthFactor` (no-op when already at/below it).
  *
  * No approval is needed — `Pool.withdraw` burns the caller's (vault's) aTokens.
  * The **actual** withdrawn amount returned by the Pool (which differs from the
@@ -39,7 +40,7 @@ contract AaveV3WithdrawAction is IAction {
         uint8 mode; // ActionLib.AmountMode
         uint256 amount; // FIXED amount
         uint32 amountFromSlot; // FROM_SLOT source (else NO_SLOT)
-        uint256 targetHealthFactor; // TARGET_HF target (later slice)
+        uint256 targetHealthFactor; // TARGET_HF target (WAD, 1e18)
         uint32 amountToSlot; // optional: write the ACTUAL withdrawn amount
     }
 
