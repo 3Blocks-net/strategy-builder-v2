@@ -1,0 +1,41 @@
+{
+  "FeeRegistry": "0x7d88Ac33B16C5797930f59b4729cb538D1bE57Ef",
+  "PriceOracle": "0xEFDE1Fd78Dc46cdbF8fD5918307cc9eaFE6D13ee",
+  "StrategyBuilderVault": "0x4ED6480801926839042f8C51BB095780602A04a9",
+  "StrategyBuilderVaultFactory": "0x7Ce339f98214F15a8010BD0D869B6f1EDc157Ec4",
+  "TokenBalanceCondition": "0x2bF862a6241DB3673d6a69AE30BBDA6567D70d3a",
+  "IntervalCondition": "0x5AeA8276AbD7b37624f0Ab2b6cA7e3E506Ea0Be3",
+  "TimerCondition": "0x6F4Fdde73B0B51Ba4d1175EA8d74f09AD6556056",
+  "ERC20TransferAction": "0xC6669E9aA18275DD4AE56b0101B0DdB6CE8A31d5",
+  "FeeDepositAction": "0x0596CE2388DFCc36f5b7d57256a35974c8099c70",
+  "AaveV3Registry": "0xD500b712e48e4da4925a80f379baFeA17BdcdFB8",
+  "AaveV3SupplyAction": "0x67910CB1100381f2F58F18E7f756EBD3cAaA3c17",
+  "AaveV3WithdrawAction": "0x3f07ec86eed0756f18da2F48D37ec6879A367726",
+  "AaveV3BorrowAction": "0xd95e75C3d60bF3b00Fa1a9Ddb0551B457b08122E",
+  "AaveV3RepayAction": "0xb67c536a1878F73003FEcE4200fA9C6C60a63ff4",
+  "PancakeSwapV3Registry": "0xa9Bb0Fc410A596197C36d4C3D2f8d5Ce52051C81",
+  "PancakeSwapV3SwapAction": "0x31ceCEb08B22F35924855A87457179663cC2Eced",
+  "PancakeSwapV3MintAction": "0x0dae11b453fDFC8cBc71bBEeb9CaA5C9a0778726",
+  "PancakeSwapV3IncreaseLiquidityAction": "0x3eFAfE21dAA5eeE2474618aF42Ed72AC4a6ad923",
+  "PancakeSwapV3DecreaseLiquidityAction": "0xc0e458b00Cda68b332FC7e624d612f45dD468c8a",
+  "PancakeSwapV3CollectAction": "0xa571c121057f7C6dE664B0b144b53e9164D1dAB5",
+  "config": {
+    "depositFeeBps": 100,
+    "withdrawFeeBps": 50,
+    "acceptedTokens": {
+      "USDT": "0x55d398326f99059fF775485246999027B3197955",
+      "WBNB": "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c"
+    },
+    "gasComp": {
+      "priceOracle": "0xEFDE1Fd78Dc46cdbF8fD5918307cc9eaFE6D13ee",
+      "nativeToken": "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
+      "executorMarkupBps": 1000,
+      "gasOverhead": 50000,
+      "maxGasPrice": 0,
+      "prices": {
+        "WBNB": "600",
+        "USDT": "1"
+      }
+    }
+  }
+}
