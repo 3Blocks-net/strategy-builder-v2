@@ -2,7 +2,6 @@ import {
   MAX_TICK,
   MIN_TICK,
   Q96,
-  depositSwapFraction,
   getAmountsForLiquidity,
   getSqrtRatioAtTick,
 } from './lp-math';
@@ -66,36 +65,6 @@ describe('LpMath (hard fixtures — catches Q96/Q128 scaling errors)', () => {
       const x = getAmountsForLiquidity(Q96 / 2n, a, b, L);
       const y = getAmountsForLiquidity(Q96 / 2n, b, a, L);
       expect(y).toEqual(x);
-    });
-  });
-
-  describe('depositSwapFraction (single-sided entry sizing)', () => {
-    it('symmetric range at the centre → ~50% swap (either deposit token)', () => {
-      expect(depositSwapFraction(0, -1000, 1000, true)).toBeCloseTo(0.5, 2);
-      expect(depositSwapFraction(0, -1000, 1000, false)).toBeCloseTo(0.5, 2);
-    });
-
-    it('price below the range → position is all token0', () => {
-      // deposit token0 ⇒ nothing to swap; deposit token1 ⇒ swap everything to token0.
-      expect(depositSwapFraction(-2000, -1000, 1000, true)).toBe(0);
-      expect(depositSwapFraction(-2000, -1000, 1000, false)).toBe(1);
-    });
-
-    it('price above the range → position is all token1', () => {
-      expect(depositSwapFraction(2000, -1000, 1000, true)).toBe(1);
-      expect(depositSwapFraction(2000, -1000, 1000, false)).toBe(0);
-    });
-
-    it('skewed range (price near the lower bound) → mostly token0, swap little', () => {
-      // current price close to the lower tick ⇒ the position needs mostly token0,
-      // so a token0 deposit swaps only a small fraction.
-      const f = depositSwapFraction(-900, -1000, 1000, true);
-      expect(f).toBeGreaterThan(0);
-      expect(f).toBeLessThan(0.5);
-    });
-
-    it('rejects an inverted range', () => {
-      expect(() => depositSwapFraction(0, 1000, -1000, true)).toThrow();
     });
   });
 });

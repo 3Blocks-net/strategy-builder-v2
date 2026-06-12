@@ -51,6 +51,7 @@ contract PancakeSwapV3SwapToRangeRatioAction is IAction {
     error ZeroToken();
     error SameToken();
     error PoolNotFound();
+    error SqrtPriceTooHigh();
 
     uint256 private constant Q96 = 1 << 96;
 
@@ -78,6 +79,9 @@ contract PancakeSwapV3SwapToRangeRatioAction is IAction {
         int24 spacing = IPancakeV3Pool(pool).tickSpacing();
         int24 tickLower = _roundDown(tick - p.tickDelta, spacing);
         int24 tickUpper = _roundUp(tick + p.tickDelta, spacing);
+        // Same degenerate-range guard as the Mint action — keep the effective range
+        // identical so the swap sizes for exactly the range Mint will open.
+        if (tickLower == tickUpper) tickUpper += spacing;
 
         uint256 sa = TickMath.getSqrtRatioAtTick(tickLower);
         uint256 sb = TickMath.getSqrtRatioAtTick(tickUpper);
@@ -88,7 +92,10 @@ contract PancakeSwapV3SwapToRangeRatioAction is IAction {
         // Target token0 value fraction r0 = A / (A + B):
         //   A = sp·(sb − sp)/sb   (∝ value of the token0 leg)
         //   B = sp − sa           (∝ value of the token1 leg)
-        // sp,sb ≈ 2^96 ⇒ sp·(sb−sp) < 2^192, no full-precision math needed.
+        // sqrtPriceX96 is uint160 (max ≈ 2^160). For the targeted BSC pairs sp,sb stay
+        // below 2^128 so sp·(sb−sp) < 2^256 — fail fast otherwise (extreme-price pools
+        // would need FullMath.mulDiv; tracked as a follow-up).
+        if (sb > type(uint128).max) revert SqrtPriceTooHigh();
         uint256 A = (sp * (sb - sp)) / sb;
         uint256 B = sp - sa;
         uint256 denom = A + B;

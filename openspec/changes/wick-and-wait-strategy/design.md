@@ -70,8 +70,9 @@ residual is dust. No `minOut` in v1 (consistent with `SwapAction`; sandwich risk
 follow-up). **Alternative:** a combined zap-mint action — rejected to keep `Mint` reusable and the
 router out of the mint path.
 
-The off-chain `lp-math.depositSwapFraction` (already built) is retained as a **frontend preview**
-("expected split"), NOT as the execution sizer.
+The off-chain `lp-math.depositSwapFraction` helper was **removed** in code review (dead code — never
+wired; the frontend can't import backend internals). If an "expected split" preview is wanted later,
+build it in `packages/shared` so frontend/MCP can consume it.
 
 ### D6 — Three per-automation recipes, not a bundled "strategy" object
 The recipe model is per-automation; we ship Entry / Rebalance / Auto-Compound as three curated

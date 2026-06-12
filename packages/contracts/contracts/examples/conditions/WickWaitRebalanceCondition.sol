@@ -99,8 +99,11 @@ contract WickWaitRebalanceCondition is IUpdatableCondition {
         if (!breach) return false;
 
         // 4. Cooldown since the last rebalance (unset slot = 0 ⇒ never rebalanced ⇒ not blocked).
+        //    Saturating add so a pathological cooldown (≈ type(uint256).max) cannot
+        //    overflow and permanently brick check() after the first firing.
         uint256 last = _readTimestamp(ctx, p.lastRebalanceSlot);
-        met = block.timestamp >= last + p.cooldown;
+        uint256 unlockAt = last > type(uint256).max - p.cooldown ? type(uint256).max : last + p.cooldown;
+        met = block.timestamp >= unlockAt;
     }
 
     /// @inheritdoc IUpdatableCondition
