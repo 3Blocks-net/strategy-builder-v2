@@ -5,25 +5,25 @@ recipes. Everything else reuses existing actions.
 
 ## 1. Pool TWAP interface + TWAP math helper
 
-- [ ] 1.1 Extend `IPancakeV3Pool` with `observe(uint32[] secondsAgos) → (int56[] tickCumulatives, uint160[] secondsPerLiquidityCumulativeX128s)`.
-- [ ] 1.2 Add a small internal TWAP helper (lib or in-condition): mean tick over `W` =
+- [x] 1.1 Extend `IPancakeV3Pool` with `observe(uint32[] secondsAgos) → (int56[] tickCumulatives, uint160[] secondsPerLiquidityCumulativeX128s)`.
+- [x] 1.2 Add a small internal TWAP helper (lib or in-condition): mean tick over `W` =
       `(tickCumulatives[1] − tickCumulatives[0]) / W`, rounded toward −∞ for negative results
       (mirror Uniswap `OracleLibrary.consult`). Unit-test the rounding/sign edge cases.
 
 ## 2. WickWaitRebalanceCondition (contract, TDD fork tests)
 
-- [ ] 2.1 RED: fork test scaffold against a live BSC PCS-V3 pool with sufficient observation
+- [x] 2.1 RED: fork test scaffold against a live BSC PCS-V3 pool with sufficient observation
       cardinality — fixtures for in-range, persistent-out-of-range, brief-wick, and cooldown.
-- [ ] 2.2 GREEN: `check()` reads `tokenId` from a context slot → `positions(tokenId)` for
+- [x] 2.2 GREEN: `check()` reads `tokenId` from a context slot → `positions(tokenId)` for
       `tickLower/tickUpper` + `token0/token1/fee`; derives the pool via the V3 factory (D3);
       computes the TWAP tick over `W`; `met = TWAP outside [tickLower, tickUpper)`.
-- [ ] 2.3 GREEN: fold in the cooldown — `met = breach AND (now − lastRebalance ≥ cooldown)`;
+- [x] 2.3 GREEN: fold in the cooldown — `met = breach AND (now − lastRebalance ≥ cooldown)`;
       unset/zero last-rebalance slot ⇒ not blocked (first run fires).
-- [ ] 2.4 GREEN: `afterExecution()` returns the slot diff setting `lastRebalance = block.timestamp`.
-- [ ] 2.5 GREEN: insufficient cardinality ⇒ `observe` reverts and the revert propagates (no
+- [x] 2.4 GREEN: `afterExecution()` returns the slot diff setting `lastRebalance = block.timestamp`.
+- [x] 2.5 GREEN: insufficient cardinality ⇒ `observe` reverts and the revert propagates (no
       false-negative "in range"); test it.
-- [ ] 2.6 Wick-robustness fork test: a brief spike out and back within `W` keeps the TWAP in range ⇒ no fire.
-- [ ] 2.7 REFACTOR: params struct (`tokenIdSlot`, `twapWindow W`, `cooldown`, `lastRebalanceSlot`),
+- [x] 2.6 Wick-robustness fork test: a brief spike out and back within `W` keeps the TWAP in range ⇒ no fire.
+- [x] 2.7 REFACTOR: params struct (`tokenIdSlot`, `twapWindow W`, `cooldown`, `lastRebalanceSlot`),
       custom errors, NatSpec; no state variables (delegatecall/staticcall-safe).
 
 ## 3. Deploy + catalog entry

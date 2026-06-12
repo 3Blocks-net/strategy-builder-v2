@@ -55,18 +55,33 @@ contract MockPancakeV3SwapRouter is IPancakeV3SwapRouter {
     }
 }
 
-/// @dev PancakeSwap V3 pool stand-in exposing a configurable tick + spacing.
+/// @dev PancakeSwap V3 pool stand-in exposing a configurable spot tick + spacing
+///      and a configurable TWAP mean tick for the cumulative-tick oracle.
 contract MockPancakeV3Pool is IPancakeV3Pool {
     int24 public override tickSpacing;
     int24 public currentTick;
     address public override token0;
     address public override token1;
 
+    // TWAP oracle stand-in: `observe` returns cumulative ticks whose mean equals
+    // `twapTick`; `observeReverts` simulates insufficient observation cardinality.
+    int24 public twapTick;
+    bool public observeReverts;
+
     constructor(address t0, address t1, int24 spacing, int24 tick) {
         token0 = t0;
         token1 = t1;
         tickSpacing = spacing;
         currentTick = tick;
+        twapTick = tick;
+    }
+
+    function setTwapTick(int24 t) external {
+        twapTick = t;
+    }
+
+    function setObserveReverts(bool r) external {
+        observeReverts = r;
     }
 
     function slot0()
@@ -76,6 +91,24 @@ contract MockPancakeV3Pool is IPancakeV3Pool {
         returns (uint160, int24, uint16, uint16, uint16, uint32, bool)
     {
         return (0, currentTick, 0, 0, 0, 0, true);
+    }
+
+    /// For `secondsAgos = [W, 0]` returns cumulatives whose difference over W is
+    /// exactly `twapTick · W`, so the consumer's mean = `twapTick`.
+    function observe(
+        uint32[] calldata secondsAgos
+    )
+        external
+        view
+        override
+        returns (int56[] memory tickCumulatives, uint160[] memory secondsPerLiquidityCumulativeX128s)
+    {
+        if (observeReverts) revert("OLD");
+        uint32 w = secondsAgos[0];
+        tickCumulatives = new int56[](2);
+        tickCumulatives[0] = 0;
+        tickCumulatives[1] = int56(twapTick) * int56(uint56(w));
+        secondsPerLiquidityCumulativeX128s = new uint160[](2);
     }
 }
 
