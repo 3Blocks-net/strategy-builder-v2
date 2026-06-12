@@ -334,4 +334,64 @@ export const PANCAKESWAP_STEP_TYPES = [
         required: ['tokenIdFromSlot'],
       },
     },
+    {
+      name: 'PancakeSwap V3 Swap to Range Ratio',
+      description:
+        'Sizes a concentrated-liquidity entry at execution time: reads the live pool price, works out the target token0/token1 ratio for the range (tick ± width) and swaps the over-represented token toward it. Pair it before a Mint(full balance). Computed on-chain so it stays correct whenever the automation fires.',
+      category: StepCategory.ACTION,
+      contractKey: 'PancakeSwapV3SwapToRangeRatioAction',
+      selector: EXECUTE_SELECTOR,
+      afterExecutionSelector: null,
+      abiFragment: {
+        type: 'tuple',
+        components: [
+          { name: 'tokenA', type: 'address' },
+          { name: 'tokenB', type: 'address' },
+          { name: 'fee', type: 'uint24' },
+          { name: 'tickDelta', type: 'int24' },
+          { name: 'amountOutMinimum', type: 'uint256' },
+        ],
+      },
+      paramSchema: {
+        type: 'object',
+        properties: {
+          tokenA: {
+            type: 'string',
+            title: 'Token A',
+            description: 'One of the pool tokens (typically the vault deposit token).',
+            'x-ui-widget': 'token-selector',
+            'x-ui-token-source': 'pancakeswap',
+          },
+          tokenB: {
+            type: 'string',
+            title: 'Token B',
+            description: 'The other pool token.',
+            'x-ui-widget': 'token-selector',
+            'x-ui-token-source': 'pancakeswap',
+          },
+          fee: {
+            type: 'integer',
+            title: 'Fee Tier',
+            description: 'The PancakeSwap V3 pool fee tier.',
+            'x-ui-widget': 'fee-tier',
+            default: 500,
+          },
+          tickDelta: {
+            type: 'integer',
+            title: 'Range Width (ticks)',
+            description:
+              'Half-width of the range in ticks, centered on the current price. MUST match the following Mint. Narrow / Medium / Wide presets fill this.',
+            default: 1000,
+          },
+          amountOutMinimum: {
+            type: 'string',
+            title: 'Min Out',
+            description: 'Minimum swap output (slippage guard). 0 in v1.',
+            'x-ui-hidden': true,
+            default: '0',
+          },
+        },
+        required: ['tokenA', 'tokenB', 'fee', 'tickDelta'],
+      },
+    },
 ] satisfies StepTypeDef[];

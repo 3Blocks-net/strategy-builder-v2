@@ -45,17 +45,17 @@ recipes. Everything else reuses existing actions.
 
 ## 4b. On-chain SwapToRangeRatio action (TDD)
 
-- [ ] 4b.1 `PancakeSwapV3SwapToRangeRatioAction.sol` (delegatecall, `IAction`): params
+- [x] 4b.1 `PancakeSwapV3SwapToRangeRatioAction.sol` (delegatecall, `IAction`): params
       (tokenA/tokenB/fee, tickDelta, optional minOut=0 forward-compat). At execution: read `slot0().tick`,
       compute range (`tick ± tickDelta`, rounded to spacing — same as Mint rangeMode 1), compute target
       value ratio `r0 = A/(A+B)` (`A = sp·(sb−sp)/sb`, `B = sp−sa`; overflow-safe staged math), compare to
       the vault's current `token0`/`token1` balances, and swap the over-represented token via the router.
-- [ ] 4b.2 Unit tests (mock router/pool): single-token-in (entry) → ~target ratio; two-token-in
+- [x] 4b.2 Unit tests (mock router/pool): single-token-in (entry) → ~target ratio; two-token-in
       (rebalance) → balanced; price below/above range → all-one-token (no/!full swap); no-op when already
       balanced. Dust-tolerant assertions.
 - [ ] 4b.3 Fork test against a live BSC pool: entry from the deposit token then `Mint(full balance)`
       lands a position with minimal leftover dust.
-- [ ] 4b.4 Deploy wiring (`deploy-defi-actions.ts`) + `loadContractAddresses` + catalog entry
+- [x] 4b.4 Deploy wiring (`deploy-defi-actions.ts`) + `loadContractAddresses` + catalog entry
       (`paramSchema`/`abiFragment`/roles; integrity guard green).
 
 ## 5. Three curated recipes + presets

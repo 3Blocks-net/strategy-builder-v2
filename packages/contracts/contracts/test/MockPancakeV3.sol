@@ -7,6 +7,7 @@ import "../interfaces/external/IPancakeV3SwapRouter.sol";
 import "../interfaces/external/IPancakeV3Factory.sol";
 import "../interfaces/external/INonfungiblePositionManager.sol";
 import "../interfaces/external/IPancakeV3Pool.sol";
+import "../libraries/TickMath.sol";
 
 /// @dev PancakeSwap V3 factory stand-in. Test-only.
 contract MockPancakeV3Factory is IPancakeV3Factory {
@@ -90,7 +91,8 @@ contract MockPancakeV3Pool is IPancakeV3Pool {
         override
         returns (uint160, int24, uint16, uint16, uint16, uint32, bool)
     {
-        return (0, currentTick, 0, 0, 0, 0, true);
+        // sqrtPriceX96 consistent with the current tick (the ratio sizing reads it).
+        return (TickMath.getSqrtRatioAtTick(currentTick), currentTick, 0, 0, 0, 0, true);
     }
 
     /// For `secondsAgos = [W, 0]` returns cumulatives whose difference over W is

@@ -55,6 +55,7 @@ async function main() {
   const PancakeSwapV3IncreaseLiquidityAction = await deploy("PancakeSwapV3IncreaseLiquidityAction", [PancakeSwapV3Registry]);
   const PancakeSwapV3DecreaseLiquidityAction = await deploy("PancakeSwapV3DecreaseLiquidityAction", [PancakeSwapV3Registry]);
   const PancakeSwapV3CollectAction = await deploy("PancakeSwapV3CollectAction", [PancakeSwapV3Registry]);
+  const PancakeSwapV3SwapToRangeRatioAction = await deploy("PancakeSwapV3SwapToRangeRatioAction", [PancakeSwapV3Registry]);
 
   console.log("Deploying Wick-&-Wait rebalance condition...");
   const WickWaitRebalanceCondition = await deploy("WickWaitRebalanceCondition", [PancakeSwapV3Registry]);
@@ -71,6 +72,7 @@ async function main() {
     PancakeSwapV3IncreaseLiquidityAction,
     PancakeSwapV3DecreaseLiquidityAction,
     PancakeSwapV3CollectAction,
+    PancakeSwapV3SwapToRangeRatioAction,
     WickWaitRebalanceCondition,
   };
 
