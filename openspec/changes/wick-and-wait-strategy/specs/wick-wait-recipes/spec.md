@@ -3,26 +3,27 @@
 ### Requirement: Deposit-token-centric entry recipe
 
 The system SHALL provide an Entry recipe that builds the initial position **from the vault's deposit
-token**: swap a fraction of the deposit token into the pool's other token, then mint a concentrated
-position centered on the current price. One LP leg is always the deposit token; the other is
-acquired by the swap.
+token**: an on-chain sizing step swaps the right portion of the deposit token into the pool's other
+token at execution time, then mints a concentrated position centered on the current price. One LP leg
+is always the deposit token; the other is acquired by the swap. The sizing MUST be computed on-chain
+at execution (not baked in at build time), because the automation runs at a keeper-chosen time.
 
-#### Scenario: Entry assembles swap then mint
+#### Scenario: Entry assembles swap-to-ratio then mint
 - **WHEN** the Entry recipe is instantiated for a pool whose one token is the vault deposit token
-- **THEN** it yields a two-step automation: `Swap(part of deposit → other token)` followed by
-  `Mint(rangeMode 1)`, and the minted position's `tokenId` is written to a context slot
+- **THEN** it yields a two-step automation: `SwapToRangeRatio` (computes the target ratio from the
+  live price and swaps the over-represented token) followed by `Mint(rangeMode 1, full balance)`, and
+  the minted position's `tokenId` is written to a context slot
 
-### Requirement: Rebalance recipe normalizes to the deposit token
+### Requirement: Rebalance recipe re-sizes at execution
 
-The system SHALL provide a Rebalance recipe triggered by the TWAP range-breach condition that
-closes the position, normalizes holdings back to the deposit token, re-sizes for the new range, and
-reopens — keeping the deposit token as the base between positions.
+The system SHALL provide a Rebalance recipe triggered by the TWAP range-breach condition that closes
+the position, re-sizes the freed two-token holdings for the new range at the current price, and
+reopens. Re-sizing MUST happen on-chain at execution (the firing price is unknown at build time).
 
 #### Scenario: Rebalance closes and reopens around the new price
 - **WHEN** the rebalance trigger fires
-- **THEN** the automation runs `Decrease(100%)` → `Collect` → `Swap(other → deposit token)` →
-  `Swap(part of deposit → other token)` → `Mint(rangeMode 1)`, and the new `tokenId` overwrites the
-  context slot
+- **THEN** the automation runs `Decrease(100%)` → `Collect` → `SwapToRangeRatio` →
+  `Mint(rangeMode 1, full balance)`, and the new `tokenId` overwrites the context slot
 
 ### Requirement: Auto-compound recipe (mandatory part of the strategy)
 
@@ -46,16 +47,17 @@ recipe logic.
 - **THEN** the corresponding `W`, `tickDelta`, and cooldown values populate the recipe parameters,
   and the user may still override any of them
 
-### Requirement: Off-chain single-sided sizing
+### Requirement: On-chain execution-time sizing
 
-The swap fraction for the deposit-token-to-other-token sizing SHALL be computed off-chain using the
-shared `lp-math` helper and supplied to the automation as a parameter/slot; v1 introduces no
-on-chain sizing contract.
+The token-ratio sizing SHALL be computed **on-chain at execution** by the `SwapToRangeRatio` action
+from the live pool price, because the automation fires at a keeper-chosen time when a build-time
+amount would be stale. The off-chain `lp-math.depositSwapFraction` helper MAY be used for a frontend
+preview only, never as the executed swap amount.
 
-#### Scenario: Sizing fraction is supplied, not computed on-chain
-- **WHEN** an Entry or Rebalance automation is built
-- **THEN** the swap amount/fraction is provided as an input derived off-chain from `lp-math`, and no
-  new on-chain action performs the sizing
+#### Scenario: Sizing is computed at execution, not baked in
+- **WHEN** a Rebalance automation fires at a price different from when it was built
+- **THEN** `SwapToRangeRatio` reads the current price and swaps to the target ratio for that price —
+  the executed amount is not a value fixed at build time
 
 ### Requirement: Recipes validate against the deployed catalog
 

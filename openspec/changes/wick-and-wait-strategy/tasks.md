@@ -36,19 +36,33 @@ recipes. Everything else reuses existing actions.
 - [x] 3.3 Confirm `checkCatalogIntegrity` passes for the new entry (ABI↔schema lockstep, role
       resolution, no stale phrases); reseed (`pnpm db:seed`) and verify it serves.
 
-## 4. Off-chain single-sided sizing
+## 4. Sizing (REVISED — on-chain at execution; off-chain helper = preview only)
 
-- [x] 4.1 Add/extend a shared `lp-math` helper that, given pool price + chosen range, returns the
-      fraction of the deposit token to swap into the other token for a balanced fill. Unit-test it
-      against known range/price cases.
-- [ ] 4.2 (pairs with Task 5; helper lives in backend lp-math — promote to `shared` or a backend endpoint for frontend/MCP) Expose the computed fraction as the Swap action's amount input (param/slot) in the recipe
-      builders (frontend/MCP consume the helper). No on-chain sizing contract.
+- [x] 4.1 `lp-math.depositSwapFraction` — kept as the **frontend preview** ("expected split"), NOT the
+      execution sizer. Unit-tested.
+- [x] 4.2 ~~Off-chain sizing in the recipe builder~~ — superseded by on-chain sizing (Task 4b): a
+      build-time amount is stale at a keeper-chosen firing time.
+
+## 4b. On-chain SwapToRangeRatio action (TDD)
+
+- [ ] 4b.1 `PancakeSwapV3SwapToRangeRatioAction.sol` (delegatecall, `IAction`): params
+      (tokenA/tokenB/fee, tickDelta, optional minOut=0 forward-compat). At execution: read `slot0().tick`,
+      compute range (`tick ± tickDelta`, rounded to spacing — same as Mint rangeMode 1), compute target
+      value ratio `r0 = A/(A+B)` (`A = sp·(sb−sp)/sb`, `B = sp−sa`; overflow-safe staged math), compare to
+      the vault's current `token0`/`token1` balances, and swap the over-represented token via the router.
+- [ ] 4b.2 Unit tests (mock router/pool): single-token-in (entry) → ~target ratio; two-token-in
+      (rebalance) → balanced; price below/above range → all-one-token (no/!full swap); no-op when already
+      balanced. Dust-tolerant assertions.
+- [ ] 4b.3 Fork test against a live BSC pool: entry from the deposit token then `Mint(full balance)`
+      lands a position with minimal leftover dust.
+- [ ] 4b.4 Deploy wiring (`deploy-defi-actions.ts`) + `loadContractAddresses` + catalog entry
+      (`paramSchema`/`abiFragment`/roles; integrity guard green).
 
 ## 5. Three curated recipes + presets
 
-- [ ] 5.1 **Entry** recipe shape: `Swap(part of deposit → other)` → `Mint(rangeMode 1)`; `tokenId` → slot.
+- [ ] 5.1 **Entry** recipe shape: `SwapToRangeRatio` → `Mint(rangeMode 1, full balance)`; `tokenId` → slot.
 - [ ] 5.2 **Rebalance** recipe shape: `WickWaitRebalanceCondition` → `Decrease(100%)` → `Collect` →
-      `Swap(other → deposit)` → `Swap(part → other)` → `Mint`; new `tokenId` overwrites the slot.
+      `SwapToRangeRatio` → `Mint(rangeMode 1, full balance)`; new `tokenId` overwrites the slot.
 - [ ] 5.3 **Auto-Compound** recipe shape: `IntervalCondition(interval)` → `Collect` → `Increase`.
 - [ ] 5.4 Curated presets: `W` (1h/30m/10m), `tickDelta` (Narrow/Medium/Wide), cooldown (7d/3d/1d) —
       all overridable; nothing hard-coded in recipe logic.

@@ -43,18 +43,35 @@ The condition reads `positions(tokenId).{token0,token1,fee}` and derives the poo
 **Why:** single source of truth — the range and the pool both come from the live position, so they
 can't drift. `tokenId` comes from the same context slot the LP actions use.
 
-### D4 — Deposit-token-centric flow with normalize-on-rebalance
-Entry/rebalance always start from the deposit token (one LP leg). Rebalance normalizes the freed
-non-deposit token back to the deposit token before re-sizing. **Why:** matches the requirement
-"always work with the deposit token", makes sizing single-sided and consistent, at the cost of one
-extra swap per rebalance. **Alternative:** adjust the existing A/B ratio directly (one fewer swap) —
-rejected for v1 in favor of the simpler, consistent normalize step.
+### D4 — Deposit-token-centric, with balancing subsumed by `SwapToRangeRatio`
+Entry starts from the deposit token (one LP leg). The `SwapToRangeRatio` action (D5) balances from
+*whatever* the vault holds toward the target ratio, so the rebalance does **not** need an explicit
+"normalize to the deposit token" step — `Decrease(100%) → Collect → SwapToRangeRatio → Mint` balances
+the freed two-token holdings directly. **Why:** one action handles both entry (single token) and
+rebalance (two tokens), one fewer swap than an explicit normalize, and the deposit-token base is
+preserved for entry.
 
-### D5 — Off-chain single-sided sizing via shared lp-math
-The swap fraction to balance the chosen range is computed off-chain (`lp-math.ts`, already shared by
-frontend/MCP) and passed in. **Why:** avoids a new on-chain math contract; the ratio depends on
-range-vs-price (`getAmountsForLiquidity`) and is cheap to compute off-chain. On-chain sizing is a
-possible later optimization.
+### D5 — On-chain execution-time sizing via a new `SwapToRangeRatio` action
+**(Revised — the earlier off-chain approach was wrong for time-deferred automations.)** The
+automations fire later, at a keeper-chosen time; the system injects no dynamic params at trigger
+time. A swap amount baked in at build time is therefore wrong at execution — especially for
+**Rebalance**, which fires at an unknown future price. So the sizing MUST happen on-chain, at
+execution, with the current price.
+
+A new action `PancakeSwapV3SwapToRangeRatioAction` (separate from Mint — Decision via review):
+reads `slot0().tick`, computes the same range the subsequent Mint will use (`tick ± tickDelta`,
+rounded to spacing), computes the target token0/token1 value ratio for that range
+(`r0 = A/(A+B)` with `A = sp·(sb−sp)/sb`, `B = sp−sa` — overflow-safe staged math, no FullMath
+needed), compares to the vault's current holdings and **swaps the over-represented token** via the
+router. The existing `Mint(rangeMode 1, full balance)` then mints whatever is held (dust tolerated).
+Works for **Entry** (holdings = deposit token only) and **Rebalance** (holdings = both tokens after
+Collect) — one generic action. Single-pass (ignores price impact on the post-swap ratio); the
+residual is dust. No `minOut` in v1 (consistent with `SwapAction`; sandwich risk tracked as a
+follow-up). **Alternative:** a combined zap-mint action — rejected to keep `Mint` reusable and the
+router out of the mint path.
+
+The off-chain `lp-math.depositSwapFraction` (already built) is retained as a **frontend preview**
+("expected split"), NOT as the execution sizer.
 
 ### D6 — Three per-automation recipes, not a bundled "strategy" object
 The recipe model is per-automation; we ship Entry / Rebalance / Auto-Compound as three curated
