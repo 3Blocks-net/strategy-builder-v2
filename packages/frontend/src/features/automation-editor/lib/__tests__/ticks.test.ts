@@ -5,8 +5,23 @@ import {
   roundTickDown,
   roundTickUp,
   presetTickDelta,
+  tickDeltaToPct,
   computeExplicitTicks,
 } from '../ticks';
+
+describe('presetTickDelta / tickDeltaToPct', () => {
+  it('converts ±% bands to the expected tickDelta', () => {
+    expect(presetTickDelta(3)).toBeCloseTo(296, -1); // ~±3%
+    expect(presetTickDelta(10)).toBeCloseTo(953, -1); // ~±10%
+    expect(presetTickDelta(20)).toBeCloseTo(1823, -1); // ~±20%
+  });
+
+  it('round-trips back to the percentage', () => {
+    for (const pct of [3, 10, 20]) {
+      expect(tickDeltaToPct(presetTickDelta(pct))).toBeCloseTo(pct, 1);
+    }
+  });
+});
 
 describe('feeToSpacing', () => {
   it('maps the four PCS tiers', () => {

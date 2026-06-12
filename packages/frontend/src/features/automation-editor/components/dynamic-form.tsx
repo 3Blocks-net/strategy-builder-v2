@@ -3,7 +3,7 @@ import { zeroToggleField, type DurationUnit } from 'shared';
 import { type ContextVariable, useEditorStore } from '../store/editor-store';
 import { ContextInputField } from './context-input-field';
 import { ContextOutputField } from './context-output-field';
-import { computeExplicitTicks, presetTickDelta } from '../lib/ticks';
+import { computeExplicitTicks, presetTickDelta, tickDeltaToPct } from '../lib/ticks';
 
 const NO_SLOT = 4294967295;
 
@@ -257,6 +257,18 @@ function FormField({
   if (widget === 'fee-tier') {
     return (
       <FeeTierField
+        fieldName={fieldName}
+        schema={schema}
+        value={value}
+        onChange={onChange}
+        nodeId={nodeId}
+      />
+    );
+  }
+
+  if (widget === 'range-percent') {
+    return (
+      <RangePercentField
         fieldName={fieldName}
         schema={schema}
         value={value}
@@ -892,6 +904,72 @@ function FeeTierField({
           </option>
         ))}
       </select>
+      <FieldError message={error} />
+    </div>
+  );
+}
+
+const RANGE_PERCENT_PRESETS = [3, 10, 20];
+
+/**
+ * Percentage range picker → emits a `tickDelta` (int24) half-width. The user picks
+ * a ±% band (or types a custom %); centering is on-chain. Reverses the stored
+ * tickDelta back to a % for display.
+ */
+function RangePercentField({
+  fieldName,
+  schema,
+  value,
+  onChange,
+  nodeId,
+}: {
+  fieldName: string;
+  schema: FieldSchema;
+  value: unknown;
+  onChange: (name: string, value: unknown) => void;
+  nodeId: string;
+}) {
+  const error = useFieldError(nodeId, fieldName);
+  const current =
+    value === undefined || value === null ? (schema.default as number) ?? 1000 : Number(value);
+  const currentPct = tickDeltaToPct(current);
+  const [custom, setCustom] = useState('');
+
+  return (
+    <div>
+      <FieldLabel schema={schema} />
+      <div className="flex gap-2 items-center">
+        {RANGE_PERCENT_PRESETS.map((p) => (
+          <button
+            type="button"
+            key={p}
+            className={`nodrag px-2 py-1 text-sm rounded border ${
+              Math.abs(currentPct - p) < 0.5
+                ? 'bg-blue-500 text-white border-blue-500'
+                : 'border-gray-300'
+            }`}
+            onClick={() => {
+              setCustom('');
+              onChange(fieldName, presetTickDelta(p));
+            }}
+          >
+            ±{p}%
+          </button>
+        ))}
+        <input
+          className="nodrag w-24 border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+          placeholder="±% …"
+          value={custom}
+          onChange={(e) => {
+            setCustom(e.target.value);
+            const pct = Number(e.target.value);
+            if (Number.isFinite(pct) && pct > 0) onChange(fieldName, presetTickDelta(pct));
+          }}
+        />
+      </div>
+      <p className="text-xs text-gray-500 mt-1">
+        ≈ ±{currentPct.toFixed(1)}% ({current} ticks)
+      </p>
       <FieldError message={error} />
     </div>
   );

@@ -378,9 +378,10 @@ export const PANCAKESWAP_STEP_TYPES = [
           },
           tickDelta: {
             type: 'integer',
-            title: 'Range Width (ticks)',
+            title: 'Range Width',
             description:
-              'Half-width of the range in ticks, centered on the current price. MUST match the following Mint. Narrow / Medium / Wide presets fill this.',
+              'The ±% band around the current price. MUST match the following Mint. Pick ±3% / ±10% / ±20% or a custom percent.',
+            'x-ui-widget': 'range-percent',
             default: 1000,
           },
           amountOutMinimum: {

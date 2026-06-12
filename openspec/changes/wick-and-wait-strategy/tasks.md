@@ -60,13 +60,13 @@ recipes. Everything else reuses existing actions.
 
 ## 5. Three curated recipes + presets
 
-- [ ] 5.1 **Entry** recipe shape: `SwapToRangeRatio` → `Mint(rangeMode 1, full balance)`; `tokenId` → slot.
-- [ ] 5.2 **Rebalance** recipe shape: `WickWaitRebalanceCondition` → `Decrease(100%)` → `Collect` →
+- [x] 5.1 **Entry** recipe shape: `SwapToRangeRatio` → `Mint(rangeMode 1, full balance)`; `tokenId` → slot.
+- [x] 5.2 **Rebalance** recipe shape: `WickWaitRebalanceCondition` → `Decrease(100%)` → `Collect` →
       `SwapToRangeRatio` → `Mint(rangeMode 1, full balance)`; new `tokenId` overwrites the slot.
-- [ ] 5.3 **Auto-Compound** recipe shape: `IntervalCondition(interval)` → `Collect` → `Increase`.
-- [ ] 5.4 Curated presets: `W` (1h/30m/10m), `tickDelta` (Narrow/Medium/Wide), cooldown (7d/3d/1d) —
+- [x] 5.3 **Auto-Compound** recipe shape: `IntervalCondition(interval)` → `Collect` → `Increase`.
+- [x] 5.4 Curated presets: `W` (1h/30m/10m), `tickDelta` (Narrow/Medium/Wide), cooldown (7d/3d/1d) —
       all overridable; nothing hard-coded in recipe logic.
-- [ ] 5.5 Seed-validate the three recipes (`validateRecipeShape` against the deployed catalog).
+- [x] 5.5 Seed-validate the three recipes (`validateRecipeShape` against the deployed catalog).
 
 ## 6. Definition of Done
 

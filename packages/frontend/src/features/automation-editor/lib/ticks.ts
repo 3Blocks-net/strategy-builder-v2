@@ -48,6 +48,11 @@ export function presetTickDelta(pct: number): number {
   return Math.round(Math.log(1 + pct / 100) / LN_1_0001);
 }
 
+/** Inverse of {@link presetTickDelta}: the ±% band a tickDelta represents (upper side). */
+export function tickDeltaToPct(tickDelta: number): number {
+  return (Math.exp(tickDelta * LN_1_0001) - 1) * 100;
+}
+
 export interface ExplicitTicksInput {
   minPrice: number; // price of Token A in Token B (1 A = minPrice B)
   maxPrice: number;
