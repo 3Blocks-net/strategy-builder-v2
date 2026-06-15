@@ -131,6 +131,7 @@ async function main() {
 
   let seeded = 0;
   let skipped = 0;
+  const keptIds: string[] = [];
   for (const stepType of stepTypes) {
     // Skip steps whose contract isn't deployed yet (address(0)) — seeding them
     // would collide on the (contractAddress, selector) unique key. Deploy the
@@ -140,7 +141,7 @@ async function main() {
       skipped++;
       continue;
     }
-    await prisma.stepType.upsert({
+    const row = await prisma.stepType.upsert({
       where: {
         contractAddress_selector: {
           contractAddress: stepType.contractAddress,
@@ -157,12 +158,29 @@ async function main() {
       },
       create: stepType,
     });
+    keptIds.push(row.id);
     seeded++;
   }
 
   console.log(
     `Seeded ${seeded} step types${skipped > 0 ? ` (skipped ${skipped} not-yet-deployed)` : ''}`,
   );
+
+  // Prune stale rows from previous deploys: a redeploy gives contracts NEW
+  // addresses, so the upsert (keyed on contractAddress+selector) inserts fresh
+  // rows while the old ones linger — surfacing as duplicate names in the editor.
+  // Match by id, not address: deterministic CREATE recycles addresses across
+  // redeploys (an old condition's address becomes a new action's), so an
+  // address-membership check would wrongly keep stale rows. Delete every row
+  // that isn't one we just upserted.
+  if (keptIds.length > 0) {
+    const pruned = await prisma.stepType.deleteMany({
+      where: { id: { notIn: keptIds } },
+    });
+    if (pruned.count > 0) {
+      console.log(`Pruned ${pruned.count} stale step type(s) from previous deploys`);
+    }
+  }
 
   // Curated few-shot recipe shapes — validated against the *deployed* catalog
   // before insert (unknown step type / param drift => not delivered).
