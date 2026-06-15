@@ -4,3 +4,4 @@
 export { IntervalCondition__factory } from './IntervalCondition__factory.js';
 export { TimerCondition__factory } from './TimerCondition__factory.js';
 export { TokenBalanceCondition__factory } from './TokenBalanceCondition__factory.js';
+export { WickWaitRebalanceCondition__factory } from './WickWaitRebalanceCondition__factory.js';

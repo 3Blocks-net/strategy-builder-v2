@@ -4,3 +4,4 @@
 export type { IntervalCondition } from './IntervalCondition.js';
 export type { TimerCondition } from './TimerCondition.js';
 export type { TokenBalanceCondition } from './TokenBalanceCondition.js';
+export type { WickWaitRebalanceCondition } from './WickWaitRebalanceCondition.js';

@@ -10,3 +10,4 @@ export { PancakeSwapV3DecreaseLiquidityAction__factory } from './PancakeSwapV3De
 export { PancakeSwapV3IncreaseLiquidityAction__factory } from './PancakeSwapV3IncreaseLiquidityAction__factory.js';
 export { PancakeSwapV3MintAction__factory } from './PancakeSwapV3MintAction__factory.js';
 export { PancakeSwapV3SwapAction__factory } from './PancakeSwapV3SwapAction__factory.js';
+export { PancakeSwapV3SwapToRangeRatioAction__factory } from './PancakeSwapV3SwapToRangeRatioAction__factory.js';

@@ -2,3 +2,4 @@
 /* tslint:disable */
 /* eslint-disable */
 export type { ActionLib } from './ActionLib.js';
+export type { TickMath } from './TickMath.js';

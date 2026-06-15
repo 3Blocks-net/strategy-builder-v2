@@ -10,3 +10,4 @@ export type { PancakeSwapV3DecreaseLiquidityAction } from './PancakeSwapV3Decrea
 export type { PancakeSwapV3IncreaseLiquidityAction } from './PancakeSwapV3IncreaseLiquidityAction.js';
 export type { PancakeSwapV3MintAction } from './PancakeSwapV3MintAction.js';
 export type { PancakeSwapV3SwapAction } from './PancakeSwapV3SwapAction.js';
+export type { PancakeSwapV3SwapToRangeRatioAction } from './PancakeSwapV3SwapToRangeRatioAction.js';
