@@ -204,6 +204,19 @@ async function main() {
   const pcsCollectActionAddr = await pcsCollectAction.getAddress();
   console.log(`  PancakeSwapV3CollectAction: ${pcsCollectActionAddr}`);
 
+  const pcsSwapToRangeRatioAction = await ethers.deployContract("PancakeSwapV3SwapToRangeRatioAction", [
+    pcsRegistryAddr,
+  ]);
+  const pcsSwapToRangeRatioActionAddr = await pcsSwapToRangeRatioAction.getAddress();
+  console.log(`  PancakeSwapV3SwapToRangeRatioAction: ${pcsSwapToRangeRatioActionAddr}`);
+
+  // Wick-&-Wait rebalance condition (TWAP range-breach + cooldown).
+  const wickWaitCondition = await ethers.deployContract("WickWaitRebalanceCondition", [
+    pcsRegistryAddr,
+  ]);
+  const wickWaitConditionAddr = await wickWaitCondition.getAddress();
+  console.log(`  WickWaitRebalanceCondition: ${wickWaitConditionAddr}`);
+
   // 8. Seed test wallet with tokens via impersonation
   //    Use a raw JsonRpcProvider to bypass Hardhat's local account signing
   console.log(`\nSeeding test wallet ${TEST_WALLET}...`);
@@ -274,6 +287,8 @@ async function main() {
     PancakeSwapV3IncreaseLiquidityAction: pcsIncreaseActionAddr,
     PancakeSwapV3DecreaseLiquidityAction: pcsDecreaseActionAddr,
     PancakeSwapV3CollectAction: pcsCollectActionAddr,
+    PancakeSwapV3SwapToRangeRatioAction: pcsSwapToRangeRatioActionAddr,
+    WickWaitRebalanceCondition: wickWaitConditionAddr,
     config: {
       depositFeeBps: DEPOSIT_FEE_BPS,
       withdrawFeeBps: WITHDRAW_FEE_BPS,
