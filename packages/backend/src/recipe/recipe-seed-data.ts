@@ -135,9 +135,12 @@ export const RECIPES: RecipeDefinition[] = [
     name: 'Wick & Wait — Rebalance',
     description:
       'Triggert nur bei einem anhaltenden (TWAP-bestätigten) Range-Bruch + Cooldown — kurze ' +
-      'Wicks werden ignoriert. Schließt die Position, sized die freien Token on-chain neu ' +
-      '(±RANGE%) und öffnet um den neuen Preis. WickWait-Trigger → Decrease(100%) → Collect ' +
-      '→ SwapToRangeRatio → Mint. Gleiches RANGE wie der Entry verwenden.',
+      'Wicks werden ignoriert. Erntet erst die Fees, schließt dann die Position, sized die freien ' +
+      'Token on-chain neu (±RANGE%) und öffnet um den neuen Preis. WickWait-Trigger → Collect → ' +
+      'Decrease(100%) → SwapToRangeRatio → Mint. Decrease bündelt intern bereits ein Collect; der ' +
+      'separate Collect davor erntet die Fees, bevor das Prinzipal entnommen wird. Nach dem Schließen ' +
+      'hält die Vault beide Token; SwapToRangeRatio balanciert, Mint(full balance) providet — ein ' +
+      'kleiner Dust-Rest bleibt liegen. Gleiches RANGE wie der Entry verwenden.',
     category: 'liquidity',
     shape: {
       nodes: [
@@ -149,8 +152,8 @@ export const RECIPES: RecipeDefinition[] = [
             cooldown: 'COOLDOWN', lastRebalanceSlot: 'LAST_REBALANCE_SLOT',
           },
         },
-        { id: 'close', stepType: 'PancakeSwap V3 Decrease Liquidity', params: { tokenIdFromSlot: 'LP_POSITION_SLOT', percent: 100 } },
         { id: 'collect', stepType: 'PancakeSwap V3 Collect', params: { tokenIdFromSlot: 'LP_POSITION_SLOT' } },
+        { id: 'close', stepType: 'PancakeSwap V3 Decrease Liquidity', params: { tokenIdFromSlot: 'LP_POSITION_SLOT', percent: 100 } },
         {
           id: 'size',
           stepType: 'PancakeSwap V3 Swap to Range Ratio',
@@ -167,9 +170,9 @@ export const RECIPES: RecipeDefinition[] = [
         },
       ],
       edges: [
-        { source: 'trigger', target: 'close', sourceHandle: 'out' },
-        { source: 'close', target: 'collect', sourceHandle: 'out' },
-        { source: 'collect', target: 'size', sourceHandle: 'out' },
+        { source: 'trigger', target: 'collect', sourceHandle: 'out' },
+        { source: 'collect', target: 'close', sourceHandle: 'out' },
+        { source: 'close', target: 'size', sourceHandle: 'out' },
         { source: 'size', target: 'mint', sourceHandle: 'out' },
       ],
     },
@@ -178,13 +181,20 @@ export const RECIPES: RecipeDefinition[] = [
     key: 'wick-wait-compound',
     name: 'Wick & Wait — Auto-Compound',
     description:
-      'Erntet in festen Intervallen die Fees der offenen Position und legt sie wieder nach. ' +
-      'Interval → Collect → Increase Liquidity. Position-ID aus dem LP_POSITION_SLOT.',
+      'Erntet in festen Intervallen die Fees der offenen Position, füllt die Gas-Reserve auf ' +
+      'die Zielreserve auf und legt den Rest wieder nach. Interval → Collect → Fee Deposit → ' +
+      'Increase Liquidity. Position-ID aus dem LP_POSITION_SLOT. So bleibt die Vault für den ' +
+      'Keeper zahlungsfähig, ohne separate Wartungs-Automation.',
     category: 'compounding',
     shape: {
       nodes: [
         { id: 'trigger', stepType: 'Interval Condition', params: { interval: 'INTERVALL' } },
         { id: 'collect', stepType: 'PancakeSwap V3 Collect', params: { tokenIdFromSlot: 'LP_POSITION_SLOT' } },
+        {
+          id: 'feeTopUp',
+          stepType: 'Fee Deposit',
+          params: { feeRegistry: 'FEE_REGISTRY', token: 'TOKEN_A', topUpAmount: '0' },
+        },
         {
           id: 'reinvest',
           stepType: 'PancakeSwap V3 Increase Liquidity',
@@ -196,7 +206,8 @@ export const RECIPES: RecipeDefinition[] = [
       ],
       edges: [
         { source: 'trigger', target: 'collect', sourceHandle: 'out' },
-        { source: 'collect', target: 'reinvest', sourceHandle: 'out' },
+        { source: 'collect', target: 'feeTopUp', sourceHandle: 'out' },
+        { source: 'feeTopUp', target: 'reinvest', sourceHandle: 'out' },
       ],
     },
   },

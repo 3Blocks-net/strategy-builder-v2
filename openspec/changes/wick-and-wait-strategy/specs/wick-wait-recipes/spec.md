@@ -16,24 +16,31 @@ at execution (not baked in at build time), because the automation runs at a keep
 
 ### Requirement: Rebalance recipe re-sizes at execution
 
-The system SHALL provide a Rebalance recipe triggered by the TWAP range-breach condition that closes
-the position, re-sizes the freed two-token holdings for the new range at the current price, and
-reopens. Re-sizing MUST happen on-chain at execution (the firing price is unknown at build time).
+The system SHALL provide a Rebalance recipe triggered by the TWAP range-breach condition that harvests
+fees, closes the position, re-sizes the freed two-token holdings for the new range at the current price,
+and reopens. Fees MUST be collected before the position is decreased. Re-sizing MUST happen on-chain at
+execution (the firing price is unknown at build time).
 
 #### Scenario: Rebalance closes and reopens around the new price
 - **WHEN** the rebalance trigger fires
-- **THEN** the automation runs `Decrease(100%)` → `Collect` → `SwapToRangeRatio` →
+- **THEN** the automation runs `Collect` → `Decrease(100%)` → `SwapToRangeRatio` →
   `Mint(rangeMode 1, full balance)`, and the new `tokenId` overwrites the context slot
+- **AND** because `Decrease` already bundles its own `collect`, the leading `Collect` harvests the
+  accrued fees before the principal is withdrawn; `SwapToRangeRatio` balances the two freed tokens and
+  `Mint(full balance)` provides them, leaving a small dust remainder in the vault
 
 ### Requirement: Auto-compound recipe (mandatory part of the strategy)
 
 The system SHALL provide an Auto-Compound recipe that periodically reinvests earned fees back into
-the open position, reusing existing actions only.
+the open position and tops the vault's gas-compensation reserve back up to its minimum, reusing
+existing actions only. Topping up the reserve in the same automation keeps the public automations
+executable without a separate maintenance automation.
 
-#### Scenario: Auto-compound collects and reinvests on an interval
+#### Scenario: Auto-compound collects, refills gas, and reinvests on an interval
 - **WHEN** the configured compound interval elapses
-- **THEN** the automation runs `Collect` → `Increase`, adding the collected token amounts to the
-  open position
+- **THEN** the automation runs `Collect` → `Fee Deposit` → `Increase`: it harvests the fees, the
+  `Fee Deposit` action refills the gas reserve to `minFeeDeposit` (no-op when already funded), and
+  `Increase` adds the remaining token amounts to the open position
 
 ### Requirement: Curated presets for user-set parameters
 

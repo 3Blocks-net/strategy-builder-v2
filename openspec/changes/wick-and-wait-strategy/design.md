@@ -46,10 +46,13 @@ can't drift. `tokenId` comes from the same context slot the LP actions use.
 ### D4 — Deposit-token-centric, with balancing subsumed by `SwapToRangeRatio`
 Entry starts from the deposit token (one LP leg). The `SwapToRangeRatio` action (D5) balances from
 *whatever* the vault holds toward the target ratio, so the rebalance does **not** need an explicit
-"normalize to the deposit token" step — `Decrease(100%) → Collect → SwapToRangeRatio → Mint` balances
+"normalize to the deposit token" step — `Collect → Decrease(100%) → SwapToRangeRatio → Mint` balances
 the freed two-token holdings directly. **Why:** one action handles both entry (single token) and
 rebalance (two tokens), one fewer swap than an explicit normalize, and the deposit-token base is
-preserved for entry.
+preserved for entry. **Order — Collect before Decrease:** `Decrease` already bundles its own
+`collect(max,max)`, so the leading `Collect` harvests the accrued fees first and the `Decrease` then
+withdraws the principal. After the close the vault holds *both* tokens; `Mint(full balance)` provides
+them and leaves a small dust remainder (single-pass sizing) that stays in the vault for the next cycle.
 
 ### D5 — On-chain execution-time sizing via a new `SwapToRangeRatio` action
 **(Revised — the earlier off-chain approach was wrong for time-deferred automations.)** The
@@ -77,7 +80,10 @@ build it in `packages/shared` so frontend/MCP can consume it.
 ### D6 — Three per-automation recipes, not a bundled "strategy" object
 The recipe model is per-automation; we ship Entry / Rebalance / Auto-Compound as three curated
 few-shot shapes with presets. **Why:** stays within the existing recipe/catalog mechanism (no new
-"strategy bundle" abstraction); the user instantiates the three on one vault.
+"strategy bundle" abstraction); the user instantiates the three on one vault. The Auto-Compound
+recipe also runs a `Fee Deposit` step (`Collect → Fee Deposit → Increase`) so each compound refills
+the gas-compensation reserve to `minFeeDeposit`, keeping the public automations executable without a
+separate maintenance automation.
 
 ### D7 — Manual observation-cardinality setup
 The user (or a pre-activation UI check) ensures the pool's `observationCardinality` covers `W` via
