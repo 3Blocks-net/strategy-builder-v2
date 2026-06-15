@@ -1,323 +1,60 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
-# Strategy Builder V2
-
-## Overview
-
-On-chain automation protocol deployed on BSC. Users create **vaults** (ERC1967 proxies) and configure **automations** — directed graphs of Conditions and Actions. A public executor calls `executeAutomation`, the trigger condition gates execution, and actions run in sequence modifying the vault's shared context. Fees are charged at the vault boundary (deposit/withdraw BPS), and executors receive gas compensation from a pre-funded deposit in FeeRegistry.
-
-## Commands
-
-```bash
-npx hardhat compile          # Compile all contracts
-npx hardhat test             # Run all tests
-npx hardhat test test/StrategyBuilderVault.ts   # Run single test file
-npx hardhat clean            # Clean artifacts
-npx hardhat test --grep "pattern"  # Run tests matching pattern
-```
-
-**Deploy** (Hardhat Ignition):
-```bash
-npx hardhat ignition deploy --network bscTestnet ignition/modules/StrategyBuilderVault.ts
-npx hardhat ignition deploy --network bscMainnet ignition/modules/StrategyBuilderVault.ts
-```
-
-**Hardhat 3** (`hardhat ^3.2.0`) — uses `defineConfig`, `network.connect()`, and ESM (`"type": "module"` in package.json). Tests use top-level `await` for network connection:
-```typescript
-const { ethers } = await network.connect();
-```
+Steuert, wie Claude Code in diesem Repo arbeitet. Der wichtigste Hebel dafür, dass alle Entwickler und jeder Agent gleich arbeiten. Kurz und aktuell halten.
 
-**Compiler**: Solidity 0.8.28, `viaIR: true` (required — stack-too-deep in `_executeAction`), 200 optimizer runs in production profile. Target chain: BSC.
+## Plan-Phase-Regel (Pflicht)
 
-## Architecture
+Sobald ein Planungs-Signal auftaucht ("ich will X bauen", "plane Y", "neues Feature", "refaktoriere Z"), NICHT direkt Code schreiben.
 
-### Deployment Topology
+Stattdessen in dieser Reihenfolge:
+1. Falls eine externe Abhängigkeit im Spiel ist (neues SDK, fremde API): erst die `research`-Skill.
+2. Dann klären: Codebase lesen, Optionen mit Trade-offs vorschlagen, offene Fragen stellen (brainstorming + `grill-me`). Auf Antwort des Nutzers warten.
+3. Erst danach `/opsx:propose <change-name>`.
 
-```
-StrategyBuilderVaultFactory  (Ownable, NOT upgradeable, implements IVaultRegistry)
-    │  owns _vaultImplementation (shared implementation)
-    │  stores feeRegistry → forwarded to every new vault
-    └─ deploys ERC1967Proxy instances via CREATE2
-           │  proxy.implementation = StrategyBuilderVault
-           └─ per-user isolated storage
+Erst wenn die Spec vom Nutzer im Review freigegeben ist, mit der Implementierung beginnen. Bei trivialen Änderungen (Typo, einzeiliger Fix) darf der Ablauf übersprungen werden.
 
-FeeRegistry  (Ownable, NOT upgradeable)
-    │  stores depositFeeBps / withdrawFeeBps (global flat rates, max 1000 bps)
-    │  holds vaultDeposits[vault][token] (gas comp pre-funding)
-    │  holds collectedFees[token] (deposit/withdraw fees for owner withdrawal)
-    └─ gas compensation via IPriceOracle
-
-External contracts (pre-existing, read-only interfaces):
-    IPriceOracle   — 18-decimal USD prices per token
-```
-
-### Execution Flow (`executeAutomation`)
-
-1. Check `ownerOnly` — non-owner callers revert with `CallerNotOwner`
-2. Load vault context (`bytes[]`) into memory
-3. Traverse directed graph starting at step 0:
-   - **Public automations**: step 0 must be a CONDITION (the trigger)
-   - **Owner automations**: step 0 can be ACTION (runs unconditionally)
-   - **Condition**: `staticcall` → `bool` → follow `nextOnTrue` or `nextOnFalse`
-   - **Action**: `delegatecall` → apply context diff → follow `nextOnTrue`
-4. Record `triggerFired` on the first step (step 0)
-   - If step 0 condition returns false and caller is not owner → revert `TriggerNotMet`
-5. If `triggerFired`: call `afterExecution` (staticcall) on step 0 — applies context diff (e.g. IntervalCondition advances schedule)
-6. Save context back to storage (only when modified)
-7. If caller is not owner: measure `gasUsed = gasStart - gasleft()` → `_settleGasComp`
-
-### Fee Model
-
-```
-Fees at vault boundary (deposit/withdraw):
-  deposit():  fee = amount × depositFeeBps / 10_000 → FeeRegistry.collectFee()
-  withdraw(): fee = amount × withdrawFeeBps / 10_000 → FeeRegistry.collectFee()
-  ERC20TransferAction: reads withdrawFeeBps dynamically, deducts from transfer
-
-Gas compensation (per automation execution, non-owner callers only):
-  effectiveGasPrice = min(tx.gasprice, maxGasPrice)  (if maxGasPrice > 0)
-  gasCostUSD = (gasUsed + overhead) × effectiveGasPrice × nativePriceUSD / 1e18
-  gasCompUSD = gasCostUSD × (10_000 + executorMarkupBps) / 10_000
-  gasCompTokens = feeTokenAmount(gasCompUSD)
-  → deducted from vault's pre-funded deposit in FeeRegistry
-  → transferred directly to executor (push, not pull)
-
-Fee collection:
-  collectedFees[token] accumulates in FeeRegistry
-  Owner calls withdrawFees(token) to withdraw
-```
-
-Owner-executed automations pay no gas compensation.
-
-## Key Interfaces
-
-### IAction (`execute`)
-
-```solidity
-function execute(bytes calldata params, bytes[] calldata ctx)
-    external
-    returns (uint32[] memory updatedSlots, bytes[] memory updatedValues);
-```
-
-- Called via **delegatecall** — runs in vault's storage context
-- **Must be stateless** (no state variables)
-- Returns a context diff as two parallel arrays
-
-### ICondition (`check`)
-
-```solidity
-function check(bytes calldata params, bytes[] calldata ctx)
-    external view returns (bool met);
-```
-
-- Called via **staticcall** — read-only
-
-### IUpdatableCondition (`afterExecution`)
-
-```solidity
-function afterExecution(bytes calldata params, bytes[] calldata ctx)
-    external view returns (uint32[] memory updatedSlots, bytes[] memory updatedValues);
-```
+## Stack
 
-- Extends ICondition
-- Called via **staticcall** on step 0 after successful execution
-- Vault applies returned diff before saving context
-
-## Contract Reference
-
-### StrategyBuilderVault
-
-**State** (set once at `initialize`):
-- `_feeRegistry` — IFeeRegistry; address(0) = fees disabled
-- `_depositToken` — ERC-20 for gas comp pre-funding; address(0) = gas comp disabled
-
-**Other state:**
-- `_automations` — mapping(uint32 → Automation), each has `active`, `ownerOnly`, `steps[]`
-- `_ctx` — shared `bytes[]` context, all automations read/write the same slots
-- `_minFeeDeposit` — target balance in FeeRegistry (for FeeDepositAction)
-
-**Constants:**
-- `DONE = type(uint32).max` — terminates graph traversal
-- `MAX_STEPS = 256` — per-execution step limit
-
-**Key functions:**
-- `createAutomation(steps[])` — public automation, step 0 must be CONDITION
-- `createOwnerAutomation(steps[])` — owner-only automation, step 0 can be ACTION
-- `updateAutomationSteps(id, steps[])` — replace all steps (context unaffected)
-- `setAutomationActive(id, bool)` — pause or resume
-- `setContext(bytes[])` — replace entire shared context
-- `setContextSlot(slot, value)` — update a single context slot
-- `deposit(token, amount)` — owner deposits tokens, deducts depositFee to FeeRegistry
-- `withdraw(token, amount, recipient)` — owner withdraws, deducts withdrawFee from amount
-- `depositFees(token, amount)` — moves vault tokens to FeeRegistry for gas comp pre-funding
-- `setMinFeeDeposit(amount)` — set target fee reserve for FeeDepositAction
-- `withdrawETH(to, amount)` — recover accidentally sent ETH (amount=0 sends full balance)
-- `executeAutomation(automationId)` — public; owner-only automations restricted to owner
-- `isTriggerMet(automationId)` — view, checks if trigger condition is currently true
+pnpm-Monorepo (`packages/*`), Node ≥ 22, TypeScript (strict). Ziel-Chain: BSC.
 
-**Views:** `getAutomation(id)`, `getContext()`, `automationCount()`, `depositToken()`, `feeRegistry()`, `minFeeDeposit()`
-
-**Step struct:**
-```solidity
-struct Step {
-    StepType stepType;   // CONDITION or ACTION
-    address target;
-    bytes4 selector;
-    uint32 nextOnTrue;   // next step index or DONE
-    uint32 nextOnFalse;  // CONDITION: branch | ACTION: must be DONE
-    bytes data;          // ABI-encoded static params
-}
-```
-
-### StrategyBuilderVaultFactory
+- **`shared`** — framework-freie reine Helfer (Unit-Conversion, Validierung, Encode-Boundary `mapGraphToRaw`, Step-Rollen). Build `tsc`, Tests **Vitest**.
+- **`backend`** — NestJS + Prisma + PostgreSQL; SIWE-Auth (JWT). Tests **Jest**; DB via `pnpm db:up`, Migration/Seed via Prisma (`pnpm db:migrate` / `db:seed`).
+- **`frontend`** — Vite + React 19, wagmi/viem, Tailwind v4, `@xyflow/react` (Graph-Editor). Tests **Vitest**.
+- **`contracts`** — Solidity + Hardhat (Ignition-Deploys, Fork-Tests). Tests `hardhat test`.
+- **`mcp`** — lokaler MCP-Server (stdio, offizielles MCP SDK), viem/ethers/siwe/keytar; steuert DeFi-Vaults per KI-Assistent (Read- + Write-Tools, signierende/sensible Aktionen hinter dem PolicyGate-Confirm-Gate). Keystore-Passwort im OS-Keychain. Tests **Vitest**. Init lokal via `pnpm --filter mcp run init` (`pecunity-mcp-init` nur nach globalem Link).
 
-Implements `IVaultRegistry` — `isRegisteredVault(address) → bool`.
-
-**Protocol-controlled (owner only):**
-- `setVaultImplementation(address)` — implementation for future vaults
-- `setFeeRegistry(address)` — forwarded to all new vaults
-
-**Vault creation:**
-```solidity
-function createVault(
-    address vaultOwner,
-    address depositToken_,  // address(0) = gas comp disabled
-    bytes32 salt
-) external returns (address vault)
-```
-- `depositToken_` is validated against FeeRegistry — reverts `FeeTokenNotAccepted` if not accepted
-- CREATE2 salt mixed with `msg.sender` to prevent address griefing
-
-**Views:** `vaultImplementation()`, `getVault(index)`, `vaultCount()`, `isRegisteredVault(addr)`
-
-### FeeRegistry
-
-**Setup sequence:**
-1. `addAcceptedToken(token, decimals)` — register fee-payment ERC-20s
-2. `setDepositFeeBps(bps)` / `setWithdrawFeeBps(bps)` — max 1000 bps (10%)
-3. `setGasConfig(priceOracle, nativeToken, executorMarkupBps, overhead, maxGasPrice)` — optional
-
-**Vault-facing:**
-- `collectFee(token, amount)` — pulls fee via transferFrom, accumulates in `collectedFees`
-- `deductGasComp(token, executor, gasUsed)` — computes gas comp, deducts from vault deposit, transfers to executor
-- `depositFor(vault, token, amount)` — pre-fund gas comp deposit
-- `withdrawDeposit(token, amount)` — vault withdraws its deposit (0 = full balance)
-
-**Owner:**
-- `withdrawFees(token)` — withdraw accumulated deposit/withdraw fees
-- `removeAcceptedToken(token)` — disable a token
-
-**Views:** `depositFeeBps()`, `withdrawFeeBps()`, `isAcceptedToken(token)`, `vaultDeposit(vault, token)`, `collectedFees(token)`, `priceOracle()`, `nativeToken()`, `estimateGasComp(token, gasUsed, gasPrice)`
-
-**Invariant**: `physicalBalance(token) == Σ vaultDeposits[*][token] + collectedFees[token]`
-
-## Example Contracts
-
-### TokenBalanceCondition
-
-Checks `IERC20(token).balanceOf(account) >= threshold`.
-
-```solidity
-struct Params {
-    address token;
-    address account;
-    uint256 minBalance;
-    bool aboveOrEqual;
-    uint32 minBalanceFromSlot;  // type(uint32).max = use static value
-}
-```
-
-### IntervalCondition
-
-Time-based trigger. Fires when `block.timestamp >= ctx[timeSlot]`. After execution, advances `ctx[timeSlot] += interval` (drift-free).
-
-```solidity
-struct Params {
-    uint256 interval;   // seconds between executions
-    uint32 timeSlot;    // context slot holding next trigger time (uint256)
-}
-```
-
-### TimerCondition
-
-One-shot trigger. Fires once when `block.timestamp >= startTime + delta`, then resets slot to 0 via `afterExecution`.
-
-```solidity
-struct Params {
-    uint256 delta;     // seconds after startTime before firing (must be > 0)
-    uint32 timeSlot;   // context slot holding start timestamp (0 = stopped)
-}
-```
-
-### ERC20TransferAction
-
-Transfers ERC-20 from vault to recipient. Optionally deducts withdraw fee.
-
-```solidity
-struct Params {
-    address token;
-    address recipient;
-    uint256 amount;           // 0 = full vault balance
-    uint32 amountFromSlot;    // type(uint32).max = use static amount
-    uint32 amountToSlot;      // type(uint32).max = no context write
-    address feeRegistry;      // address(0) = no fee deduction
-}
-```
-
-When `feeRegistry != address(0)`, reads `withdrawFeeBps()` dynamically and deducts fee from transfer amount.
-
-### FeeDepositAction
-
-Tops up vault's gas comp deposit when below `vault.minFeeDeposit()`.
-
-```solidity
-struct Params {
-    address feeRegistry;
-    address token;
-    uint256 topUpAmount;    // 0 = fill exactly to minFeeDeposit
-}
-```
-
-## Test Helpers (TypeScript)
-
-```typescript
-const CHECK_SEL      = id("check(bytes,bytes[])").slice(0, 10);
-const EXECUTE_SEL    = id("execute(bytes,bytes[])").slice(0, 10);
-const AFTER_EXEC_SEL = id("afterExecution(bytes,bytes[])").slice(0, 10);
-
-encodeBalanceParams(token, account, minBalance, aboveOrEqual, minBalanceFromSlot?)
-encodeTransferParams(token, recipient, amount, amountFromSlot?, amountToSlot?, feeRegistry?)
-encodeIntervalParams(interval, timeSlot)
-encodeTimerParams(delta, timeSlot)
-encodeFeeDepositParams(feeRegistry, token, topUpAmount?)
-
-conditionStep(target, data, nextOnTrue, nextOnFalse?, sel?)
-actionStep(target, data, nextOnTrue?, sel?)
-```
-
-**Time manipulation in tests:**
-```typescript
-await ethers.provider.send("evm_increaseTime", [seconds]);
-await ethers.provider.send("evm_mine", []);
-```
-
-## Mock Contracts (tests only)
-
-| Contract | Purpose |
-|---|---|
-| `MockERC20` | Standard ERC-20, mints on deploy |
-| `MockPriceOracle` | `setPrice(token, priceUSD18)` — reverts `OracleNotExist` if unset |
-| `ERC1967ProxyHelper` | Proxy helper for tests |
-
-## Security Notes
-
-- **Actions are delegatecall** — only use audited, stateless action contracts
-- `_disableInitializers()` in vault constructor prevents direct-impl initialization
-- CREATE2 salt mixes `msg.sender` to prevent vault address griefing
-- `MAX_STEPS = 256` prevents infinite loop DoS
-- `ReentrancyGuardTransient` on vault execution; `ReentrancyGuard` on FeeRegistry
-- Gas compensation always paid to executor at full computed amount — never reduced
-- Non-owner trigger failure reverts early with `TriggerNotMet` to save gas
-- Owner-only automations revert with `CallerNotOwner` for non-owner callers
+> Test-Runner ist gemischt: Backend = Jest, alles andere = Vitest. On-chain-Reads über viem; Keystore-Decrypt über ethers.
+>
+> Ports: backend **3001**, frontend **5173**, Hardhat-Fork **8545**. `backend:dev` läuft im Watch-Mode (hot-reload) → reine Seed-Daten-Änderungen brauchen nur `pnpm db:seed` (kein Restart), Schema-/Model-Änderungen `prisma migrate dev`. Recipes/StepTypes werden beim Seed gegen den deployten Katalog validiert (ungültige werden übersprungen). Der Seed ist **self-pruning**: StepType-Zeilen, die nicht zum aktuellen Deploy gehören (per id abgeglichen), werden entfernt — ein Redeploy mit neuen Adressen hinterlässt also keine Duplikate. `deploy-fork.ts` deployt den vollständigen DeFi-Satz inkl. `SwapToRangeRatio` + `WickWaitRebalanceCondition`.
+
+## Konventionen
+
+- Tests gegen beobachtbares Verhalten über die öffentliche Schnittstelle, nie gegen Implementierungsdetails. Mock nur an Systemgrenzen.
+- Deep modules bevorzugen: kleine Schnittstelle, viel Implementierung dahinter.
+- Commits: Conventional Commits (feat, fix, chore, docs, refactor, test, perf).
+- TDD pro Slice (RED → GREEN → REFACTOR), eine vertikale Schicht nach der anderen — nicht alle Tests zuerst.
+- **Eine Quelle für die Encode-Boundary:** `mapGraphToRaw` & Co. leben in `shared`; Frontend und MCP konsumieren sie — keine Zweitimplementierung/Drift.
+- **Self-Custody/Security:** Key-Material und Secrets nie loggen, serialisieren oder ins Repo committen (Keystores sind git-ignored); schreibende/signierende MCP-Aktionen laufen durch ein server-erzwungenes Confirm-Gate.
+- Step-Semantik (Token/Betrag/Empfänger/Richtung) schema-getrieben über `x-ui-role`/`x-ui-widget` auflösen — kein per-step-type-Code.
+
+## Definition of Done
+
+Ein Issue ist erst fertig, wenn:
+- alle Acceptance Criteria erfüllt und durch Tests verifiziert sind,
+- die Tests grün sind und der Lint sauber ist,
+- `openspec validate` durchläuft,
+- ein code-review ohne offene Hard Blocker abgeschlossen ist.
+
+## Spec-Disziplin
+
+- Die lebende Spec liegt unter `openspec/`. Sie ist die Source of Truth.
+- Vor einem neuen Change immer die bestehenden Specs des betroffenen Moduls lesen.
+- Nach dem Merge `/opsx:archive <change-name>`, beim Sync "Sync now".
+
+## Issue-Tracker
+
+Linear wird NUR für Epics genutzt (grobes Was-bauen-wir-Tracking auf Vorhaben-Ebene). Alles darunter bleibt lokal: Slices leben in der tasks.md des OpenSpec-Change, Bugs und Folge-Findings als lokale Issue-Dateien im Repo. Keine kleinteilige Synchronisierung nach Linear, das wäre Doppelarbeit zur lebenden Spec.
+
+## Generierter Code
+
+Niemals generierten oder Build-Output reviewen oder editieren: `**/generated/**`, `**/dist/**`, `**/build/**`, `**/.next/**`, `node_modules`, Lockfiles, `*.min.*`.

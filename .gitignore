@@ -1,11 +1,62 @@
-node_modules
-dist
-artifacts
-cache
-coverage
-coverage.json
-typechain-types
-.env
+# ----- Dependencies & build -----
+node_modules/
+dist/
+build/
+out/
+.next/
+.turbo/
+.cache/
+coverage/
+*.tsbuildinfo
 
-# Hardhat keystore
-.hardhat-keystore
+# ----- Hardhat (contracts) build output -----
+packages/contracts/artifacts/
+packages/contracts/cache/
+
+# ----- Env & secrets -----
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# ----- Logs -----
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ----- Workflow-spezifisch -----
+research.md          # research-Skill: hat ein Verfallsdatum, nicht einchecken
+/tmp/
+
+# ----- macOS -----
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# ----- Windows -----
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# ----- Linux -----
+*~
+.directory
+.Trash-*
+
+# ----- Editoren / IDEs -----
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.swp
+*.swo
+*.sublime-workspace

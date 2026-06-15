@@ -1,38 +1,42 @@
 {
   "name": "strategy-builder-v2",
   "version": "1.0.0",
-  "description": "Strategy Builder V2 - BSC Smart Contracts",
+  "description": "Strategy Builder V2 - Pecunity Platform",
   "private": true,
-  "type": "module",
   "scripts": {
-    "compile": "hardhat compile",
-    "test": "hardhat test",
-    "coverage": "hardhat coverage",
-    "deploy:bsc-testnet": "hardhat ignition deploy --network bscTestnet",
-    "deploy:bsc-mainnet": "hardhat ignition deploy --network bscMainnet",
-    "verify:bsc-testnet": "hardhat verify --network bscTestnet",
-    "verify:bsc-mainnet": "hardhat verify --network bscMainnet",
-    "clean": "hardhat clean"
+    "shared:build": "pnpm --filter shared build",
+    "shared:build:watch": "pnpm --filter shared build:watch",
+    "contracts:compile": "pnpm --filter contracts compile",
+    "contracts:test": "pnpm --filter contracts test",
+    "contracts:clean": "pnpm --filter contracts clean",
+    "contracts:fork:bsc": "pnpm --filter contracts fork:bsc",
+    "contracts:deploy:fork": "pnpm --filter contracts deploy:fork",
+    "contracts:execute:fork": "pnpm --filter contracts execute:fork",
+    "contracts:deploy:testnet": "pnpm --filter contracts deploy:bsc-testnet",
+    "contracts:deploy:mainnet": "pnpm --filter contracts deploy:bsc-mainnet",
+    "backend:dev": "pnpm --filter backend dev",
+    "backend:build": "pnpm --filter backend build",
+    "backend:test": "pnpm --filter \"backend^...\" --if-present build && pnpm --filter backend test",
+    "backend:test:e2e": "pnpm --filter \"backend^...\" --if-present build && pnpm --filter backend test:e2e",
+    "frontend:dev": "pnpm --filter frontend dev",
+    "frontend:build": "pnpm --filter frontend build",
+    "frontend:test": "pnpm --filter \"frontend^...\" --if-present build && pnpm --filter frontend test",
+    "frontend:test:e2e": "pnpm --filter frontend test:e2e",
+    "dev": "node scripts/dev.mjs",
+    "db:up": "docker compose up -d db",
+    "db:down": "docker compose down",
+    "db:migrate": "pnpm --filter backend prisma:migrate",
+    "db:studio": "pnpm --filter backend prisma:studio",
+    "db:seed": "pnpm --filter backend prisma:seed"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "devDependencies": {
-    "@nomicfoundation/hardhat-ethers": "^4.0.6",
-    "@nomicfoundation/hardhat-ignition": "^3.1.0",
-    "@nomicfoundation/hardhat-toolbox-mocha-ethers": "^3.0.3",
-    "@nomicfoundation/hardhat-verify": "^3.0.12",
-    "@types/chai": "^5.2.3",
-    "@types/mocha": "^10.0.10",
-    "@types/node": "^25.5.0",
-    "chai": "^6.2.2",
-    "ethers": "^6.16.0",
-    "hardhat": "^3.2.0",
-    "mocha": "^11.7.5",
-    "typescript": "^6.0.2"
-  },
-  "dependencies": {
-    "@openzeppelin/contracts": "^5.6.1",
-    "@openzeppelin/contracts-upgradeable": "^5.6.1"
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@nestjs/core",
+      "@prisma/client",
+      "@prisma/engines",
+      "esbuild",
+      "keytar",
+      "prisma"
+    ]
   }
 }

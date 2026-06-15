@@ -1,0 +1,148 @@
+import { resolveFieldRole, type RawGraph } from 'shared';
+import { PolicyGate } from '../policy-gate.js';
+import { DraftStore, type Draft } from '../draft-store.js';
+import type { DecoderCatalog } from '../summary-decoder.js';
+import { isBranched } from '../graph-utils.js';
+
+export interface DeployConfig {
+  ownerAddress: string;
+  /** lowercased erlaubte Geld-Ziele (Owner sollte enthalten sein). */
+  addressAllowlist: Set<string>;
+  /** Namen freigeschalteter sensibler Step-Types (Capability-Opt-in). */
+  enabledSensitiveSteps: Set<string>;
+}
+
+/** Signiert + sendet die Deploy-TX(s) und liefert On-Chain-ID + TX-Hashes. */
+export type DeployOnChain = (
+  draft: Draft,
+) => Promise<{ onChainId: number; txHashes: string[] }>;
+
+export interface DeployDeps {
+  gate: PolicyGate;
+  draftStore: DraftStore;
+  config: DeployConfig;
+  deployOnChain: DeployOnChain;
+}
+
+export interface DeployResult {
+  onChainId: number;
+  txHashes: string[];
+  automationId: string;
+}
+
+interface Inspection {
+  sensitive: boolean;
+  errors: string[];
+}
+
+/**
+ * Schema-getriebene Prüfung des gespeicherten Graphen:
+ * - Empfänger-Rollen-Felder (Geld-Ziele) müssen in der Adress-Allowlist sein.
+ * - Steps mit Empfänger-Rolle sind **sensibel** → Capability-Opt-in Pflicht und
+ *   lösen das Confirm-Gate aus. (Kein per-step-type-Code.)
+ */
+function inspectGraph(rawGraph: RawGraph, catalog: DecoderCatalog, config: DeployConfig): Inspection {
+  const errors: string[] = [];
+  let sensitive = false;
+
+  for (const node of rawGraph.nodes) {
+    const step = catalog[node.data.stepTypeId];
+    if (!step) continue;
+    const props = step.paramSchema?.properties ?? {};
+    let nodeSensitive = false;
+
+    for (const [field, schema] of Object.entries(props)) {
+      if (resolveFieldRole(schema) === 'recipient') {
+        nodeSensitive = true;
+        const raw = node.data.params[field];
+        if (raw === undefined || raw === null || raw === '') {
+          // Leeres Geld-Ziel umgeht die Allowlist nicht still → harter Reject.
+          errors.push(`${step.name}: Empfänger-Feld „${field}" ist leer/fehlt — abgelehnt.`);
+        } else if (!config.addressAllowlist.has(String(raw).toLowerCase())) {
+          errors.push(
+            `${step.name}: Empfänger ${String(raw)} ist nicht in der Adress-Allowlist — abgelehnt.`,
+          );
+        }
+      }
+    }
+
+    if (nodeSensitive) {
+      sensitive = true;
+      if (!config.enabledSensitiveSteps.has(step.name)) {
+        errors.push(
+          `${step.name}: sensibler Step nicht freigeschaltet (Capability-Opt-in fehlt) — nicht verbaubar.`,
+        );
+      }
+    }
+  }
+
+  return { sensitive, errors };
+}
+
+/** Confirm-Summary aus dem GESPEICHERTEN Entwurf (nicht aus LLM-Args). */
+function formatSummary(draft: Draft, branched: boolean): string {
+  const lines = [
+    `Automation deployen (${draft.ownerOnly ? 'Owner-only' : 'Public — feuert autonom'}):`,
+  ];
+  for (const step of draft.summary.steps) {
+    const parts = [step.stepType];
+    if (step.amount) parts.push(`Betrag ${step.amount}`);
+    if (step.token) parts.push(`Token ${step.token}`);
+    if (step.recipient) parts.push(`→ ${step.recipient}`);
+    if (step.direction !== undefined) parts.push(`Richtung ${step.direction}`);
+    lines.push('  • ' + parts.join(', '));
+  }
+  if (branched) {
+    lines.push('  ⚠ Verzweigter Graph — NICHT voll cross-checkbar, bitte besonders prüfen.');
+  }
+  for (const w of draft.summary.warnings) lines.push('  ⚠ ' + w);
+  return lines.join('\n');
+}
+
+/**
+ * Deployt einen validierten Entwurf. Nimmt **nur die Draft-ID** und signiert
+ * exakt den gespeicherten Graphen. Schema-getriebene Allowlist-/Capability-Checks,
+ * Confirm-Gate bei Sensibilität (Summary aus dem gespeicherten Entwurf), dann
+ * Sign+Send. Reverts werden vom Chain-Executor dekodiert.
+ */
+export async function deployAutomation(
+  deps: DeployDeps,
+  params: { draftId: string },
+): Promise<DeployResult> {
+  // consume = einmalig: verhindert Replay/Doppel-Deploy derselben Draft-ID.
+  const draft = deps.draftStore.consume(params.draftId);
+  if (!draft) {
+    throw new Error(
+      'Draft-ID unbekannt oder bereits verwendet/abgelaufen — bitte propose_automation erneut ausführen.',
+    );
+  }
+
+  // Gegen den im Draft gespeicherten Katalog-Snapshot prüfen (nicht gegen einen
+  // frischen) — so kann Katalog-Drift die Sensibilitäts-Erkennung nicht aushebeln.
+  const { sensitive, errors } = inspectGraph(draft.rawGraph, draft.catalog, deps.config);
+  if (errors.length > 0) {
+    throw new Error(`Deploy abgelehnt:\n- ${errors.join('\n- ')}`);
+  }
+
+  const summary = formatSummary(draft, isBranched(draft.rawGraph));
+
+  return deps.gate.guard(
+    {
+      tool: 'deploy_automation',
+      sensitive,
+      summary,
+      details: {
+        draftId: params.draftId,
+        vault: draft.vaultAddress,
+        execution: draft.ownerOnly ? 'owner' : 'public',
+      },
+    },
+    async () => {
+      const { onChainId, txHashes } = await deps.deployOnChain(draft);
+      return {
+        result: { onChainId, txHashes, automationId: draft.automationId },
+        txHash: txHashes.at(-1),
+      };
+    },
+  );
+}

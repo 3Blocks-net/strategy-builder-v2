@@ -1,0 +1,254 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String   @id @default(uuid())
+  walletAddress String   @unique
+  createdAt     DateTime @default(now())
+  lastLoginAt   DateTime @default(now())
+  vaults        Vault[]
+}
+
+model Nonce {
+  id        String   @id @default(uuid())
+  nonce     String   @unique
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+  used      Boolean  @default(false)
+}
+
+model RefreshToken {
+  id            String   @id @default(uuid())
+  tokenHash     String   @unique
+  walletAddress String
+  expiresAt     DateTime
+  createdAt     DateTime @default(now())
+}
+
+model Vault {
+  id             String       @id @default(uuid())
+  address        String       @unique
+  chainId        Int
+  ownerAddress   String
+  depositToken   String
+  label          String
+  createdAtBlock Int
+  txHash         String
+  contextSlots   Json         @default("{}")
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  owner          User         @relation(fields: [ownerAddress], references: [walletAddress])
+  events         VaultEvent[]
+  automations    Automation[]
+  executions     Execution[]
+  failures       ExecutionFailure[]
+  valueSnapshots VaultValueSnapshot[]
+  protocolFlows  ProtocolFlow[]
+
+  @@unique([ownerAddress, label])
+}
+
+/// Adapter-indexed protocol flows (Vault-Cockpit slice #08) — e.g. Aave
+/// Supply/Withdraw per reserve, captured via a protocol adapter's declared log
+/// subscriptions. **Wholly separate from VaultEvent**: VaultEvent (boundary
+/// deposits/withdraws) drives PnL net-deposits; ProtocolFlow drives per-reserve
+/// earnings. The two must never be unioned — the PnL/earnings firewall (PRD
+/// Resolved decisions 2 & 9). `amountUsd` is frozen at index time.
+model ProtocolFlow {
+  id             String   @id @default(uuid())
+  vaultId        String
+  protocol       String
+  kind           String // e.g. AAVE_SUPPLY | AAVE_WITHDRAW
+  token          String
+  amount         String
+  amountUsd      String?
+  txHash         String
+  blockNumber    Int
+  logIndex       Int
+  blockTimestamp DateTime
+  createdAt      DateTime @default(now())
+  vault          Vault    @relation(fields: [vaultId], references: [id], onDelete: Cascade)
+
+  @@unique([txHash, logIndex])
+  @@index([vaultId, token])
+}
+
+/// Periodic full valuation of a vault (Vault-Cockpit slice #04). Written hourly
+/// by the SnapshotService loop and used as the canonical positions read model +
+/// the value-history chart source. `breakdown` holds the full per-position detail
+/// (HF, LP range, uncollected fees, APY, earnings); `totalValueUsd` is net equity
+/// as a decimal string (never a float). `blockNumber` is the snapshot provider's
+/// head at write time, when available.
+model VaultValueSnapshot {
+  id            String   @id @default(uuid())
+  vaultId       String
+  blockNumber   Int?
+  asOf          DateTime
+  totalValueUsd String
+  breakdown     Json
+  createdAt     DateTime @default(now())
+  vault         Vault    @relation(fields: [vaultId], references: [id], onDelete: Cascade)
+
+  @@index([vaultId, asOf])
+}
+
+/// Deposit/withdraw activity (PEC-219). Now **indexer-owned** — sourced from
+/// `Deposited` / `Withdrawn` logs, the indexer is the sole writer (the legacy
+/// optimistic frontend POST path is removed). `(txHash, logIndex)` guarantees
+/// idempotency on overlapping re-scans.
+model VaultEvent {
+  id             String   @id @default(uuid())
+  vaultId        String
+  eventType      String
+  token          String
+  amount         String
+  amountUsd      String?
+  feeAmount      String
+  feeBps         Int
+  txHash         String
+  blockNumber    Int
+  logIndex       Int
+  blockTimestamp  DateTime
+  createdAt      DateTime @default(now())
+  vault          Vault    @relation(fields: [vaultId], references: [id])
+
+  @@unique([txHash, logIndex])
+  @@index([vaultId, blockTimestamp])
+}
+
+/// One row per successful automation run (PEC-219). Log-sourced by the indexer
+/// from `AutomationExecuted`, joined with `GasCompSettled` in the same tx.
+/// SUCCESS-only — there is no `status` enum (failures live in `ExecutionFailure`,
+/// added in a later slice). `(txHash, logIndex)` guarantees idempotency on
+/// overlapping re-scans. Gas fields are null for owner-executed runs (no gas comp).
+model Execution {
+  id              String   @id @default(uuid())
+  vaultId         String
+  automationId    Int
+  executorAddress String
+  txHash          String
+  blockNumber     Int
+  logIndex        Int
+  blockTimestamp  DateTime
+  gasCompAmount   String?
+  gasCompToken    String?
+  gasCompUsd      String?
+  createdAt       DateTime @default(now())
+  vault           Vault    @relation(fields: [vaultId], references: [id], onDelete: Cascade)
+
+  @@unique([txHash, logIndex])
+  @@index([vaultId, blockTimestamp])
+}
+
+/// Keeper-sourced failures (PEC-219 #05). A reverted execution emits no log, so
+/// the public keeper reports it here (execution revert **or** a reverting trigger
+/// check). One **open** record per `(vaultId, automationId)` (enforced by a
+/// partial unique index `WHERE resolvedAt IS NULL`, added via raw SQL): repeated
+/// failures bump `attemptCount`; the indexer sets `resolvedAt` when the
+/// automation next succeeds. A later failure opens a fresh row.
+model ExecutionFailure {
+  id              String    @id @default(uuid())
+  vaultId         String
+  automationId    Int
+  executorAddress String
+  lastTxHash      String?
+  errorMessage    String
+  failurePath     String    // 'execution' | 'trigger-check'
+  attemptCount    Int       @default(1)
+  firstFailedAt   DateTime
+  lastFailedAt    DateTime
+  resolvedAt      DateTime?
+  createdAt       DateTime  @default(now())
+  vault           Vault     @relation(fields: [vaultId], references: [id], onDelete: Cascade)
+
+  @@index([vaultId, firstFailedAt])
+}
+
+/// Durable indexer progress (PEC-219). A single logical feed advances all four
+/// topics together (`AutomationExecuted`/`GasCompSettled`/`Deposited`/`Withdrawn`)
+/// in one `getLogs` call, so there is exactly one cursor. On boot the indexer
+/// resumes from `lastProcessedBlock + 1`; in-memory state is never trusted.
+model IndexerCursor {
+  id                          String    @id @default(uuid())
+  feed                        String    @unique
+  lastProcessedBlock          Int
+  lastProcessedBlockTimestamp DateTime?
+  updatedAt                   DateTime  @updatedAt
+}
+
+enum StepCategory {
+  CONDITION
+  ACTION
+}
+
+model Automation {
+  id          String   @id @default(uuid())
+  vaultId     String
+  onChainId   Int?
+  label       String?
+  description String?
+  ownerOnly   Boolean  @default(false)
+  editorState Json?
+  stepCount   Int      @default(0)
+  isDraft     Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  vault       Vault    @relation(fields: [vaultId], references: [id], onDelete: Cascade)
+
+  @@unique([vaultId, onChainId])
+}
+
+/// Curated per-protocol token allowlist (Aave reserves, PancakeSwap pairs).
+/// Only standard ERC-20s — no fee-on-transfer / rebasing tokens, which would
+/// break context-slot amount accounting. `decimals` feeds the frontend
+/// tokenDecimals map so token-amount → base-units conversion is correct.
+model ProtocolToken {
+  id        String   @id @default(uuid())
+  protocol  String
+  address   String
+  symbol    String
+  decimals  Int
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([protocol, address])
+}
+
+model StepType {
+  id                     String       @id @default(uuid())
+  name                   String
+  description            String
+  category               StepCategory
+  contractAddress        String
+  selector               String
+  afterExecutionSelector String?
+  abiFragment            Json
+  paramSchema            Json
+  createdAt              DateTime     @default(now())
+  updatedAt              DateTime     @updatedAt
+
+  @@unique([contractAddress, selector])
+}
+
+/// Curated few-shot reference shapes (DCA, stop-loss, HF-protection). A recipe is a
+/// placeholder GRAPH: nodes reference step types by their stable `name` (no contract/
+/// token addresses), values are placeholders (TOKEN_IN, BETRAG, INTERVALL). Robust
+/// against redeploy address drift. Seed-/team-curated only — there is no user/community
+/// write path. The seed validates every recipe against the live catalog before insert.
+model Recipe {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  name        String
+  description String
+  category    String
+  shape       Json
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}

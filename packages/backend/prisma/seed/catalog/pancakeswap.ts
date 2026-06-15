@@ -1,0 +1,398 @@
+import { StepCategory } from '@prisma/client';
+import { EXECUTE_SELECTOR, type StepTypeDef } from './_shared';
+
+// `satisfies` preserves the concrete JSON literal types Prisma / recipe-validation need.
+export const PANCAKESWAP_STEP_TYPES = [
+    {
+      name: 'PancakeSwap V3 Swap',
+      description:
+        'Swaps one token for another via PancakeSwap V3 (single-hop). Ships without on-chain minimum-out (amountOutMinimum = 0) — the step executes rather than reverting on price movement. The output amount is written to a context slot.',
+      category: StepCategory.ACTION,
+      contractKey: 'PancakeSwapV3SwapAction',
+      selector: EXECUTE_SELECTOR,
+      afterExecutionSelector: null,
+      abiFragment: {
+        type: 'tuple',
+        components: [
+          { name: 'tokenIn', type: 'address' },
+          { name: 'tokenOut', type: 'address' },
+          { name: 'fee', type: 'uint24' },
+          { name: 'amountIn', type: 'uint256' },
+          { name: 'amountInFromSlot', type: 'uint32' },
+          { name: 'amountOutToSlot', type: 'uint32' },
+          { name: 'amountOutMinimum', type: 'uint256' },
+          { name: 'minOutFromSlot', type: 'uint32' },
+        ],
+      },
+      paramSchema: {
+        type: 'object',
+        properties: {
+          tokenIn: {
+            type: 'string',
+            title: 'From Token',
+            description: 'The token to swap from',
+            'x-ui-widget': 'token-selector',
+            'x-ui-token-source': 'pancakeswap',
+          },
+          tokenOut: {
+            type: 'string',
+            title: 'To Token',
+            description: 'The token to swap to',
+            'x-ui-widget': 'token-selector',
+            'x-ui-token-source': 'pancakeswap',
+          },
+          fee: {
+            type: 'integer',
+            title: 'Fee Tier',
+            description: 'The PancakeSwap V3 pool fee tier to route through.',
+            'x-ui-widget': 'fee-tier',
+            default: 500,
+          },
+          amountIn: {
+            type: 'string',
+            title: 'Amount In',
+            description:
+              'Amount of the from-token to swap in human units (e.g. 1.5). Toggle to swap the full vault balance instead.',
+            'x-ui-widget': 'token-amount',
+            'x-ui-amount-token-field': 'tokenIn',
+            'x-ui-zero-toggle': { label: 'Volles Guthaben tauschen', default: false },
+          },
+          amountInFromSlot: {
+            type: 'integer',
+            title: 'Amount In from Context Slot',
+            description:
+              'Read the input amount from a context slot (e.g. a previous step’s output). Max uint32 = unset.',
+            'x-ui-widget': 'context-slot',
+            'x-ui-slot-access': 'read',
+            default: 4294967295,
+          },
+          amountOutToSlot: {
+            type: 'integer',
+            title: 'Output Amount to Context Slot',
+            description:
+              'Write the swap output amount to a context slot to chain it into a later step. Max uint32 = skip.',
+            'x-ui-widget': 'context-slot',
+            'x-ui-slot-access': 'write',
+            default: 4294967295,
+          },
+          amountOutMinimum: {
+            type: 'string',
+            title: 'Minimum Output',
+            description:
+              'Forward-compat: minimum acceptable output (base units). Hidden — ships at 0 (no slippage protection).',
+            'x-ui-hidden': true,
+            default: '0',
+          },
+          minOutFromSlot: {
+            type: 'integer',
+            title: 'Minimum Output from Context Slot',
+            description: 'Forward-compat: read the minimum output from a slot. Max uint32 = unset.',
+            'x-ui-widget': 'context-slot',
+            'x-ui-slot-access': 'read',
+            'x-ui-hidden': true,
+            default: 4294967295,
+          },
+        },
+        required: ['tokenIn', 'tokenOut', 'fee', 'amountIn'],
+      },
+    },
+    {
+      name: 'PancakeSwap V3 LP Mint',
+      description:
+        'Opens a new PancakeSwap V3 concentrated-liquidity position from the vault. Define the price range as explicit min/max prices or a preset width around the current price. The position NFT token-id is written to a context slot.',
+      category: StepCategory.ACTION,
+      contractKey: 'PancakeSwapV3MintAction',
+      selector: EXECUTE_SELECTOR,
+      afterExecutionSelector: null,
+      abiFragment: {
+        type: 'tuple',
+        components: [
+          { name: 'tokenA', type: 'address' },
+          { name: 'tokenB', type: 'address' },
+          { name: 'fee', type: 'uint24' },
+          { name: 'rangeMode', type: 'uint8' },
+          { name: 'tickLower', type: 'int24' },
+          { name: 'tickUpper', type: 'int24' },
+          { name: 'tickDelta', type: 'int24' },
+          { name: 'amountADesired', type: 'uint256' },
+          { name: 'amountBDesired', type: 'uint256' },
+          { name: 'tokenIdToSlot', type: 'uint32' },
+        ],
+      },
+      paramSchema: {
+        type: 'object',
+        properties: {
+          tokenA: {
+            type: 'string',
+            title: 'Token A',
+            description: 'First token of the pair',
+            'x-ui-widget': 'token-selector',
+            'x-ui-token-source': 'pancakeswap',
+          },
+          tokenB: {
+            type: 'string',
+            title: 'Token B',
+            description: 'Second token of the pair',
+            'x-ui-widget': 'token-selector',
+            'x-ui-token-source': 'pancakeswap',
+          },
+          fee: {
+            type: 'integer',
+            title: 'Fee Tier',
+            description: 'The PancakeSwap V3 pool fee tier.',
+            'x-ui-widget': 'fee-tier',
+            default: 500,
+          },
+          rangeMode: {
+            type: 'integer',
+            title: 'Price Range',
+            description:
+              'Define the position range as explicit min/max prices, or a preset width around the current price.',
+            'x-ui-widget': 'tick-range',
+            'x-ui-token0-field': 'tokenA',
+            'x-ui-token1-field': 'tokenB',
+            'x-ui-fee-field': 'fee',
+            'x-ui-tick-lower-field': 'tickLower',
+            'x-ui-tick-upper-field': 'tickUpper',
+            'x-ui-tick-delta-field': 'tickDelta',
+            default: 1,
+          },
+          tickLower: { type: 'integer', title: 'Tick Lower', 'x-ui-hidden': true, default: 0 },
+          tickUpper: { type: 'integer', title: 'Tick Upper', 'x-ui-hidden': true, default: 0 },
+          tickDelta: { type: 'integer', title: 'Tick Delta', 'x-ui-hidden': true, default: 0 },
+          amountADesired: {
+            type: 'string',
+            title: 'Amount A',
+            description: 'Amount of Token A to add (human units). Toggle to use the full vault balance.',
+            'x-ui-widget': 'token-amount',
+            'x-ui-amount-token-field': 'tokenA',
+            'x-ui-zero-toggle': { label: 'Volles Guthaben', default: false },
+          },
+          amountBDesired: {
+            type: 'string',
+            title: 'Amount B',
+            description: 'Amount of Token B to add (human units). Toggle to use the full vault balance.',
+            'x-ui-widget': 'token-amount',
+            'x-ui-amount-token-field': 'tokenB',
+            'x-ui-zero-toggle': { label: 'Volles Guthaben', default: false },
+          },
+          tokenIdToSlot: {
+            type: 'integer',
+            title: 'Position Token-ID to Context Slot',
+            description:
+              'Write the new position NFT token-id to a context slot so later automations can manage it.',
+            'x-ui-widget': 'context-slot',
+            'x-ui-slot-access': 'write',
+            default: 4294967295,
+          },
+        },
+        required: ['tokenA', 'tokenB', 'fee', 'tokenIdToSlot'],
+      },
+    },
+    {
+      name: 'PancakeSwap V3 Increase Liquidity',
+      description:
+        'Adds liquidity to an existing PancakeSwap V3 position identified by a token-id from a context slot (written by an earlier Mint). Configure the amount of each token to add.',
+      category: StepCategory.ACTION,
+      contractKey: 'PancakeSwapV3IncreaseLiquidityAction',
+      selector: EXECUTE_SELECTOR,
+      afterExecutionSelector: null,
+      abiFragment: {
+        type: 'tuple',
+        components: [
+          { name: 'tokenA', type: 'address' },
+          { name: 'tokenB', type: 'address' },
+          { name: 'tokenIdFromSlot', type: 'uint32' },
+          { name: 'amountADesired', type: 'uint256' },
+          { name: 'amountAFromSlot', type: 'uint32' },
+          { name: 'amountBDesired', type: 'uint256' },
+          { name: 'amountBFromSlot', type: 'uint32' },
+        ],
+      },
+      paramSchema: {
+        type: 'object',
+        properties: {
+          tokenA: {
+            type: 'string',
+            title: 'Token A',
+            description: 'First token of the position pair',
+            'x-ui-widget': 'token-selector',
+            'x-ui-token-source': 'pancakeswap',
+          },
+          tokenB: {
+            type: 'string',
+            title: 'Token B',
+            description: 'Second token of the position pair',
+            'x-ui-widget': 'token-selector',
+            'x-ui-token-source': 'pancakeswap',
+          },
+          tokenIdFromSlot: {
+            type: 'integer',
+            title: 'Position Token-ID from Context Slot',
+            description: 'Read the position NFT token-id from a context slot (written by a Mint step).',
+            'x-ui-widget': 'context-slot',
+            'x-ui-slot-access': 'read',
+            default: 4294967295,
+          },
+          amountADesired: {
+            type: 'string',
+            title: 'Amount A',
+            description: 'Amount of Token A to add (human units). Toggle to use the full vault balance.',
+            'x-ui-widget': 'token-amount',
+            'x-ui-amount-token-field': 'tokenA',
+            'x-ui-zero-toggle': { label: 'Volles Guthaben', default: false },
+          },
+          amountAFromSlot: {
+            type: 'integer',
+            title: 'Amount A from Context Slot',
+            description: 'Read amount A from a context slot. Max uint32 = unset.',
+            'x-ui-widget': 'context-slot',
+            'x-ui-slot-access': 'read',
+            default: 4294967295,
+          },
+          amountBDesired: {
+            type: 'string',
+            title: 'Amount B',
+            description: 'Amount of Token B to add (human units). Toggle to use the full vault balance.',
+            'x-ui-widget': 'token-amount',
+            'x-ui-amount-token-field': 'tokenB',
+            'x-ui-zero-toggle': { label: 'Volles Guthaben', default: false },
+          },
+          amountBFromSlot: {
+            type: 'integer',
+            title: 'Amount B from Context Slot',
+            description: 'Read amount B from a context slot. Max uint32 = unset.',
+            'x-ui-widget': 'context-slot',
+            'x-ui-slot-access': 'read',
+            default: 4294967295,
+          },
+        },
+        required: ['tokenA', 'tokenB', 'tokenIdFromSlot'],
+      },
+    },
+    {
+      name: 'PancakeSwap V3 Decrease Liquidity',
+      description:
+        'Removes a percentage of liquidity from an existing PancakeSwap V3 position and delivers the freed tokens (plus accrued fees) to the vault in one step (decrease + collect bundled). The position token-id comes from a context slot.',
+      category: StepCategory.ACTION,
+      contractKey: 'PancakeSwapV3DecreaseLiquidityAction',
+      selector: EXECUTE_SELECTOR,
+      afterExecutionSelector: null,
+      abiFragment: {
+        type: 'tuple',
+        components: [
+          { name: 'tokenIdFromSlot', type: 'uint32' },
+          { name: 'percent', type: 'uint16' },
+        ],
+      },
+      paramSchema: {
+        type: 'object',
+        properties: {
+          tokenIdFromSlot: {
+            type: 'integer',
+            title: 'Position Token-ID from Context Slot',
+            description: 'Read the position NFT token-id from a context slot (written by a Mint step).',
+            'x-ui-widget': 'context-slot',
+            'x-ui-slot-access': 'read',
+            default: 4294967295,
+          },
+          percent: {
+            type: 'integer',
+            title: 'Percentage to Remove',
+            description: 'How much of the position liquidity to remove (1–100; 100 = all).',
+            'x-ui-widget': 'percent',
+            default: 100,
+          },
+        },
+        required: ['tokenIdFromSlot', 'percent'],
+      },
+    },
+    {
+      name: 'PancakeSwap V3 Collect',
+      description:
+        'Collects accrued fees (and any owed tokens) from an existing PancakeSwap V3 position into the vault. The position token-id comes from a context slot.',
+      category: StepCategory.ACTION,
+      contractKey: 'PancakeSwapV3CollectAction',
+      selector: EXECUTE_SELECTOR,
+      afterExecutionSelector: null,
+      abiFragment: {
+        type: 'tuple',
+        components: [{ name: 'tokenIdFromSlot', type: 'uint32' }],
+      },
+      paramSchema: {
+        type: 'object',
+        properties: {
+          tokenIdFromSlot: {
+            type: 'integer',
+            title: 'Position Token-ID from Context Slot',
+            description: 'Read the position NFT token-id from a context slot (written by a Mint step).',
+            'x-ui-widget': 'context-slot',
+            'x-ui-slot-access': 'read',
+            default: 4294967295,
+          },
+        },
+        required: ['tokenIdFromSlot'],
+      },
+    },
+    {
+      name: 'PancakeSwap V3 Swap to Range Ratio',
+      description:
+        'Sizes a concentrated-liquidity entry at execution time: reads the live pool price, works out the target token0/token1 ratio for the range (tick ± width) and swaps the over-represented token toward it. Pair it before a Mint(full balance). Computed on-chain so it stays correct whenever the automation fires.',
+      category: StepCategory.ACTION,
+      contractKey: 'PancakeSwapV3SwapToRangeRatioAction',
+      selector: EXECUTE_SELECTOR,
+      afterExecutionSelector: null,
+      abiFragment: {
+        type: 'tuple',
+        components: [
+          { name: 'tokenA', type: 'address' },
+          { name: 'tokenB', type: 'address' },
+          { name: 'fee', type: 'uint24' },
+          { name: 'tickDelta', type: 'int24' },
+          { name: 'amountOutMinimum', type: 'uint256' },
+        ],
+      },
+      paramSchema: {
+        type: 'object',
+        properties: {
+          tokenA: {
+            type: 'string',
+            title: 'Token A',
+            description: 'One of the pool tokens (typically the vault deposit token).',
+            'x-ui-widget': 'token-selector',
+            'x-ui-token-source': 'pancakeswap',
+          },
+          tokenB: {
+            type: 'string',
+            title: 'Token B',
+            description: 'The other pool token.',
+            'x-ui-widget': 'token-selector',
+            'x-ui-token-source': 'pancakeswap',
+          },
+          fee: {
+            type: 'integer',
+            title: 'Fee Tier',
+            description: 'The PancakeSwap V3 pool fee tier.',
+            'x-ui-widget': 'fee-tier',
+            default: 500,
+          },
+          tickDelta: {
+            type: 'integer',
+            title: 'Range Width',
+            description:
+              'The ±% band around the current price. MUST match the following Mint. Pick ±3% / ±10% / ±20% or a custom percent.',
+            'x-ui-widget': 'range-percent',
+            default: 1000,
+          },
+          amountOutMinimum: {
+            type: 'string',
+            title: 'Min Out',
+            description: 'Minimum swap output (slippage guard). 0 in v1.',
+            'x-ui-hidden': true,
+            default: '0',
+          },
+        },
+        required: ['tokenA', 'tokenB', 'fee', 'tickDelta'],
+      },
+    },
+] satisfies StepTypeDef[];

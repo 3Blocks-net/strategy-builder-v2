@@ -1,0 +1,214 @@
+import type { RecipeDefinition } from './recipe-validation';
+
+/**
+ * Team-kuratierte Recipe-Formen (HITL-reviewed). Jede Form ist ein Platzhalter-Graph
+ * mit stabilen Step-Type-Namen und Platzhalter-Werten (TOKEN_IN, BETRAG, INTERVALL …).
+ * Der Seed validiert sie gegen den aktuellen Katalog; nicht-ausdrückbare/driftende
+ * Formen werden NICHT ausgeliefert. Kein User-/Community-Schreibpfad.
+ *
+ * Hinweis: Preis-getriggerte Strategien (Stop-Loss) und Health-Factor-Schutz sind mit
+ * dem heutigen Condition-Katalog (Token-Balance / Interval / Timer) nicht ausdrückbar
+ * (keine Preis-/HF-Condition) — bewusst ausgelassen, bis solche Conditions existieren.
+ */
+export const RECIPES: RecipeDefinition[] = [
+  {
+    key: 'dca',
+    name: 'DCA — Dollar-Cost-Averaging',
+    description:
+      'Kauft in festen Intervallen für einen festen Betrag einen Zieltoken ' +
+      '(z. B. wöchentlich für BETRAG TOKEN_IN → TOKEN_OUT). Interval-Trigger → Swap.',
+    category: 'accumulation',
+    shape: {
+      nodes: [
+        { id: 'trigger', stepType: 'Interval Condition', params: { interval: 'INTERVALL' } },
+        {
+          id: 'buy',
+          stepType: 'PancakeSwap V3 Swap',
+          params: { tokenIn: 'TOKEN_IN', tokenOut: 'TOKEN_OUT', fee: 'FEE_TIER', amountIn: 'BETRAG' },
+        },
+      ],
+      edges: [{ source: 'trigger', target: 'buy', sourceHandle: 'out' }],
+    },
+  },
+  {
+    key: 'interval-aave-supply',
+    name: 'Interval Aave Supply',
+    description:
+      'Supplied in festen Intervallen einen Betrag eines Assets in Aave V3 ' +
+      '(z. B. wöchentlich BETRAG TOKEN). Interval-Trigger → Aave V3 Supply.',
+    category: 'yield',
+    shape: {
+      nodes: [
+        { id: 'trigger', stepType: 'Interval Condition', params: { interval: 'INTERVALL' } },
+        {
+          id: 'supply',
+          stepType: 'Aave V3 Supply',
+          params: { asset: 'TOKEN', mode: 'MODE', amount: 'BETRAG' },
+        },
+      ],
+      edges: [{ source: 'trigger', target: 'supply', sourceHandle: 'out' }],
+    },
+  },
+  {
+    key: 'pancake-auto-reinvest',
+    name: 'PancakeSwap Auto-Reinvest',
+    description:
+      'Erntet in festen Intervallen die Gebühren einer PancakeSwap-V3-LP-Position und ' +
+      'reinvestiert sie in dieselbe Position. Interval → Collect → Increase Liquidity. ' +
+      'Die Position-ID kommt aus einem Kontext-Slot (LP_POSITION_SLOT).',
+    category: 'compounding',
+    shape: {
+      nodes: [
+        { id: 'trigger', stepType: 'Interval Condition', params: { interval: 'INTERVALL' } },
+        {
+          id: 'collect',
+          stepType: 'PancakeSwap V3 Collect',
+          params: { tokenIdFromSlot: 'LP_POSITION_SLOT' },
+        },
+        {
+          id: 'reinvest',
+          stepType: 'PancakeSwap V3 Increase Liquidity',
+          params: {
+            tokenA: 'TOKEN_A',
+            tokenB: 'TOKEN_B',
+            tokenIdFromSlot: 'LP_POSITION_SLOT',
+            amountADesired: 'BETRAG_A',
+            amountBDesired: 'BETRAG_B',
+          },
+        },
+      ],
+      edges: [
+        { source: 'trigger', target: 'collect', sourceHandle: 'out' },
+        { source: 'collect', target: 'reinvest', sourceHandle: 'out' },
+      ],
+    },
+  },
+  {
+    key: 'interval-rebalance',
+    name: 'Interval Rebalance',
+    description:
+      'Stellt in festen Intervallen ein Zielverhältnis wieder her, indem ein Betrag ' +
+      'von einem Token in den anderen getauscht wird. Interval-Trigger → Swap.',
+    category: 'rebalancing',
+    shape: {
+      nodes: [
+        { id: 'trigger', stepType: 'Interval Condition', params: { interval: 'INTERVALL' } },
+        {
+          id: 'swap',
+          stepType: 'PancakeSwap V3 Swap',
+          params: { tokenIn: 'TOKEN_FROM', tokenOut: 'TOKEN_TO', fee: 'FEE_TIER', amountIn: 'BETRAG' },
+        },
+      ],
+      edges: [{ source: 'trigger', target: 'swap', sourceHandle: 'out' }],
+    },
+  },
+  {
+    key: 'wick-wait-entry',
+    name: 'Wick & Wait — Entry',
+    description:
+      'Öffnet die Concentrated-Liquidity-Position aus dem Deposit-Token: sized on-chain ' +
+      'auf das Ziel-Verhältnis (±RANGE%) und mintet. Einmalig/manuell ausführen. ' +
+      'Die Position-ID landet im LP_POSITION_SLOT.',
+    category: 'liquidity',
+    shape: {
+      nodes: [
+        {
+          id: 'size',
+          stepType: 'PancakeSwap V3 Swap to Range Ratio',
+          params: { tokenA: 'TOKEN_A', tokenB: 'TOKEN_B', fee: 'FEE', tickDelta: 'RANGE', amountOutMinimum: '0' },
+        },
+        {
+          id: 'mint',
+          stepType: 'PancakeSwap V3 LP Mint',
+          params: {
+            tokenA: 'TOKEN_A', tokenB: 'TOKEN_B', fee: 'FEE',
+            rangeMode: 1, tickDelta: 'RANGE',
+            amountADesired: '0', amountBDesired: '0', tokenIdToSlot: 'LP_POSITION_SLOT',
+          },
+        },
+      ],
+      edges: [{ source: 'size', target: 'mint', sourceHandle: 'out' }],
+    },
+  },
+  {
+    key: 'wick-wait-rebalance',
+    name: 'Wick & Wait — Rebalance',
+    description:
+      'Triggert nur bei einem anhaltenden (TWAP-bestätigten) Range-Bruch + Cooldown — kurze ' +
+      'Wicks werden ignoriert. Erntet erst die Fees, schließt dann die Position, sized die freien ' +
+      'Token on-chain neu (±RANGE%) und öffnet um den neuen Preis. WickWait-Trigger → Collect → ' +
+      'Decrease(100%) → SwapToRangeRatio → Mint. Decrease bündelt intern bereits ein Collect; der ' +
+      'separate Collect davor erntet die Fees, bevor das Prinzipal entnommen wird. Nach dem Schließen ' +
+      'hält die Vault beide Token; SwapToRangeRatio balanciert, Mint(full balance) providet — ein ' +
+      'kleiner Dust-Rest bleibt liegen. Gleiches RANGE wie der Entry verwenden.',
+    category: 'liquidity',
+    shape: {
+      nodes: [
+        {
+          id: 'trigger',
+          stepType: 'Wick & Wait Rebalance',
+          params: {
+            tokenIdSlot: 'LP_POSITION_SLOT', twapWindow: 'TWAP_WINDOW',
+            cooldown: 'COOLDOWN', lastRebalanceSlot: 'LAST_REBALANCE_SLOT',
+          },
+        },
+        { id: 'collect', stepType: 'PancakeSwap V3 Collect', params: { tokenIdFromSlot: 'LP_POSITION_SLOT' } },
+        { id: 'close', stepType: 'PancakeSwap V3 Decrease Liquidity', params: { tokenIdFromSlot: 'LP_POSITION_SLOT', percent: 100 } },
+        {
+          id: 'size',
+          stepType: 'PancakeSwap V3 Swap to Range Ratio',
+          params: { tokenA: 'TOKEN_A', tokenB: 'TOKEN_B', fee: 'FEE', tickDelta: 'RANGE', amountOutMinimum: '0' },
+        },
+        {
+          id: 'mint',
+          stepType: 'PancakeSwap V3 LP Mint',
+          params: {
+            tokenA: 'TOKEN_A', tokenB: 'TOKEN_B', fee: 'FEE',
+            rangeMode: 1, tickDelta: 'RANGE',
+            amountADesired: '0', amountBDesired: '0', tokenIdToSlot: 'LP_POSITION_SLOT',
+          },
+        },
+      ],
+      edges: [
+        { source: 'trigger', target: 'collect', sourceHandle: 'out' },
+        { source: 'collect', target: 'close', sourceHandle: 'out' },
+        { source: 'close', target: 'size', sourceHandle: 'out' },
+        { source: 'size', target: 'mint', sourceHandle: 'out' },
+      ],
+    },
+  },
+  {
+    key: 'wick-wait-compound',
+    name: 'Wick & Wait — Auto-Compound',
+    description:
+      'Erntet in festen Intervallen die Fees der offenen Position, füllt die Gas-Reserve auf ' +
+      'die Zielreserve auf und legt den Rest wieder nach. Interval → Collect → Fee Deposit → ' +
+      'Increase Liquidity. Position-ID aus dem LP_POSITION_SLOT. So bleibt die Vault für den ' +
+      'Keeper zahlungsfähig, ohne separate Wartungs-Automation.',
+    category: 'compounding',
+    shape: {
+      nodes: [
+        { id: 'trigger', stepType: 'Interval Condition', params: { interval: 'INTERVALL' } },
+        { id: 'collect', stepType: 'PancakeSwap V3 Collect', params: { tokenIdFromSlot: 'LP_POSITION_SLOT' } },
+        {
+          id: 'feeTopUp',
+          stepType: 'Fee Deposit',
+          params: { feeRegistry: 'FEE_REGISTRY', token: 'TOKEN_A', topUpAmount: '0' },
+        },
+        {
+          id: 'reinvest',
+          stepType: 'PancakeSwap V3 Increase Liquidity',
+          params: {
+            tokenA: 'TOKEN_A', tokenB: 'TOKEN_B', tokenIdFromSlot: 'LP_POSITION_SLOT',
+            amountADesired: '0', amountBDesired: '0',
+          },
+        },
+      ],
+      edges: [
+        { source: 'trigger', target: 'collect', sourceHandle: 'out' },
+        { source: 'collect', target: 'feeTopUp', sourceHandle: 'out' },
+        { source: 'feeTopUp', target: 'reinvest', sourceHandle: 'out' },
+      ],
+    },
+  },
+];
