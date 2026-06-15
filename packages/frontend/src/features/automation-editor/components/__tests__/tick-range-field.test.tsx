@@ -58,6 +58,21 @@ describe('TickRangeField widget', () => {
     expect(deltaCall?.[0].tickDelta).toBeGreaterThan(0);
   });
 
+  it('commits the displayed default width on mount (no interaction) so a fresh node is not minted with tickDelta 0', () => {
+    const onChange = vi.fn();
+    renderForm({ rangeMode: 1 }, onChange); // no tickDelta in values
+    // The previewed ±% must be written even though the user never changed the select.
+    const deltaCall = onChange.mock.calls.find((c) => 'tickDelta' in c[0]);
+    expect(deltaCall?.[0].tickDelta).toBeGreaterThan(0);
+  });
+
+  it('does not overwrite an already-stored tickDelta on mount and reflects it in the select', () => {
+    const onChange = vi.fn();
+    renderForm({ rangeMode: 1, tickDelta: 953 }, onChange); // 953 ≈ ±10%
+    expect(onChange.mock.calls.find((c) => 'tickDelta' in c[0])).toBeUndefined();
+    expect((screen.getByRole('combobox') as HTMLSelectElement).value).toBe('10');
+  });
+
   it('switches to explicit mode and emits rangeMode 0 + computed ticks', () => {
     const onChange = vi.fn();
     renderForm({ rangeMode: 1 }, onChange);

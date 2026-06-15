@@ -1,4 +1,4 @@
-import { memo, useCallback, useState } from 'react';
+import { memo, useCallback, useEffect, useState } from 'react';
 import { zeroToggleField, type DurationUnit } from 'shared';
 import { type ContextVariable, useEditorStore } from '../store/editor-store';
 import { ContextInputField } from './context-input-field';
@@ -708,10 +708,18 @@ function TickRangeField({
   const deltaField = schema['x-ui-tick-delta-field'] ?? 'tickDelta';
 
   const initialMode = value === undefined || value === null ? (schema.default as number) ?? 1 : Number(value);
+  // Derive the displayed width from a previously stored tickDelta so reopening a
+  // node shows its real % (snap to the nearest preset), else default to 10%.
+  const storedDelta = Number((allValues[deltaField] as number) ?? 0);
+  const pctFromDelta = storedDelta > 0 ? tickDeltaToPct(storedDelta) : 10;
+  const nearestPreset = PRESET_WIDTHS.reduce(
+    (a, b) => (Math.abs(b - pctFromDelta) < Math.abs(a - pctFromDelta) ? b : a),
+    PRESET_WIDTHS[0],
+  );
   const [mode, setMode] = useState<number>(initialMode);
   const [minPrice, setMinPrice] = useState<string>('');
   const [maxPrice, setMaxPrice] = useState<string>('');
-  const [pct, setPct] = useState<number>(10);
+  const [pct, setPct] = useState<number>(nearestPreset);
 
   function decimalsOf(addr: unknown): number {
     return typeof addr === 'string' ? tokenDecimals[addr.toLowerCase()] ?? 18 : 18;
@@ -751,6 +759,18 @@ function TickRangeField({
     onChange(fieldName, 1);
     onChange(deltaField, presetTickDelta(nextPct));
   }
+
+  // Commit the displayed default once on mount. A fresh node has rangeMode=1 but
+  // tickDelta=0 (schema default), and selecting the already-shown ±% fires no
+  // onChange — so the previewed width would never be written, minting a
+  // degenerate single-spacing range. Only fires in preset mode with no delta yet
+  // (explicit-price nodes and already-sized nodes are left untouched).
+  useEffect(() => {
+    if (mode === 1 && !(storedDelta > 0)) {
+      applyPreset(pct);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div>
