@@ -25,7 +25,7 @@ pnpm-Monorepo (`packages/*`), Node ≥ 22, TypeScript (strict). Ziel-Chain: BSC.
 
 > Test-Runner ist gemischt: Backend = Jest, alles andere = Vitest. On-chain-Reads über viem; Keystore-Decrypt über ethers.
 >
-> Ports: backend **3001**, frontend **5173**, Hardhat-Fork **8545**. `backend:dev` läuft im Watch-Mode (hot-reload) → reine Seed-Daten-Änderungen brauchen nur `pnpm db:seed` (kein Restart), Schema-/Model-Änderungen `prisma migrate dev`. Recipes/StepTypes werden beim Seed gegen den deployten Katalog validiert (ungültige werden übersprungen).
+> Ports: backend **3001**, frontend **5173**, Hardhat-Fork **8545**. `backend:dev` läuft im Watch-Mode (hot-reload) → reine Seed-Daten-Änderungen brauchen nur `pnpm db:seed` (kein Restart), Schema-/Model-Änderungen `prisma migrate dev`. Recipes/StepTypes werden beim Seed gegen den deployten Katalog validiert (ungültige werden übersprungen). Der Seed ist **self-pruning**: StepType-Zeilen, die nicht zum aktuellen Deploy gehören (per id abgeglichen), werden entfernt — ein Redeploy mit neuen Adressen hinterlässt also keine Duplikate. `deploy-fork.ts` deployt den vollständigen DeFi-Satz inkl. `SwapToRangeRatio` + `WickWaitRebalanceCondition`.
 
 ## Konventionen
 

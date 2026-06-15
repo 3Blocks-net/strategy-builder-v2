@@ -50,16 +50,19 @@ pnpm contracts:deploy:fork
 ```
 
 This deploys the FeeRegistry, vault factory + implementation, a MockPriceOracle,
-the example conditions/actions, **and the two DeFi registries + nine DeFi action
-contracts** (Aave V3 + PancakeSwap V3); configures fees and gas compensation; and
+the example conditions/actions, **and the two DeFi registries + ten DeFi action
+contracts + the Wick-&-Wait TWAP condition** (Aave V3 + PancakeSwap V3, incl. the
+on-chain Swap-to-Range-Ratio sizing action); configures fees and gas compensation; and
 seeds the test wallet. It prints every address and also saves them to
 `packages/contracts/deployments/fork-latest.json`.
 
-> Already have the base system deployed and only need to add the DeFi actions?
-> Run `npx hardhat run --network localhost scripts/deploy-defi-actions.ts` — it
-> deploys just the registries + nine actions and **merges** their addresses into
-> `fork-latest.json` (leaving the factory and existing vaults untouched), then
-> re-seed with `pnpm --filter backend prisma:seed`.
+> The full `deploy-fork.ts` now deploys the complete DeFi set (incl. `SwapToRangeRatio`
+> and the `WickWaitRebalanceCondition`). Already have the base system deployed and only
+> need to add/refresh the DeFi contracts? Run
+> `npx hardhat run --network localhost scripts/deploy-defi-actions.ts` — it deploys just
+> the registries + the DeFi actions + the Wick-&-Wait condition and **merges** their
+> addresses into `fork-latest.json` (leaving the factory and existing vaults untouched),
+> then re-seed with `pnpm --filter backend prisma:seed`.
 
 Copy the printed addresses into your env files **before** starting the services:
 
@@ -348,8 +351,9 @@ AaveV3Registry ──────────┐         PancakeSwapV3Registry �
 ```
 
 - **Aave V3** — Supply / Withdraw / Borrow / Repay with a 4-mode amount model: `FIXED`, `FROM_SLOT`, `MAX_AVAILABLE` (per-action protocol max), `TARGET_HF` (move the position to a target health factor; wrong-direction is a no-op). Borrow/Repay use variable rate; approvals reset to 0.
-- **PancakeSwap V3** — Swap (single-hop, ships `amountOutMinimum = 0` by design), LP Mint (explicit price range or preset ±% width, position NFT held by the vault via `onERC721Received`), Increase / Decrease (bundles `decreaseLiquidity` + `collect`) / Collect.
-- Registries are **immutable** (no owner/setters); actions hold the registry as an `immutable` and call protocols via regular `call`. Curated per-protocol token lists are DB-backed (`/tokens?protocol=…`). All nine actions are well under the 24 KB EIP-170 limit.
+- **PancakeSwap V3** — Swap (single-hop, ships `amountOutMinimum = 0` by design), LP Mint (explicit price range or preset ±% width, position NFT held by the vault via `onERC721Received`), Increase / Decrease (bundles `decreaseLiquidity` + `collect`) / Collect, and **Swap-to-Range-Ratio** (on-chain, execution-time sizing: reads the live price, computes the target token0/token1 ratio for the range and swaps the over-represented token — pair it before a `Mint(full balance)`).
+- **Wick-&-Wait strategy** — a `WickWaitRebalanceCondition` (`IUpdatableCondition`) triggers a rebalance only when the pool's **TWAP** tick has left the position's range for a configured window `W` (short wicks are ignored) **and** a cooldown has elapsed. Assembled from existing actions into three curated recipes: **Entry** (`SwapToRangeRatio → Mint`), **Rebalance** (`WickWait → Collect → Decrease(100%) → SwapToRangeRatio → Mint`), and **Auto-Compound** (`Interval → Collect → Fee Deposit → Increase`, which also tops the gas reserve back up).
+- Registries are **immutable** (no owner/setters); actions hold the registry as an `immutable` and call protocols via regular `call`. Curated per-protocol token lists are DB-backed (`/tokens?protocol=…`). All actions are well under the 24 KB EIP-170 limit.
 
 ### Execution Monitoring (PEC-219)
 
@@ -492,7 +496,7 @@ It also **reports failures** (PEC-219): a reverting `executeAutomation` or a rev
 ### Important Notes
 
 - **Production build profile required**: The deploy script compiles with `--build-profile production` (optimizer enabled). Without the optimizer, vault proxy deployment fails with StackOverflow.
-- **Re-seed StepTypes after a fresh deploy**: `pnpm --filter backend prisma:seed` — otherwise newly built automations encode the previous deploy's (now dead) condition/action addresses and revert. The seed reads addresses from `fork-latest.json`, seeds one row per step (3 conditions + 2 example actions + 9 DeFi actions) and the per-protocol token lists, and **skips any action still at `address(0)`** (not yet deployed) — so deploy the contracts first, then seed.
+- **Re-seed StepTypes after a fresh deploy**: `pnpm --filter backend prisma:seed` — otherwise newly built automations encode the previous deploy's (now dead) condition/action addresses and revert. The seed reads addresses from `fork-latest.json`, seeds one row per step (3 example conditions + 2 example actions + 10 DeFi actions + the Wick-&-Wait TWAP condition = **16 step types**) and the per-protocol token lists, and **skips any step still at `address(0)`** (not yet deployed) — so deploy the contracts first, then seed. The seed is **self-pruning**: it deletes any `StepType` row not part of the current deploy (matched by id), so a redeploy with new addresses can't leave stale duplicate rows behind.
 - **Multicall disabled on Hardhat**: The frontend disables viem's multicall batching on chain 31337 to avoid StackOverflow from multicall3 contract simulation.
 - **`NODE_ENV=development`**: Must be set in `packages/backend/.env` for the portfolio service to read balances via local RPC instead of Alchemy API.
 - **Fork clock**: an idle fork's `block.timestamp` lags real time; the keeper script syncs it. Trigger badges in the UI use wall-clock, so they can read "ready" before the chain agrees.
@@ -500,7 +504,8 @@ It also **reports failures** (PEC-219): a reverting `executeAutomation` or a rev
 ### Troubleshooting
 
 - **Editor shows only some action nodes**: the new DeFi actions aren't deployed, so their `StepType` rows collapsed onto the `address(0)` placeholder. Deploy them (`scripts/deploy-defi-actions.ts` or a full `deploy-fork.ts`) and re-seed.
-- **Keeper skips an automation with `[id] skip: trigger not met` even though it should fire**: the automation's on-chain steps were encoded against a **previous deploy's condition/action addresses** (the `StepType` table drifted from `fork-latest.json` and wasn't re-seeded). The stale condition's `check()` reverts → `isTriggerMet` is false. **Fix:** re-seed `StepType`s (clear the table first so old rows don't linger as duplicates), then **re-deploy the automation** in the editor (re-seeding alone can't fix the addresses already baked into the deployed steps). To avoid the drift, prefer the incremental `deploy-defi-actions.ts` over a full re-deploy on an existing setup.
+- **Editor shows duplicate step types after a redeploy**: fixed — the seed now self-prunes (deletes any `StepType` not part of the current deploy). Just `pnpm --filter backend prisma:seed` again and reload the editor; no manual table clearing needed.
+- **Keeper skips an automation with `[id] skip: trigger not met` even though it should fire**: the automation's on-chain steps were encoded against a **previous deploy's condition/action addresses** (the `StepType` table drifted from `fork-latest.json` and wasn't re-seeded). The stale condition's `check()` reverts → `isTriggerMet` is false. **Fix:** re-seed `StepType`s, then **re-deploy the automation** in the editor (re-seeding alone can't fix the addresses already baked into the deployed steps). To avoid the drift, prefer the incremental `deploy-defi-actions.ts` over a full re-deploy on an existing setup.
 - **`InsufficientFeeDeposit` on external execution**: the vault's gas reserve is empty — set a positive `minFeeDeposit` (gas-reserve card) and fund it via `depositFees` or a `FeeDepositAction` step.
 - **A deposit/execution never appears in the history (on the fork)**: the indexer only processes blocks `≤ head − INDEXER_CONFIRMATIONS`, but an **idle fork never mines** the confirmation blocks, so fresh events stay "unconfirmed" forever. **Fix:** set `INDEXER_CONFIRMATIONS=0` in `packages/backend/.env` and restart the backend (the fork has no reorgs). Alternatively mine blocks (`evm_mine`) so the head advances past the event + N. Verify with `GET /indexer/status` (does the cursor advance past the event's block?).
 - **Failures don't show up**: the keeper is the only source of failures (reverts emit no logs). Ensure the keeper runs with `KEEPER_INGEST_SECRET` set to the same value as the backend; otherwise failure reporting is skipped.
