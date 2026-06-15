@@ -77,6 +77,39 @@ function formatMetrics(p: ValuedPosition): string | null {
   return parts.length ? parts.join(' · ') : null;
 }
 
+/**
+ * Tick range + human price bounds for a PancakeSwap V3 LP position.
+ * Backend metrics carry tickLower/tickUpper; legs are ordered [token0, token1]
+ * with decimals/symbol. Price(token1 per token0) = 1.0001^tick · 10^(dec0−dec1);
+ * inverted for readability when below 1 so the number stays legible.
+ */
+function lpRangeLine(p: ValuedPosition): string | null {
+  const m = p.metrics;
+  if (!m || typeof m.tickLower !== 'number' || typeof m.tickUpper !== 'number') {
+    return null;
+  }
+  if (p.legs.length < 2) return null;
+  const [t0, t1] = p.legs;
+  const tl = m.tickLower as number;
+  const tu = m.tickUpper as number;
+  const priceAt = (tick: number) =>
+    Math.pow(1.0001, tick) * 10 ** (t0.decimals - t1.decimals); // token1 per token0
+
+  let lo = priceAt(tl);
+  let hi = priceAt(tu); // tickUpper > tickLower ⇒ hi > lo
+  let base = t0.symbol;
+  let quote = t1.symbol;
+  if (hi < 1) {
+    // invert: show token0 per token1 (bounds swap on inversion)
+    [lo, hi] = [1 / hi, 1 / lo];
+    base = t1.symbol;
+    quote = t0.symbol;
+  }
+  const fmt = (x: number) =>
+    new Intl.NumberFormat('en-US', { maximumSignificantDigits: 6 }).format(x);
+  return `Range ${fmt(lo)}–${fmt(hi)} ${quote}/${base} · ticks [${tl}, ${tu}]`;
+}
+
 function relativeAge(iso: string | null): string {
   if (!iso) return '';
   const secs = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000));
@@ -205,6 +238,11 @@ export function CockpitPositionsPanel({ address }: { address: string }) {
                         {formatMetrics(p) && (
                           <div className="text-xs text-muted-foreground">
                             {formatMetrics(p)}
+                          </div>
+                        )}
+                        {lpRangeLine(p) && (
+                          <div className="text-xs text-muted-foreground">
+                            {lpRangeLine(p)}
                           </div>
                         )}
                       </div>
