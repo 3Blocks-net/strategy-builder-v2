@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Developer-Setup – Strategy Builder V2 (frisch nach dem Klonen)</title>
+<style>
+  @page { size: A4; margin: 17mm 15mm; }
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+         color: #1c2330; font-size: 10.7px; line-height: 1.5; margin: 0; }
+  h1 { font-size: 22px; margin: 0 0 2px; color: #0f1729; }
+  h2 { font-size: 15px; margin: 20px 0 7px; padding-bottom: 4px; border-bottom: 2px solid #2563eb; color: #0f1729; }
+  h3 { font-size: 12.5px; margin: 14px 0 4px; color: #1e3a8a; }
+  p { margin: 5px 0; }
+  code { font-family: "SF Mono","JetBrains Mono",Menlo,Consolas,monospace; font-size: 9.6px;
+         background: #eef2f7; padding: 1px 4px; border-radius: 3px; color: #b91c5c; }
+  pre { background: #0f172a; color: #e2e8f0; padding: 9px 11px; border-radius: 6px; font-size: 9.3px;
+        overflow-x: auto; line-height: 1.5; white-space: pre-wrap; }
+  pre code { background: none; color: inherit; padding: 0; }
+  pre .c { color: #7dd3fc; } /* comments */
+  ul, ol { margin: 5px 0 5px 18px; padding: 0; }
+  li { margin: 2px 0; }
+  table { border-collapse: collapse; width: 100%; margin: 7px 0; font-size: 9.8px; }
+  th, td { border: 1px solid #cbd5e1; padding: 4px 7px; text-align: left; vertical-align: top; }
+  th { background: #eff4fb; font-weight: 600; }
+  .lead { font-size: 11px; color: #475569; margin-top: 4px; }
+  .meta { color: #94a3b8; font-size: 9.3px; margin-bottom: 4px; }
+  .note { border-left: 4px solid #2563eb; background: #eff6ff; padding: 7px 11px; border-radius: 0 5px 5px 0; margin: 8px 0; }
+  .warn { border-left: 4px solid #d97706; background: #fffbeb; padding: 7px 11px; border-radius: 0 5px 5px 0; margin: 8px 0; }
+  .ok   { border-left: 4px solid #16a34a; background: #f0fdf4; padding: 7px 11px; border-radius: 0 5px 5px 0; margin: 8px 0; }
+  .term { display:inline-block; font-size:9px; font-weight:700; color:#fff; background:#334155; border-radius:4px; padding:1px 6px; margin-right:5px; }
+  .kbd { font-family: monospace; background:#e2e8f0; border:1px solid #cbd5e1; border-radius:3px; padding:0 4px; font-size:9.3px;}
+  .pagebreak { page-break-before: always; }
+  .small { font-size: 9.3px; color: #64748b; }
+  .step { background:#1e3a8a; color:#fff; font-weight:600; font-size:11.5px; padding:5px 10px; border-radius:6px 6px 0 0; }
+  .stepbody { border:1px solid #c7d2e0; border-top:none; border-radius:0 0 6px 6px; padding:8px 11px; margin-bottom:11px; }
+  .num { display:inline-block; width:18px; height:18px; line-height:18px; text-align:center; background:#2563eb; color:#fff; border-radius:50%; font-size:10px; font-weight:700; margin-right:4px;}
+</style>
+</head>
+<body>
+
+<h1>Developer-Setup – Strategy Builder V2</h1>
+<div class="meta">Lokale Vollumgebung mit BSC-Fork · frisch nach <code>git clone</code> · Stand: 15.06.2026</div>
+<p class="lead">Von null bis zur laufenden Full-Stack-Umgebung (Contracts-Fork + Backend + Frontend + DB).
+Die <strong>Reihenfolge ist wichtig</strong>: erst Fork &amp; Deploy, dann Adressen in die <code>.env</code>-Dateien,
+dann Services starten — sonst laufen Backend/Frontend mit leeren Contract-Adressen.</p>
+
+<div class="note">
+<strong>Goldene Regel:</strong> <code>Fork → Deploy → .env füllen → Seed → Services</code>.
+Jeder Schritt unten baut darauf auf.
+</div>
+
+<h2>0 · Voraussetzungen</h2>
+<table>
+  <tr><th>Tool</th><th>Version</th><th>Prüfen</th></tr>
+  <tr><td>Node.js</td><td>22+</td><td><code>node -v</code></td></tr>
+  <tr><td>pnpm</td><td>9+</td><td><code>pnpm -v</code> · sonst <code>npm i -g pnpm</code></td></tr>
+  <tr><td>Docker</td><td>aktiv (für PostgreSQL)</td><td><code>docker ps</code></td></tr>
+  <tr><td>MetaMask</td><td>Browser-Extension</td><td>für das Frontend</td></tr>
+  <tr><td>Archiv-RPC für BSC</td><td>BlastAPI / Alchemy / QuickNode</td><td><strong>Pflicht</strong> für den Fork (s. u.)</td></tr>
+</table>
+
+<h3>Ports im Überblick</h3>
+<table>
+  <tr><th>Dienst</th><th>Port</th><th>Chain-ID</th></tr>
+  <tr><td>Hardhat-Fork-Node</td><td>8545</td><td>31337</td></tr>
+  <tr><td>Backend (NestJS)</td><td>3001</td><td>—</td></tr>
+  <tr><td>Frontend (Vite)</td><td>5173</td><td>—</td></tr>
+  <tr><td>PostgreSQL</td><td>5432 (Test-DB 5433)</td><td>—</td></tr>
+</table>
+
+<h2>1 · Dependencies installieren</h2>
+<pre><code>pnpm install</code></pre>
+<p class="small">Installiert alle Workspace-Pakete (<code>packages/*</code>) und baut die nativen Deps
+(Prisma, esbuild, keytar, NestJS). Generiert den Prisma-Client.</p>
+
+<h2>2 · Env-Dateien aus den Vorlagen anlegen</h2>
+<p>Für jedes Paket existiert eine <code>.env.example</code>. Die Contract-Adressen bleiben vorerst leer und
+werden nach dem Deploy (Schritt 4) eingetragen.</p>
+<pre><code>cp packages/contracts/.env.example packages/contracts/.env
+cp packages/backend/.env.example  packages/backend/.env
+cp packages/frontend/.env.example packages/frontend/.env</code></pre>
+<div class="warn">
+<strong>Jetzt das Wichtigste in <code>packages/contracts/.env</code> setzen:</strong> einen
+<strong>archivfähigen</strong> BSC-RPC. Öffentliche RPCs (<code>bsc-dataseed.binance.org</code>) scheitern beim
+Forken mit <em>„missing trie node"</em>.
+<pre><code><span class="c"># packages/contracts/.env</span>
+BSC_MAINNET_RPC_URL=https://bsc-mainnet.public.blastapi.io   <span class="c"># oder eigener Alchemy/QuickNode-Key</span>
+DEPLOYER_PRIVATE_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80  <span class="c"># Hardhat #0, nur lokal!</span></code></pre>
+</div>
+
+<h2>3 · BSC-Fork starten <span class="term">Terminal 1</span></h2>
+<pre><code>pnpm contracts:fork:bsc</code></pre>
+<p>Startet einen Hardhat-Node, geforkt von BSC-Mainnet, auf <code>http://localhost:8545</code> (Chain-ID 31337).
+<strong>Terminal offen lassen.</strong></p>
+
+<h2>4 · Contracts deployen <span class="term">Terminal 2</span></h2>
+<p>Sobald der Fork läuft, das komplette System deployen (kompiliert automatisch mit
+<em>production build profile</em> — ohne Optimizer schlägt das Proxy-Deployment fehl):</p>
+<pre><code>pnpm contracts:deploy:fork</code></pre>
+<p>Deployt FeeRegistry, Vault-Factory + Implementation, MockPriceOracle, die Beispiel-Conditions/Actions
+<strong>und die 2 DeFi-Registries + 11 DeFi-Actions</strong> (Aave V3 + PancakeSwap V3 inkl. Swap-to-Range-Ratio
+&amp; Wick-&amp;-Wait-Condition), konfiguriert Fees + Gas-Kompensation und fundet das Test-Wallet. Alle Adressen
+werden ausgegeben und nach <code>packages/contracts/deployments/fork-latest.json</code> geschrieben.</p>
+<div class="note">
+<strong>Nur DeFi-Actions nachziehen</strong> (Basissystem steht schon)? — <code>npx hardhat run --network localhost
+scripts/deploy-defi-actions.ts</code> deployt nur die Registries + Actions und <em>merged</em> die Adressen in
+<code>fork-latest.json</code> (Factory/Vaults bleiben unberührt). Danach neu seeden.
+</div>
+
+<h2 class="pagebreak">5 · Adressen in die Service-Env-Dateien übertragen</h2>
+<p>Aus der Deploy-Ausgabe (bzw. <code>fork-latest.json</code>) die Adressen kopieren:</p>
+<div class="step">packages/backend/.env</div>
+<div class="stepbody">
+<pre><code>NODE_ENV=development            <span class="c"># Pflicht: Balance-Reads über lokales RPC</span>
+DATABASE_URL=postgresql://pecunity:pecunity@localhost:5432/pecunity
+RPC_URL=http://localhost:8545
+FACTORY_ADDRESS=0x...           <span class="c"># StrategyBuilderVaultFactory</span>
+FEE_REGISTRY_ADDRESS=0x...      <span class="c"># FeeRegistry</span>
+INDEXER_CONFIRMATIONS=0         <span class="c"># Pflicht am Fork (idle fork mined keine Confirmations)</span>
+JWT_SECRET=&lt;zufälliger-hex-wert&gt;
+FRONTEND_URL=http://localhost:5173
+PORT=3001</code></pre>
+</div>
+<div class="step">packages/frontend/.env</div>
+<div class="stepbody">
+<pre><code>VITE_API_URL=http://localhost:3001
+VITE_FACTORY_ADDRESS=0x...      <span class="c"># gleiche Factory-Adresse</span></code></pre>
+</div>
+<div class="warn"><strong>INDEXER_CONFIRMATIONS=0</strong> nicht vergessen: Sonst erscheinen am Fork frische
+Deposits/Executions nie in der History (ein idle Fork mined die Confirmation-Blöcke nicht).</div>
+
+<h2>6 · Datenbank, Migration &amp; Services starten <span class="term">Terminal 3</span></h2>
+<pre><code>pnpm dev</code></pre>
+<p>Ein Befehl erledigt: Backend-<code>.env</code> aus Vorlage anlegen (falls fehlt) · PostgreSQL via Docker hochfahren ·
+auf DB warten · <code>prisma migrate dev</code> · <code>shared</code> bauen · Backend (<code>:3001</code>) + Frontend
+(<code>:5173</code>) im Watch-Mode starten.</p>
+
+<h2>7 · StepType-Katalog seeden <span class="term">einmalig, nach dem Deploy</span></h2>
+<p>Der Seed liest die Adressen aus <code>fork-latest.json</code> — deshalb <strong>nach</strong> Deploy &amp; mit
+laufender DB ausführen (z. B. in einem 4. Terminal, während <code>pnpm dev</code> läuft):</p>
+<pre><code>pnpm db:seed</code></pre>
+<p class="small">Seedet eine Zeile pro Step (3 Conditions + Beispiel-Actions + DeFi-Actions) + die Token-Listen und
+überspringt alles, was noch auf <code>address(0)</code> steht. <strong>Ohne Seed nach einem Deploy</strong>
+encoden neue Automations die toten Alt-Adressen und reverten.</p>
+<div class="warn"><strong>Nach jedem erneuten Full-Deploy neu seeden.</strong> Bei einem Redeploy bekommen Contracts
+neue Adressen; alte StepType-Zeilen können sonst als <em>Duplikate</em> im Editor hängenbleiben. Tipp: für
+bestehende Setups lieber inkrementell <code>deploy-defi-actions.ts</code> nutzen.</div>
+
+<h2>8 · MetaMask verbinden</h2>
+<p>Eigenes Netzwerk hinzufügen: <strong>RPC</strong> <code>http://localhost:8545</code> · <strong>Chain-ID</strong>
+<code>31337</code> · <strong>Currency</strong> ETH. Das Frontend schaltet im Dev-Modus automatisch auf Chain 31337.</p>
+<p>Test-Account importieren — das Deploy-Skript fundet <code>0xBcd4042DE499D14e55001CcbB24a551F3b954096</code>
+mit 150 USDT + 1 WBNB:</p>
+<pre><code><span class="c"># Hardhat Account #5</span>
+0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a</code></pre>
+<p>Dann <code>http://localhost:5173</code> öffnen und Wallet verbinden.</p>
+
+<div class="ok"><strong>Fertig.</strong> Du hast jetzt: Fork-Node (T1), Deploy erledigt (T2),
+DB+Backend+Frontend (T3), Katalog geseedet. Anmelden via SIWE, Vault anlegen, Automations bauen.</div>
+
+<h2 class="pagebreak">9 · Optional – Keeper für Public-Automations</h2>
+<p>Public-Automations (mit Trigger) werden von einem externen Keeper ausgeführt, sobald der Trigger erfüllt ist.
+Am Fork manuell anstoßen:</p>
+<pre><code>pnpm contracts:execute:fork</code></pre>
+<p class="small">Synct zuerst die Fork-Uhr auf Wall-Clock, führt dann jede aktive, public, getriggerte Automation aus
+und meldet Fehlschläge (Reverts) ans Backend (wenn <code>KEEPER_INGEST_SECRET</code> in beiden <code>.env</code> gesetzt ist).
+Voraussetzung: die Vault hat eine Gas-Reserve (<code>minFeeDeposit</code> &gt; 0 + gefüllt), sonst Revert
+<code>InsufficientFeeDeposit</code>.</p>
+
+<h2>10 · Optional – MCP-Server (KI-Steuerung)</h2>
+<pre><code>pnpm --filter mcp build
+pnpm --filter mcp run init     <span class="c"># Keystore-Passwort im OS-Keychain ablegen</span>
+pnpm --filter mcp inspect      <span class="c"># MCP-Inspector gegen den gebauten Server</span></code></pre>
+<p class="small">Schreibende Tools sind nur aktiv, wenn <code>PECUNITY_RPC_URL</code> (und für <code>create_vault</code> auch
+<code>PECUNITY_FACTORY_ADDRESS</code>) gesetzt sind. Details: <code>packages/mcp/README.md</code>.</p>
+
+<h2>11 · Optional – Dev-Tooling (OpenSpec / Claude Code)</h2>
+<p>Nur falls du mit dem Spec-Workflow dieses Repos arbeitest:</p>
+<pre><code>./scripts/bootstrap.sh</code></pre>
+<p class="small">Prüft Node, installiert/initialisiert OpenSpec, listet die Projekt-Skills. Superpowers wird einmalig
+<em>innerhalb</em> einer Claude-Session installiert (siehe Ausgabe des Skripts). Danach <code>WORKFLOW.md</code> lesen.</p>
+
+<h2>12 · Tests</h2>
+<pre><code>pnpm contracts:test     <span class="c"># Hardhat (Solidity)</span>
+pnpm backend:test       <span class="c"># Jest (NestJS)</span>
+pnpm frontend:test      <span class="c"># Vitest (React)</span>
+pnpm --filter shared test
+pnpm --filter mcp test</code></pre>
+
+<h2>13 · Nützliche Befehle</h2>
+<table>
+  <tr><th>Befehl</th><th>Zweck</th></tr>
+  <tr><td><code>pnpm dev</code></td><td>DB + Migration + Backend + Frontend</td></tr>
+  <tr><td><code>pnpm db:up</code> / <code>db:down</code></td><td>nur PostgreSQL starten/stoppen</td></tr>
+  <tr><td><code>pnpm db:migrate</code></td><td>Prisma-Migrationen</td></tr>
+  <tr><td><code>pnpm db:seed</code></td><td>StepTypes aus <code>fork-latest.json</code> (neu) seeden</td></tr>
+  <tr><td><code>pnpm db:studio</code></td><td>Prisma Studio (DB-GUI)</td></tr>
+  <tr><td><code>pnpm contracts:compile</code></td><td>kompilieren + ABIs ins Frontend extrahieren</td></tr>
+  <tr><td><code>pnpm contracts:deploy:fork</code></td><td>Full-Deploy auf den Fork</td></tr>
+</table>
+
+<h2>14 · Troubleshooting</h2>
+<table>
+  <tr><th>Symptom</th><th>Ursache / Lösung</th></tr>
+  <tr><td>Fork-Start: <em>„missing trie node"</em></td><td>Kein Archiv-RPC. <code>BSC_MAINNET_RPC_URL</code> auf BlastAPI/Alchemy/QuickNode setzen.</td></tr>
+  <tr><td>Deploy bricht mit StackOverflow ab</td><td><em>production build profile</em> nötig — <code>contracts:deploy:fork</code> macht das automatisch; nicht den nackten <code>hardhat run</code> ohne <code>--build-profile production</code> nutzen.</td></tr>
+  <tr><td>Editor zeigt nur manche / <strong>doppelte</strong> Step-Nodes</td><td>DeFi-Actions nicht deployed bzw. Alt-Adressen in der DB. Deployen + <code>pnpm db:seed</code> (bei Duplikaten Tabelle vorher leeren).</td></tr>
+  <tr><td>Neue Automation revertet sofort / Keeper „trigger not met"</td><td>StepTypes nach dem Deploy nicht neu geseedet → tote Alt-Adressen. Neu seeden <em>und</em> Automation neu deployen.</td></tr>
+  <tr><td>Deposits/Executions tauchen nie in der History auf</td><td><code>INDEXER_CONFIRMATIONS=0</code> in der Backend-<code>.env</code> setzen, Backend neu starten.</td></tr>
+  <tr><td>Portfolio/Balances bleiben leer</td><td><code>NODE_ENV=development</code> in der Backend-<code>.env</code> (liest dann über lokales RPC statt Alchemy).</td></tr>
+  <tr><td>Geänderte <code>.env</code> wirkt nicht</td><td><code>pnpm dev</code> neu starten (Env wird beim Start gelesen).</td></tr>
+  <tr><td>Docker-Fehler bei <code>pnpm dev</code></td><td>Docker-Daemon starten (<code>docker ps</code> muss laufen).</td></tr>
+</table>
+
+<p class="small" style="margin-top:16px; color:#94a3b8;">Quelle: Repo-README, <code>scripts/dev.mjs</code>,
+<code>docker-compose.yml</code> und die <code>.env.example</code>-Dateien. Private Keys sind die öffentlichen
+Hardhat-Test-Keys — niemals außerhalb lokaler Forks verwenden.</p>
+
+</body>
+</html>

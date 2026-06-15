@@ -1,0 +1,374 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Wick &amp; Wait – Strategie in der Vault anlegen &amp; manuell testen</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm; }
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+         color: #1c2330; font-size: 11px; line-height: 1.5; margin: 0; }
+  h1 { font-size: 23px; margin: 0 0 2px; color: #0f1729; }
+  h2 { font-size: 15px; margin: 22px 0 8px; padding-bottom: 4px; border-bottom: 2px solid #2563eb; color: #0f1729; }
+  h3 { font-size: 12.5px; margin: 16px 0 5px; color: #1e3a8a; }
+  h4 { font-size: 11.5px; margin: 11px 0 3px; color: #334155; }
+  p { margin: 5px 0; }
+  code { font-family: "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace; font-size: 10px;
+         background: #eef2f7; padding: 1px 4px; border-radius: 3px; color: #b91c5c; }
+  pre { background: #0f172a; color: #e2e8f0; padding: 9px 11px; border-radius: 6px; font-size: 9.5px;
+        overflow-x: auto; line-height: 1.45; }
+  pre code { background: none; color: inherit; padding: 0; }
+  ul, ol { margin: 5px 0 5px 18px; padding: 0; }
+  li { margin: 2px 0; }
+  table { border-collapse: collapse; width: 100%; margin: 8px 0; font-size: 10px; }
+  th, td { border: 1px solid #cbd5e1; padding: 4px 7px; text-align: left; vertical-align: top; }
+  th { background: #eff4fb; font-weight: 600; }
+  .lead { font-size: 11.5px; color: #475569; margin-top: 4px; }
+  .meta { color: #94a3b8; font-size: 9.5px; margin-bottom: 4px; }
+  .box { border: 1px solid #cbd5e1; border-radius: 7px; padding: 10px 13px; margin: 9px 0; background: #fbfdff; }
+  .note { border-left: 4px solid #2563eb; background: #eff6ff; padding: 7px 11px; border-radius: 0 5px 5px 0; margin: 8px 0; }
+  .warn { border-left: 4px solid #d97706; background: #fffbeb; padding: 7px 11px; border-radius: 0 5px 5px 0; margin: 8px 0; }
+  .ok { border-left: 4px solid #16a34a; background: #f0fdf4; padding: 7px 11px; border-radius: 0 5px 5px 0; margin: 8px 0; }
+  .pill { display: inline-block; font-size: 9px; font-weight: 600; padding: 1px 7px; border-radius: 999px; }
+  .pill-pub { background: #dcfce7; color: #15803d; }
+  .pill-own { background: #fef3c7; color: #b45309; }
+  .step-head { background: #1e3a8a; color: #fff; padding: 6px 11px; border-radius: 6px 6px 0 0; font-weight: 600; font-size: 12px; }
+  .step-body { border: 1px solid #c7d2e0; border-top: none; border-radius: 0 0 6px 6px; padding: 9px 12px; margin-bottom: 12px; }
+  .pagebreak { page-break-before: always; }
+  .small { font-size: 9.5px; color: #64748b; }
+  .kbd { font-family: monospace; background:#e2e8f0; border:1px solid #cbd5e1; border-radius:3px; padding:0 4px; font-size:9.5px;}
+  .toc li { margin: 1px 0; }
+  .flow { font-family: monospace; font-size: 10px; background:#f1f5f9; padding:6px 9px; border-radius:5px; }
+</style>
+</head>
+<body>
+
+<h1>Wick &amp; Wait – Strategie in der Vault anlegen &amp; manuell testen</h1>
+<div class="meta">Pecunity Strategy Builder · BSC · PancakeSwap V3 · Stand: 14.06.2026</div>
+<p class="lead">Diese Anleitung führt dich als <strong>User</strong> Schritt für Schritt durch den kompletten Aufbau
+der Wick-&amp;-Wait-Concentrated-Liquidity-Strategie auf einer Vault – aus drei Automations – und durch einen
+manuellen End-to-End-Test auf dem Fork.</p>
+
+<div class="box">
+  <strong>Inhalt</strong>
+  <ol class="toc small">
+    <li>Was die Strategie macht</li>
+    <li>Voraussetzungen</li>
+    <li>Grundkonzepte (Context-Slots, Trigger vs. Aktion, Public vs. Owner-only)</li>
+    <li>Beispiel-Parameter (BTCB/USDT)</li>
+    <li>Schritt 0 – Vault vorbereiten (Deposit + Gas-Deposit + Pool-Oracle)</li>
+    <li>Schritt 1 – Context-Slots anlegen</li>
+    <li>Schritt 2 – Automation „Entry“</li>
+    <li>Schritt 3 – Automation „Rebalance“</li>
+    <li>Schritt 4 – Automation „Auto-Compound“</li>
+    <li>Schritt 5 – Manueller End-to-End-Test</li>
+    <li>Troubleshooting</li>
+    <li>Anhang – Feld-Referenz pro Step</li>
+  </ol>
+</div>
+
+<h2>1 · Was die Strategie macht</h2>
+<p>Die Strategie verdient Trading-Gebühren aus einer <em>konzentrierten</em> Liquiditätsposition und vermeidet
+unnötiges, teures Rebalancing. Verlässt der Preis die Range, wird <strong>nicht sofort</strong> reagiert – erst
+wenn der Preis lange genug draußen bleibt (TWAP-bestätigt). Kurze „Wicks“ werden ignoriert.</p>
+<p>Sie besteht aus <strong>drei Automations</strong> auf derselben Vault, die sich eine Position teilen:</p>
+<table>
+  <tr><th>Automation</th><th>Trigger</th><th>Tut</th><th>Typ</th></tr>
+  <tr><td><strong>Entry</strong></td><td>– (manuell)</td><td>Eröffnet die Position aus dem Deposit-Token: sized on-chain auf das Zielverhältnis und mintet.</td><td><span class="pill pill-own">Owner-only</span></td></tr>
+  <tr><td><strong>Rebalance</strong></td><td>Wick &amp; Wait (TWAP + Cooldown)</td><td>Erntet die Fees, schließt die Position bei anhaltendem Range-Bruch, sized die freien Token neu, öffnet um den neuen Preis.</td><td><span class="pill pill-pub">Public</span></td></tr>
+  <tr><td><strong>Auto-Compound</strong></td><td>Interval</td><td>Erntet regelmäßig die Fees, füllt die Gas-Reserve auf und legt den Rest in dieselbe Position nach.</td><td><span class="pill pill-pub">Public</span></td></tr>
+</table>
+
+<h2>2 · Voraussetzungen</h2>
+<ul>
+  <li><strong>Dienste laufen:</strong> Backend (<code>:3001</code>), Frontend (<code>:5173</code>), Fork-Node (<code>:8545</code>).</li>
+  <li><strong>Contracts deployed &amp; geseedet</strong> auf dem Fork – inkl. der neuen Steps
+      <code>WickWaitRebalanceCondition</code> und <code>PancakeSwapV3SwapToRangeRatioAction</code>:
+      <pre><code>cd packages/contracts && npx hardhat run scripts/deploy-defi-actions.ts --network localhost
+cd ../backend && pnpm db:seed</code></pre>
+      Prüfen: im Editor erscheinen unter <span class="kbd">+ Add Step</span> die Steps
+      <em>„Wick &amp; Wait Rebalance“</em> und <em>„PancakeSwap V3 Swap to Range Ratio“</em>.</li>
+  <li><strong>Wallet</strong> verbunden, Owner der Vault.</li>
+  <li><strong>Kapital</strong> im Deposit-Token (z. B. USDT) zum Einzahlen.</li>
+</ul>
+
+<h2>3 · Grundkonzepte</h2>
+<h4>Context-Slots</h4>
+<p>Geteilter Speicher der Vault, über den Steps Werte austauschen. Die Position-NFT-ID wird von <em>Mint</em>
+in einen Slot geschrieben und von <em>Rebalance</em>, <em>Collect</em>, <em>Increase</em> und der
+<em>Wick-&amp;-Wait-Condition</em> wieder gelesen. Deshalb teilen sich alle drei Automations denselben Slot.</p>
+<h4>Trigger (Condition) vs. Aktion (Action)</h4>
+<p>Eine Automation startet optional mit <strong>einer Condition</strong> (Step 0) als Auslöser, danach folgen
+Aktionen. Die Steps werden per Kante (Edge) <code>out → in</code> verkettet.</p>
+<h4>Public vs. Owner-only</h4>
+<p>Hat eine Automation einen öffentlichen Trigger, ist sie <span class="pill pill-pub">Public</span> – ein
+<em>Keeper</em> führt sie aus, sobald der Trigger erfüllt ist (dafür braucht die Vault einen <strong>Gas-Deposit</strong>).
+Eine reine Aktions-Automation ohne Trigger (wie <em>Entry</em>) ist <span class="pill pill-own">Owner-only</span>
+und wird vom Owner über den <span class="kbd">Execute</span>-Button manuell ausgeführt.</p>
+
+<h2>4 · Beispiel-Parameter (BTCB/USDT)</h2>
+<table>
+  <tr><th>Parameter</th><th>Wert im Beispiel</th><th>Hinweis</th></tr>
+  <tr><td>Pool / Token A / Token B</td><td>BTCB &amp; USDT</td><td>Eine Seite = Deposit-Token</td></tr>
+  <tr><td>Fee Tier</td><td><code>0,05% (500)</code></td><td>der validierte „tiefe“ Pool</td></tr>
+  <tr><td>Range Width (RANGE)</td><td><code>±10%</code></td><td><strong>In Entry &amp; Rebalance identisch!</strong></td></tr>
+  <tr><td>TWAP Window (W)</td><td><code>30 min</code> (Balanced)</td><td>Konservativ 1h / Balanced 30m / Aggressiv 10m</td></tr>
+  <tr><td>Cooldown</td><td><code>3 Tage</code></td><td>7d / 3d / 1d</td></tr>
+  <tr><td>Compound-Interval</td><td><code>1 Woche</code></td><td>frei wählbar</td></tr>
+</table>
+<div class="warn"><strong>Wichtig:</strong> Die <em>Range Width</em> (<code>±%</code>) muss in der
+<em>Swap-to-Range-Ratio</em>-Aktion und der direkt folgenden <em>Mint</em>-Aktion <strong>exakt gleich</strong>
+sein – sonst sized der Swap auf ein anderes Verhältnis als die Position. Das gilt für Entry und Rebalance.</div>
+
+<h2 class="pagebreak">5 · Schritt 0 – Vault vorbereiten</h2>
+<ol>
+  <li><strong>Vault öffnen:</strong> Dashboard → deine Vault (Route <code>/vault/&lt;adresse&gt;</code>).</li>
+  <li><strong>Kapital einzahlen:</strong> Karte <em>Deposit</em> → Betrag im Deposit-Token (z. B. USDT) → bestätigen
+      (Approve + Deposit). Die Position entsteht später daraus.</li>
+  <li><strong>Gas-Deposit einrichten:</strong> Karte <em>Gas Deposit</em> → eine positive <em>Zielreserve</em>
+      (<code>minFeeDeposit</code>) setzen und initial einzahlen. Nötig, damit der Keeper die
+      <span class="pill pill-pub">Public</span>-Automations (Rebalance, Auto-Compound) ausführt — sonst
+      revert <code>InsufficientFeeDeposit</code>. Die Reserve sinkt mit jedem Keeper-Lauf; der
+      <em>Fee-Deposit</em>-Schritt im Auto-Compound (Schritt 4) füllt sie automatisch wieder auf.</li>
+  <li><strong>Pool-Oracle (TWAP) vorbereiten:</strong> Der Pool muss genug Preis-Beobachtungen für das gewählte
+      Fenster <code>W</code> haben, sonst <em>revertet</em> die Wick-&amp;-Wait-Condition (sichtbar als nicht
+      feuernder Trigger). Einmalig die Observation-Cardinality erhöhen
+      (<code>increaseObservationCardinalityNext</code>). Auf dem Fork erledigt das die Aufwärm-Phase des
+      Preis-Treiber-Skripts (siehe Schritt 5).</li>
+</ol>
+
+<h2>6 · Schritt 1 – Context-Slots anlegen</h2>
+<p>Lege die zwei geteilten Slots <strong>vor</strong> dem Bauen der Automations an, damit du sie in den
+Step-Feldern auswählen kannst. Im Editor → rechte <em>Side-Panel</em> → Bereich <em>Context</em> →
+<span class="kbd">+ Neue Context-Variable</span>.</p>
+<table>
+  <tr><th>Name</th><th>Typ</th><th>Zweck</th></tr>
+  <tr><td><code>LP_POSITION_SLOT</code></td><td><code>uint256</code></td><td>Hält die Position-NFT-ID. Mint schreibt sie; Rebalance/Collect/Increase/Condition lesen sie.</td></tr>
+  <tr><td><code>LAST_REBALANCE_SLOT</code></td><td><code>uint256</code></td><td>Zeitstempel des letzten Rebalance (Cooldown). Nur die Wick-&amp;-Wait-Condition liest/schreibt ihn.</td></tr>
+</table>
+<p class="small">Slots sind vault-weit – einmal angelegt, in allen drei Automations auswählbar. Den Editor erreichst
+du über <em>Vault → Automations → <span class="kbd">Create Automation</span></em>.</p>
+
+<h2>7 · Schritt 2 – Automation „Entry“ <span class="pill pill-own">Owner-only</span></h2>
+<p class="small">Vault → Automations → <span class="kbd">Create Automation</span>. Name oben eintragen:
+<em>„Wick&amp;Wait – Entry“</em>. Steps über <span class="kbd">+ Add Step</span> hinzufügen, dann verbinden.</p>
+<div class="flow">Swap to Range Ratio &nbsp;→&nbsp; LP Mint</div>
+
+<div class="step-head">Step 1 · PancakeSwap V3 Swap to Range Ratio</div>
+<div class="step-body">
+  <table>
+    <tr><th>Feld</th><th>Wert</th></tr>
+    <tr><td>Token A</td><td>USDT (Deposit-Token)</td></tr>
+    <tr><td>Token B</td><td>BTCB</td></tr>
+    <tr><td>Fee Tier</td><td>0,05% (500)</td></tr>
+    <tr><td>Range Width</td><td>Button <span class="kbd">±10%</span> (oder eigenen % tippen)</td></tr>
+  </table>
+  <p class="small">Liest den Live-Preis, rechnet das Ziel-Verhältnis für die Range aus und tauscht den
+  überrepräsentierten Token. Sizing passiert <strong>on-chain zur Ausführungszeit</strong>.</p>
+</div>
+
+<div class="step-head">Step 2 · PancakeSwap V3 LP Mint</div>
+<div class="step-body">
+  <table>
+    <tr><th>Feld</th><th>Wert</th></tr>
+    <tr><td>Token A / Token B</td><td>USDT / BTCB (gleich wie oben)</td></tr>
+    <tr><td>Fee Tier</td><td>0,05% (500)</td></tr>
+    <tr><td>Price Range</td><td><em>Preset width</em> → <span class="kbd">±10%</span> (<strong>identisch</strong> zu Step 1)</td></tr>
+    <tr><td>Amount A</td><td>Toggle <em>„Volles Guthaben“</em> aktivieren</td></tr>
+    <tr><td>Amount B</td><td>Toggle <em>„Volles Guthaben“</em> aktivieren</td></tr>
+    <tr><td>Position Token-ID to Context Slot</td><td><code>LP_POSITION_SLOT</code></td></tr>
+  </table>
+</div>
+<p><strong>Verbinden:</strong> Kante vom <code>out</code>-Handle von <em>Swap to Range Ratio</em> zum
+<code>in</code>-Handle von <em>LP Mint</em> ziehen. Dann <span class="kbd">Deploy</span> →
+<span class="kbd">Confirm &amp; Deploy</span> (1 Transaktion; ggf. eine zweite „Set Context“-Tx, wenn der
+Slot neu initialisiert wird).</p>
+<div class="note">Da Entry keinen Trigger hat, ist sie <strong>Owner-only</strong>: in der Automations-Liste
+erscheint Status <em>Manual</em> und ein <span class="kbd">Execute</span>-Button.</div>
+
+<h2 class="pagebreak">8 · Schritt 3 – Automation „Rebalance“ <span class="pill pill-pub">Public</span></h2>
+<p class="small">Neue Automation, Name <em>„Wick&amp;Wait – Rebalance“</em>.</p>
+<div class="flow">Wick &amp; Wait Rebalance &nbsp;→&nbsp; Collect &nbsp;→&nbsp; Decrease Liquidity &nbsp;→&nbsp; Swap to Range Ratio &nbsp;→&nbsp; LP Mint</div>
+
+<div class="step-head">Step 1 · Wick &amp; Wait Rebalance &nbsp;(Trigger / Condition)</div>
+<div class="step-body">
+  <table>
+    <tr><th>Feld</th><th>Wert</th></tr>
+    <tr><td>Position Token-Id Slot</td><td><code>LP_POSITION_SLOT</code></td></tr>
+    <tr><td>TWAP Window</td><td><code>30</code> <em>minutes</em> (Balanced)</td></tr>
+    <tr><td>Rebalance Cooldown</td><td><code>3</code> <em>days</em></td></tr>
+    <tr><td>Last-Rebalance Slot</td><td><code>LAST_REBALANCE_SLOT</code></td></tr>
+  </table>
+  <p class="small">Feuert nur, wenn der <strong>TWAP</strong>-Tick das Range-Fenster für <code>W</code> verlassen
+  hat <em>und</em> der Cooldown abgelaufen ist. Kurze Wicks bewegen den TWAP nicht heraus.</p>
+</div>
+
+<div class="step-head">Step 2 · PancakeSwap V3 Collect</div>
+<div class="step-body">
+  <table><tr><th>Feld</th><th>Wert</th></tr>
+    <tr><td>Position Token-ID from Context Slot</td><td><code>LP_POSITION_SLOT</code></td></tr></table>
+  <p class="small">Erntet zuerst die aufgelaufenen Fees in die Vault — <strong>vor</strong> dem Entnehmen des Prinzipals.</p>
+</div>
+
+<div class="step-head">Step 3 · PancakeSwap V3 Decrease Liquidity</div>
+<div class="step-body">
+  <table>
+    <tr><th>Feld</th><th>Wert</th></tr>
+    <tr><td>Position Token-ID from Context Slot</td><td><code>LP_POSITION_SLOT</code></td></tr>
+    <tr><td>Percentage to Remove</td><td><code>100</code></td></tr>
+  </table>
+  <p class="small">Entfernt 100% und liefert das freie Prinzipal in die Vault.</p>
+</div>
+
+<div class="note"><strong>Warum erst Collect, dann Decrease?</strong> Die Decrease-Aktion bündelt
+intern bereits ein <code>collect(max,max)</code>. Der separate Collect davor erntet die Fees,
+bevor das Prinzipal entnommen wird — Decrease danach holt den Rest. (Decrease&nbsp;→&nbsp;Collect
+hätte den zweiten Schritt zum No-op gemacht.)</div>
+
+<div class="step-head">Step 4 · PancakeSwap V3 Swap to Range Ratio</div>
+<div class="step-body">
+  <table><tr><th>Feld</th><th>Wert</th></tr>
+    <tr><td>Token A / Token B</td><td>USDT / BTCB</td></tr>
+    <tr><td>Fee Tier</td><td>0,05% (500)</td></tr>
+    <tr><td>Range Width</td><td><span class="kbd">±10%</span> — <strong>gleich wie Entry</strong></td></tr></table>
+</div>
+
+<div class="step-head">Step 5 · PancakeSwap V3 LP Mint</div>
+<div class="step-body">
+  <table><tr><th>Feld</th><th>Wert</th></tr>
+    <tr><td>Token A / Token B / Fee</td><td>USDT / BTCB / 500</td></tr>
+    <tr><td>Price Range</td><td>Preset width <span class="kbd">±10%</span></td></tr>
+    <tr><td>Amount A / Amount B</td><td>je <em>„Volles Guthaben“</em></td></tr>
+    <tr><td>Position Token-ID to Context Slot</td><td><code>LP_POSITION_SLOT</code> (überschreibt die ID)</td></tr></table>
+</div>
+<p><strong>Verbinden:</strong> <code>Trigger → Collect → Decrease → Swap to Range Ratio → Mint</code>.
+Dann <span class="kbd">Deploy</span>. Nach dem Deploy in der Liste <span class="kbd">Activate</span> klicken.</p>
+<div class="warn"><strong>Beide Token &amp; Dust:</strong> Nach dem Schließen hält die Vault <em>beide</em>
+Token (Fees + Prinzipal). <em>Swap to Range Ratio</em> bringt sie aufs Ziel-Verhältnis der neuen Range,
+<em>Mint (Volles Guthaben)</em> providet sie — durch Single-Pass-Sizing bleibt aber ein kleiner
+<strong>Dust</strong>-Rest eines Tokens in der Vault (es wird also nicht zwingend alles bereitgestellt).
+Der Rest bleibt liegen und wird beim nächsten Compound/Rebalance mitgenutzt. Gilt analog für den Entry.</div>
+
+<h2 class="pagebreak">9 · Schritt 4 – Automation „Auto-Compound“ <span class="pill pill-pub">Public</span></h2>
+<p class="small">Neue Automation, Name <em>„Wick&amp;Wait – Auto-Compound“</em>.</p>
+<div class="flow">Interval Condition &nbsp;→&nbsp; Collect &nbsp;→&nbsp; Fee Deposit &nbsp;→&nbsp; Increase Liquidity</div>
+
+<div class="step-head">Step 1 · Interval Condition &nbsp;(Trigger)</div>
+<div class="step-body">
+  <table><tr><th>Feld</th><th>Wert</th></tr>
+    <tr><td>Interval</td><td><code>1</code> <em>weeks</em></td></tr>
+    <tr><td>Start Time</td><td>jetzt (Default)</td></tr></table>
+  <p class="small">Der Zeit-Slot wird automatisch angelegt und nach jeder Ausführung driftfrei weitergesetzt.</p>
+</div>
+
+<div class="step-head">Step 2 · PancakeSwap V3 Collect</div>
+<div class="step-body">
+  <table><tr><th>Feld</th><th>Wert</th></tr>
+    <tr><td>Position Token-ID from Context Slot</td><td><code>LP_POSITION_SLOT</code></td></tr></table>
+</div>
+
+<div class="step-head">Step 3 · Fee Deposit &nbsp;(Gas-Reserve auffüllen)</div>
+<div class="step-body">
+  <table><tr><th>Feld</th><th>Wert</th></tr>
+    <tr><td>Fee Registry</td><td>FeeRegistry-Adresse (aus dem Deploy)</td></tr>
+    <tr><td>Token</td><td>Deposit-Token (z. B. USDT)</td></tr>
+    <tr><td>Top-up Amount</td><td>Toggle <em>„Bis Zielreserve auffüllen“</em> aktivieren</td></tr></table>
+  <p class="small">Füllt die Gas-Kompensations-Reserve aus dem Vault-Guthaben auf <code>minFeeDeposit</code>
+  auf (No-op, wenn schon ≥ Ziel). So bleibt die Vault zahlungsfähig für den Keeper — ohne separate
+  Wartungs-Automation. Läuft <strong>vor</strong> Increase, damit zuerst Gas gesichert ist.</p>
+</div>
+
+<div class="step-head">Step 4 · PancakeSwap V3 Increase Liquidity</div>
+<div class="step-body">
+  <table><tr><th>Feld</th><th>Wert</th></tr>
+    <tr><td>Token A / Token B</td><td>USDT / BTCB</td></tr>
+    <tr><td>Position Token-ID from Context Slot</td><td><code>LP_POSITION_SLOT</code></td></tr>
+    <tr><td>Amount A / Amount B</td><td>je <em>„Volles Guthaben“</em> (legt die restlichen Fees nach)</td></tr></table>
+</div>
+<p><strong>Verbinden:</strong> <code>Trigger → Collect → Fee Deposit → Increase</code>.
+<span class="kbd">Deploy</span> → <span class="kbd">Activate</span>.</p>
+
+<h2>10 · Schritt 5 – Manueller End-to-End-Test</h2>
+<div class="note">Reihenfolge zwingend: <strong>Entry zuerst</strong> – er füllt <code>LP_POSITION_SLOT</code>.
+Ohne gültige Position-ID lesen Rebalance/Compound einen leeren Slot.</div>
+
+<h3>5.1 Entry ausführen</h3>
+<ol>
+  <li>Automations-Liste → <em>Wick&amp;Wait – Entry</em> → <span class="kbd">Execute</span> → Tx bestätigen.</li>
+  <li><strong>Erwartung:</strong> eine neue LP-Position; im Portfolio sichtbar. <code>LP_POSITION_SLOT</code>
+      enthält jetzt die Token-ID (im Deploy-/Context-Bereich bzw. on-chain prüfbar).</li>
+</ol>
+
+<h3>5.2 Auto-Compound prüfen</h3>
+<ol>
+  <li>Sicherstellen: Status <em>Active</em>, Gas-Deposit gefüllt.</li>
+  <li>Fork-Zeit über das Interval vorrücken und den Keeper laufen lassen:
+    <pre><code>cd packages/contracts && pnpm execute:fork
+# oder: npx hardhat run scripts/execute-automations.ts --network localhost</code></pre>
+    Der Keeper führt jede <em>aktive, public, getriggerte</em> Automation aus.</li>
+  <li><strong>Erwartung:</strong> Collect + Fee Deposit + Increase laufen; die Gas-Reserve ist wieder auf
+      <code>minFeeDeposit</code> aufgefüllt, die Liquidität der Position steigt; Eintrag in der
+      <em>Execution History</em>.</li>
+</ol>
+
+<h3>5.3 Rebalance – „persistent“ (soll feuern)</h3>
+<ol>
+  <li>Preis dauerhaft aus der Range schieben (Wegwerf-Treiber auf dem Fork):
+    <pre><code>cd packages/contracts
+POSITION_ID=&lt;tokenId&gt; MODE=persistent SIDE=above WINDOW=1800 \
+  BUFFER_TICKS=80 HOLD_STEPS=6 MAX_SWAP=10000 \
+  npx hardhat run scripts/wick-wait-price-driver.ts --network localhost</code></pre>
+    <span class="small">(<code>WINDOW</code> = dein TWAP-Fenster in Sekunden, hier 30 min = 1800. Das Skript wärmt
+    auch das Oracle auf.)</span></li>
+  <li>In der Liste zeigt die Trigger-Spalte der Rebalance-Automation <em>met</em> (grün), sobald der TWAP draußen ist.</li>
+  <li>Keeper laufen lassen (<code>pnpm execute:fork</code>).</li>
+  <li><strong>Erwartung:</strong> Position wird geschlossen, neu gesized und um den neuen Preis geöffnet;
+      <code>LP_POSITION_SLOT</code> trägt eine neue ID, <code>LAST_REBALANCE_SLOT</code> den aktuellen Zeitstempel.</li>
+</ol>
+<div class="warn"><strong>Cooldown beachten:</strong> direkt nach einem Rebalance feuert der Trigger
+<code>Cooldown</code> lang nicht erneut – auch wenn der Preis draußen ist. Zum schnellen Testen kleinen Cooldown wählen.</div>
+
+<h3>5.4 Rebalance – „wick“ (soll NICHT feuern)</h3>
+<ol>
+  <li>Preis kurz raus und innerhalb von <code>W</code> zurückschnappen:
+    <pre><code>POSITION_ID=&lt;tokenId&gt; MODE=wick SIDE=above WINDOW=1800 \
+  BUFFER_TICKS=80 HOLD_STEPS=6 MAX_SWAP=100000000 \
+  npx hardhat run scripts/wick-wait-price-driver.ts --network localhost</code></pre></li>
+  <li><strong>Erwartung:</strong> Der TWAP bleibt (bzw. konvergiert zurück) <em>IN range</em>; Trigger-Spalte bleibt
+      <em>nicht erfüllt</em>; der Keeper macht nichts. Genau das ist die Wick-Robustheit.</li>
+</ol>
+
+<div class="ok"><strong>Erfolgskriterien gesamt:</strong> Entry mintet &amp; füllt den Slot · Auto-Compound erhöht die
+Liquidität · persistenter Ausbruch löst genau einen Rebalance aus (dann Cooldown) · kurzer Wick löst nichts aus.</div>
+
+<h2 class="pagebreak">11 · Troubleshooting</h2>
+<table>
+  <tr><th>Symptom</th><th>Ursache / Lösung</th></tr>
+  <tr><td>Step „Wick &amp; Wait“ / „Swap to Range Ratio“ fehlt im <span class="kbd">+ Add Step</span></td><td>Contracts nicht deployed/geseedet → <code>deploy-defi-actions.ts</code> + <code>pnpm db:seed</code>.</td></tr>
+  <tr><td>Rebalance-Trigger feuert nie, obwohl Preis draußen</td><td>Pool-Oracle hat zu wenig History für <code>W</code> (Condition revertet) → Cardinality erhöhen / Oracle aufwärmen. Oder Cooldown noch aktiv.</td></tr>
+  <tr><td><code>mapGraphToRaw is not a function</code> beim Deploy</td><td>Veralteter Vite-Cache → Frontend-Dev-Server neu starten (Cache leeren).</td></tr>
+  <tr><td>Rebalance/Compound werden nie ausgeführt</td><td>Automation nicht <em>Active</em>, kein Gas-Deposit, oder kein Keeper läuft (<code>pnpm execute:fork</code>).</td></tr>
+  <tr><td>Position landet schief / einseitig</td><td><em>Range Width</em> in Swap-to-Range-Ratio ≠ Mint. Beide auf identisches <code>±%</code> setzen.</td></tr>
+  <tr><td><span class="kbd">Delete</span> ausgegraut</td><td>Public-Automation erst <em>Deactivate</em>, dann löschen.</td></tr>
+</table>
+
+<h2>12 · Anhang – Feld-Referenz pro Step</h2>
+<p class="small">Die Feld-Titel entsprechen 1:1 dem Editor (schema-getrieben). Slot-Felder zeigen einen Picker für
+deine Context-Variablen; Betrags-Felder haben einen <em>„Volles Guthaben“</em>-Toggle.</p>
+<table>
+  <tr><th>Step</th><th>Felder (Editor-Titel)</th></tr>
+  <tr><td>Swap to Range Ratio</td><td>Token A · Token B · Fee Tier · Range Width (±%)</td></tr>
+  <tr><td>LP Mint</td><td>Token A · Token B · Fee Tier · Price Range (Preset/Explizit) · Amount A · Amount B · Position Token-ID to Context Slot</td></tr>
+  <tr><td>Wick &amp; Wait Rebalance</td><td>Position Token-Id Slot · TWAP Window · Rebalance Cooldown · Last-Rebalance Slot</td></tr>
+  <tr><td>Decrease Liquidity</td><td>Position Token-ID from Context Slot · Percentage to Remove</td></tr>
+  <tr><td>Collect</td><td>Position Token-ID from Context Slot</td></tr>
+  <tr><td>Increase Liquidity</td><td>Token A · Token B · Position Token-ID from Context Slot · Amount A · Amount B</td></tr>
+  <tr><td>Fee Deposit</td><td>Fee Registry · Token · Top-up Amount (Toggle „Bis Zielreserve auffüllen“)</td></tr>
+  <tr><td>Interval Condition</td><td>Interval (Wert + Einheit) · Start Time</td></tr>
+</table>
+
+<p class="small" style="margin-top:18px; color:#94a3b8;">Erzeugt für den manuellen Test der Wick-&amp;-Wait-Strategie ·
+Werte sind Beispiele (BSC-Fork, BTCB/USDT, fee 500).</p>
+
+</body>
+</html>
