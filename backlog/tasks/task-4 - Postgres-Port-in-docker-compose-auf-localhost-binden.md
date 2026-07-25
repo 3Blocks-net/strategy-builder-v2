@@ -1,10 +1,11 @@
 ---
 id: TASK-4
 title: Postgres-Port in docker-compose auf localhost binden
-status: Ready for Agent
-assignee: []
+status: In Progress
+assignee:
+  - auto-builder
 created_date: '2026-07-25 11:44'
-updated_date: '2026-07-25 11:53'
+updated_date: '2026-07-25 11:56'
 labels:
   - enhancement
   - ready-for-agent
@@ -22,7 +23,7 @@ ordinal: 4000
 **Warum wichtig:** Im Home-/Office-Netz oder Hotspot ist die Dev-DB von außen erreichbar; mit bekannten Default-Credentials ein unnötiges Einfallstor.
 
 ## Akzeptanzkriterien
-- [ ] Port-Mapping auf "127.0.0.1:5432:5432" geändert
+- [x] Port-Mapping auf "127.0.0.1:5432:5432" geändert
 - [ ] `pnpm db:up` + Backend-Start funktionieren unverändert
 
 ## Automatisierte Prüfung
@@ -50,7 +51,7 @@ Das Port-Mapping bindet ausschließlich an Loopback (`"127.0.0.1:5432:5432"`). `
 - `DATABASE_URL` in `packages/backend/.env.example` (localhost — bleibt kompatibel, nicht ändern)
 
 **Acceptance criteria:**
-- [ ] `grep -q '127.0.0.1:5432:5432' docker-compose.yml` → Exit 0
+- [x] `grep -q '127.0.0.1:5432:5432' docker-compose.yml` → Exit 0
 - [ ] `pnpm db:up` startet den Container fehlerfrei
 - [ ] Backend-Tests (`pnpm backend:test`) laufen grün gegen die DB
 
