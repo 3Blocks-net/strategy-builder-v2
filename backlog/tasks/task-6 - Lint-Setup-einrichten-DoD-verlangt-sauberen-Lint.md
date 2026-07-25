@@ -1,11 +1,11 @@
 ---
 id: TASK-6
 title: Lint-Setup einrichten (DoD verlangt sauberen Lint)
-status: In Progress
+status: Done
 assignee:
   - auto-builder
 created_date: '2026-07-25 11:44'
-updated_date: '2026-07-25 12:09'
+updated_date: '2026-07-25 13:03'
 labels:
   - enhancement
   - ready-for-agent
