@@ -23,9 +23,9 @@ ordinal: 6000
 **Warum wichtig:** Ohne Lint-Kommando kann keine Station "Lint grün" prüfen — die DoD ist aktuell nicht maschinell erfüllbar.
 
 ## Akzeptanzkriterien
-- [ ] Linter gewählt (z. B. ESLint flat config oder Biome) und für alle TS-Pakete konfiguriert
-- [ ] Root-Script `pnpm lint` läuft über alle Pakete
-- [ ] Steckbrief (docs/agents/projekt-steckbrief.md) mit dem Lint-Kommando aktualisiert
+- [x] Linter gewählt (z. B. ESLint flat config oder Biome) und für alle TS-Pakete konfiguriert
+- [x] Root-Script `pnpm lint` läuft über alle Pakete
+- [x] Steckbrief (docs/agents/projekt-steckbrief.md) mit dem Lint-Kommando aktualisiert
 
 ## Automatisierte Prüfung
 - T: `pnpm lint` → Exit 0
@@ -53,10 +53,10 @@ Biome ist als Dev-Dependency im Root installiert, mit einer `biome.json`, die al
 - `docs/agents/projekt-steckbrief.md`, Zeile „Lint"
 
 **Acceptance criteria:**
-- [ ] `pnpm lint` → Exit 0
-- [ ] Alle fünf Pakete werden geprüft (Stichprobe: absichtlicher Fehler in einem Paket schlägt an)
-- [ ] Generierter/Build-Output ist ausgeschlossen (kein Finding aus dist/generated)
-- [ ] Steckbrief aktualisiert
+- [x] `pnpm lint` → Exit 0
+- [x] Alle fünf Pakete werden geprüft (Stichprobe: absichtlicher Fehler in einem Paket schlägt an)
+- [x] Generierter/Build-Output ist ausgeschlossen (kein Finding aus dist/generated)
+- [x] Steckbrief aktualisiert
 
 **Out of scope:**
 - Repo-weiter Format-Rewrite (kein „biome format --write" über den ganzen Bestand in diesem Ticket)
