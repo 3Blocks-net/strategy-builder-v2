@@ -2,16 +2,7 @@
 
 Steuert, wie Claude Code in diesem Repo arbeitet. Der wichtigste Hebel dafür, dass alle Entwickler und jeder Agent gleich arbeiten. Kurz und aktuell halten.
 
-## Plan-Phase-Regel (Pflicht)
-
-Sobald ein Planungs-Signal auftaucht ("ich will X bauen", "plane Y", "neues Feature", "refaktoriere Z"), NICHT direkt Code schreiben.
-
-Stattdessen in dieser Reihenfolge:
-1. Falls eine externe Abhängigkeit im Spiel ist (neues SDK, fremde API): erst die `research`-Skill.
-2. Dann klären: Codebase lesen, Optionen mit Trade-offs vorschlagen, offene Fragen stellen (brainstorming + `grill-me`). Auf Antwort des Nutzers warten.
-3. Erst danach `/opsx:propose <change-name>`.
-
-Erst wenn die Spec vom Nutzer im Review freigegeben ist, mit der Implementierung beginnen. Bei trivialen Änderungen (Typo, einzeiliger Fix) darf der Ablauf übersprungen werden.
+> Der Entwicklungs-Workflow (Idee → Spec → Build → Review) läuft über **shipcraft** (`/setup`, `/idee`, `/weiter`). Die Pro-Projekt-Konfiguration liegt nach dem Setup unter `docs/agents/`.
 
 ## Stack
 
@@ -42,18 +33,15 @@ pnpm-Monorepo (`packages/*`), Node ≥ 22, TypeScript (strict). Ziel-Chain: BSC.
 Ein Issue ist erst fertig, wenn:
 - alle Acceptance Criteria erfüllt und durch Tests verifiziert sind,
 - die Tests grün sind und der Lint sauber ist,
-- `openspec validate` durchläuft,
 - ein code-review ohne offene Hard Blocker abgeschlossen ist.
-
-## Spec-Disziplin
-
-- Die lebende Spec liegt unter `openspec/`. Sie ist die Source of Truth.
-- Vor einem neuen Change immer die bestehenden Specs des betroffenen Moduls lesen.
-- Nach dem Merge `/opsx:archive <change-name>`, beim Sync "Sync now".
 
 ## Issue-Tracker
 
-Linear wird NUR für Epics genutzt (grobes Was-bauen-wir-Tracking auf Vorhaben-Ebene). Alles darunter bleibt lokal: Slices leben in der tasks.md des OpenSpec-Change, Bugs und Folge-Findings als lokale Issue-Dateien im Repo. Keine kleinteilige Synchronisierung nach Linear, das wäre Doppelarbeit zur lebenden Spec.
+Issues leben lokal im Repo (Tracker wird von shipcraft `/setup` konfiguriert, siehe `docs/agents/issue-tracker.md`). Linear wird nicht mehr verwendet.
+
+## Doku-Altbestand
+
+`docs/legacy-specs/` enthält die eingefrorenen OpenSpec-Specs des früheren Workflows (MCP, Encode-Boundary, Step-Catalog, Wick-Wait). Sie sind Referenz, keine lebende Source of Truth — Verhalten im Zweifel gegen den Code prüfen. Beim Wieder-Anfassen eines Bereichs relevantes Wissen in `CONTEXT.md`/ADRs überführen.
 
 ## Generierter Code
 
