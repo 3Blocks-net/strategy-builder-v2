@@ -53,7 +53,7 @@ describe('listVaults', () => {
     expect(vaults).toEqual([
       { address: MY_VAULT, label: 'Main', depositToken: '0xtok', chainId: 56 },
     ]);
-    expect((calls[0].init?.headers as Record<string, string>).Authorization).toBe('Bearer token.v1');
+    expect((calls[0].init?.headers as Record<string, string> | undefined)?.Authorization).toBe('Bearer token.v1');
   });
 
   it('gibt bei keinem Vault eine leere Liste zurück (kein Fehler)', async () => {
