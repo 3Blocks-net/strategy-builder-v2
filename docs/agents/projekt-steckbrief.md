@@ -11,7 +11,7 @@ git_commit: 7ca671beafc34c201d4980a6ef66297bec67aa7f
 - Projektname: strategy-builder-v2 (Pecunity Platform)
 - Plattform-Familie: Web (DApp) + lokaler MCP-Server + Solidity-Contracts (BSC)
 - Sprache/Framework: TypeScript (strict) — NestJS + Prisma/PostgreSQL (backend), Vite + React 19 + wagmi/viem + Tailwind v4 + @xyflow/react (frontend), Solidity + Hardhat (contracts), MCP SDK (mcp), framework-freie Helfer (shared)
-- Paketmanager: pnpm (Monorepo `packages/*`), Node ≥ 22
+- Paketmanager: pnpm (Monorepo `packages/*`), Node ≥ 22.22 (engines-Feld; von react-router 8 verlangt — lokal toleriert pnpm ältere 22.x mit Warnung)
 - Betriebssysteme im Team: macOS
 
 ## Kommandos (exakt, kopierbar)

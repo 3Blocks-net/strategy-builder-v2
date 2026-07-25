@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "Strategy Builder V2 - Pecunity Platform",
   "private": true,
+  "engines": {
+    "node": ">=22.22.0"
+  },
   "scripts": {
     "shared:build": "pnpm --filter shared build",
     "shared:build:watch": "pnpm --filter shared build:watch",
