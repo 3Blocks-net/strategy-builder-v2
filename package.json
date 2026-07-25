@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "Strategy Builder V2 - Pecunity Platform",
   "private": true,
+  "engines": {
+    "node": ">=22.22.0"
+  },
   "scripts": {
     "lint": "biome check .",
     "shared:build": "pnpm --filter shared build",
@@ -38,7 +41,19 @@
       "esbuild",
       "keytar",
       "prisma"
-    ]
+    ],
+    "overrides": {
+      "form-data": "^4.0.6",
+      "multer": "^2.2.0",
+      "ws": "^8.21.0",
+      "js-yaml": "^4.3.0",
+      "axios": "^1.18.0",
+      "hono": "^4.12.27",
+      "fast-uri": "^3.1.4",
+      "body-parser": "^2.3.0",
+      "@hono/node-server": "^2.0.5",
+      "uuid": "^11.1.1"
+    }
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.5"
