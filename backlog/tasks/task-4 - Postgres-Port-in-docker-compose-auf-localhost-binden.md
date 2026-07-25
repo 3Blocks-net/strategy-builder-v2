@@ -1,11 +1,11 @@
 ---
 id: TASK-4
 title: Postgres-Port in docker-compose auf localhost binden
-status: In Progress
+status: Done
 assignee:
   - auto-builder
 created_date: '2026-07-25 11:44'
-updated_date: '2026-07-25 11:56'
+updated_date: '2026-07-25 12:07'
 labels:
   - enhancement
   - ready-for-agent
