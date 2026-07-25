@@ -196,6 +196,7 @@ export function ExecutionHistoryTable({ vaultAddress, chainId }: Props) {
       .catch(() => {});
   }, [vaultAddress]);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: reloadKey wird nie gelesen, nur als Cache-Busting-Signal hochgezählt (Realtime-Event / 15s-Poll), damit diese Callback-Identität wechselt und der Effect unten neu fetcht.
   const fetchHistory = useCallback(async () => {
     setLoading(true);
     setError(null);

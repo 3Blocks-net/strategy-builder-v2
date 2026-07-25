@@ -153,6 +153,7 @@ export function CockpitPositionsPanel({ address }: { address: string }) {
   const order = ['idle', 'gas-reserve', 'aave-v3', 'pancakeswap-v3'];
   const groups = (data?.positions ?? []).reduce<Record<string, ValuedPosition[]>>(
     (acc, p) => {
+      // biome-ignore lint/suspicious/noAssignInExpressions: idiomatisches get-or-create (??=) fürs Akkumulator-Array, kein typo-anfälliges `if (x = ...)`.
       (acc[p.protocol] ??= []).push(p);
       return acc;
     },
@@ -211,24 +212,24 @@ export function CockpitPositionsPanel({ address }: { address: string }) {
                 {PROTOCOL_LABELS[proto] ?? proto}
               </h3>
               <div className="space-y-1">
-                {groups[proto].map((p, i) =>
+                {groups[proto].map((p) =>
                   p.error ? (
                     <div
-                      key={i}
+                      key={`${p.kind}-${p.label}`}
                       className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive"
                     >
                       {p.label}: {p.error}
                     </div>
                   ) : (
                     <div
-                      key={i}
+                      key={`${p.kind}-${p.label}`}
                       className="flex items-center justify-between rounded-md bg-muted/40 px-3 py-2 text-sm"
                     >
                       <div>
                         <div>
                           <span className="font-medium">{p.label}</span>
-                          {p.legs.map((leg, j) => (
-                            <span key={j} className="ml-2 text-muted-foreground">
+                          {p.legs.map((leg) => (
+                            <span key={`${leg.token}-${leg.isDebt ? 'debt' : 'supply'}`} className="ml-2 text-muted-foreground">
                               {formatAmount(leg.amount, leg.decimals)}{' '}
                               {leg.symbol}
                               {leg.isDebt ? ' (debt)' : ''}

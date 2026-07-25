@@ -196,10 +196,11 @@ function StepLabel({
   return (
     <div className="space-y-4">
       <div>
-        <label className="text-sm font-medium">
+        <label htmlFor="vault-create-label" className="text-sm font-medium">
           Vault Label (optional)
         </label>
         <input
+          id="vault-create-label"
           type="text"
           value={label}
           onChange={(e) => onChange(e.target.value)}
@@ -279,6 +280,7 @@ function TokenOption({
 
   return (
     <button
+      type="button"
       onClick={onSelect}
       className={`w-full rounded-md border p-3 text-left text-sm transition-colors ${
         isSelected

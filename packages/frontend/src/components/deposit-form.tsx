@@ -88,8 +88,9 @@ export function DepositForm({ vaultAddress, fees, onSuccess }: DepositFormProps)
       <h3 className="font-semibold">Deposit</h3>
 
       <div>
-        <label className="text-sm font-medium">Token</label>
+        <label htmlFor="deposit-token" className="text-sm font-medium">Token</label>
         <select
+          id="deposit-token"
           value={selectedToken?.address ?? ''}
           onChange={(e) => {
             const t = tokens.find((t) => t.address === e.target.value) ?? null;
@@ -110,9 +111,10 @@ export function DepositForm({ vaultAddress, fees, onSuccess }: DepositFormProps)
       {selectedToken && (
         <>
           <div>
-            <label className="text-sm font-medium">Amount</label>
+            <label htmlFor="deposit-amount" className="text-sm font-medium">Amount</label>
             <div className="mt-1 flex gap-2">
               <input
+                id="deposit-amount"
                 type="text"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
