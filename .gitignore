@@ -30,6 +30,7 @@ yarn-error.log*
 # ----- Workflow-spezifisch -----
 research.md          # research-Skill: hat ein Verfallsdatum, nicht einchecken
 /tmp/
+.shipcraft/
 
 # ----- macOS -----
 .DS_Store
