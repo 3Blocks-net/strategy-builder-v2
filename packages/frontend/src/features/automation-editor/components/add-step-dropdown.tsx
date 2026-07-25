@@ -42,6 +42,7 @@ export function AddStepDropdown({ stepTypes, onAdd }: AddStepDropdownProps) {
               </div>
               {conditions.map((st) => (
                 <button
+                  type="button"
                   key={st.id}
                   className="w-full text-left px-3 py-2 hover:bg-gray-50 border-b border-gray-100 last:border-0"
                   onClick={() => {
@@ -66,6 +67,7 @@ export function AddStepDropdown({ stepTypes, onAdd }: AddStepDropdownProps) {
               </div>
               {actions.map((st) => (
                 <button
+                  type="button"
                   key={st.id}
                   className="w-full text-left px-3 py-2 hover:bg-gray-50 border-b border-gray-100 last:border-0"
                   onClick={() => {

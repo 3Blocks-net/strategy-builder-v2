@@ -45,7 +45,9 @@ export function ContextInputField({
   return (
     <div className="nodrag">
       <div className="mb-1">
-        <label className="text-xs font-medium text-gray-700">{title}</label>
+        {/* Feld-Überschrift für die ganze Gruppe (Freitext-Input ODER Context-Chip
+            darunter) — kein einzelnes Control, daher <span> statt <label>. */}
+        <span className="text-xs font-medium text-gray-700">{title}</span>
         {desc && <p className="text-xs text-gray-400 mt-0.5">{desc}</p>}
       </div>
       <div className="relative" ref={dropdownRef}>
@@ -55,6 +57,7 @@ export function ContextInputField({
               <span className="bg-blue-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">ctx</span>
               <span className="text-blue-700 font-medium">{value as string}</span>
               <button
+                type="button"
                 className="ml-auto text-blue-300 hover:text-blue-500 text-sm"
                 onClick={() => onChange(fieldName, isOptional ? NO_SLOT : '')}
               >
@@ -71,6 +74,7 @@ export function ContextInputField({
             />
           )}
           <button
+            type="button"
             className={`border rounded px-2 py-1 text-sm cursor-pointer ${
               isContextMode
                 ? 'border-blue-400 bg-blue-50 text-blue-500'

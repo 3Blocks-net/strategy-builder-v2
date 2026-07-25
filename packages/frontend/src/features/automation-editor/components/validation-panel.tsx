@@ -19,10 +19,14 @@ export function ValidationPanel() {
         </span>
       </div>
       <ul className="divide-y divide-red-100">
-        {errors.map((error, i) => (
-          <li key={i} className="px-4 py-2 text-sm text-red-800">
+        {errors.map((error) => (
+          <li
+            key={`${error.nodeId ?? 'global'}-${error.fieldName ?? ''}-${error.message}`}
+            className="px-4 py-2 text-sm text-red-800"
+          >
             {error.nodeId ? (
               <button
+                type="button"
                 className="underline hover:text-red-600 text-left"
                 onClick={() => {
                   setSelectedNodeId(error.nodeId!);

@@ -49,6 +49,7 @@ export function ContextVariableDropdown({
         <div>
           {variables.map((v) => (
             <button
+              type="button"
               key={v.slotIndex}
               className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 border-b border-gray-100 last:border-0 flex items-center gap-2 ${
                 value === v.name ? 'bg-blue-50' : ''
@@ -65,6 +66,7 @@ export function ContextVariableDropdown({
         </div>
       )}
       <button
+        type="button"
         className="w-full text-left px-3 py-2 text-sm text-blue-600 hover:bg-blue-50 font-medium border-t border-gray-100"
         onClick={() => setCreating(true)}
       >

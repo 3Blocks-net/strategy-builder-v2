@@ -79,18 +79,21 @@ export function DebugDialog() {
           </div>
           <div className="flex items-center gap-2">
             <button
+              type="button"
               className={`text-xs px-2 py-1 rounded ${tab === 'editor' ? 'bg-gray-700 text-white' : 'text-gray-400 hover:text-gray-200'}`}
               onClick={() => setTab('editor')}
             >
               Editor State
             </button>
             <button
+              type="button"
               className={`text-xs px-2 py-1 rounded ${tab === 'steps' ? 'bg-gray-700 text-white' : 'text-gray-400 hover:text-gray-200'}`}
               onClick={() => setTab('steps')}
             >
               Steps Output
             </button>
             <button
+              type="button"
               className="text-xs px-2 py-1 rounded text-gray-400 hover:text-gray-200"
               onClick={() => {
                 navigator.clipboard.writeText(JSON.stringify(json, null, 2));
@@ -99,6 +102,7 @@ export function DebugDialog() {
               Copy
             </button>
             <button
+              type="button"
               className="text-gray-400 hover:text-white text-lg leading-none px-1"
               onClick={() => setOpen(false)}
             >

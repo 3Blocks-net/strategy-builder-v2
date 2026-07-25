@@ -47,6 +47,7 @@ export function SidePanel() {
       .catch(() => {});
   }, []);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: bewusst auf die primitive stepTypeId statt auf selectedNode selbst — sonst würde jede Änderung an irgendeinem Node (z. B. Ziehen auf dem Canvas) einen neuen Fetch auslösen, weil `nodes` dann referenziell wechselt.
   useEffect(() => {
     if (!selectedNode) {
       setStepTypeDetail(null);
@@ -63,6 +64,7 @@ export function SidePanel() {
       {/* Tab bar */}
       <div className="flex border-b border-gray-200">
         <button
+          type="button"
           className={`flex-1 px-4 py-2 text-xs font-medium ${
             activeTab === 'config'
               ? 'text-blue-600 border-b-2 border-blue-600'
@@ -73,6 +75,7 @@ export function SidePanel() {
           Node Config
         </button>
         <button
+          type="button"
           className={`flex-1 px-4 py-2 text-xs font-medium ${
             activeTab === 'context'
               ? 'text-blue-600 border-b-2 border-blue-600'

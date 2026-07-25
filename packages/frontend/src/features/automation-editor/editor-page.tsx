@@ -66,12 +66,12 @@ export function AutomationEditorPage() {
   useEffect(() => {
     loadEditorState({ nodes: [], edges: [], label: '', description: '' });
     setContextVariables([]);
-  }, []);
+  }, [setContextVariables, loadEditorState]);
 
   // Make the vault address available to node-init (account = vault default).
   useEffect(() => {
     if (vaultAddress) setVaultAddress(vaultAddress);
-  }, [vaultAddress]);
+  }, [vaultAddress, setVaultAddress]);
 
   // Load token decimals into the store for token-amount validation
   // (over-precision) and the encode-boundary mapper (human → base units).
@@ -101,7 +101,7 @@ export function AutomationEditorPage() {
       }
       setTokenDecimals(map);
     });
-  }, []);
+  }, [setTokenDecimals]);
 
   // Create draft immediately for new automations.
   // Guard with a ref so React StrictMode's double-invoked effect (dev) doesn't
@@ -120,7 +120,7 @@ export function AutomationEditorPage() {
         draftCreationStarted.current = false;
         console.error(err);
       });
-  }, [vaultAddress]);
+  }, [vaultAddress, automationId]);
 
   useEffect(() => {
     apiFetch('/step-types')
@@ -136,7 +136,7 @@ export function AutomationEditorPage() {
         setStepSchemas(schemas);
       })
       .catch(console.error);
-  }, []);
+  }, [setStepSchemas]);
 
   // Load context slots from vault
   useEffect(() => {
@@ -157,7 +157,7 @@ export function AutomationEditorPage() {
         mergeVaultContextSlots(variables);
       })
       .catch(() => {});
-  }, [vaultAddress]);
+  }, [vaultAddress, mergeVaultContextSlots]);
 
   // Load editor state for existing automations
   useEffect(() => {
@@ -184,7 +184,7 @@ export function AutomationEditorPage() {
         }
       })
       .catch(() => {});
-  }, [automationId]);
+  }, [automationId, vaultAddress, mergeEditorContextVariables, loadEditorState]);
 
   const handleAddStep = useCallback(
     (stepType: StepTypeOption) => {

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { useEditorStore } from '../store/editor-store';
 import { apiFetch } from '@/lib/api';
 
@@ -17,7 +17,7 @@ export function useAutoSave(vaultAddress: string | undefined, automationId: stri
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const save = async () => {
+  const save = useCallback(async () => {
     if (!vaultAddress || !automationId) return;
     setSaveStatus('saving');
     try {
@@ -35,7 +35,7 @@ export function useAutoSave(vaultAddress: string | undefined, automationId: stri
     } catch {
       setSaveStatus('error');
     }
-  };
+  }, [vaultAddress, automationId, setSaveStatus, nodes, edges, contextVariables, label, description]);
 
   useEffect(() => {
     if (!isDirty || !automationId) return;
@@ -46,7 +46,7 @@ export function useAutoSave(vaultAddress: string | undefined, automationId: stri
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [isDirty, nodes, edges, label, description, contextVariables, automationId]);
+  }, [isDirty, automationId, save]);
 
   // Save on unmount if dirty
   useEffect(() => {

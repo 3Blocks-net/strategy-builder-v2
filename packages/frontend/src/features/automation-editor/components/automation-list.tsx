@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useSendTransaction } from 'wagmi';
 import { Button } from '@/components/ui/button';
@@ -33,7 +33,7 @@ export function AutomationList({ vaultAddress }: AutomationListProps) {
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const { sendTransactionAsync } = useSendTransaction();
 
-  const fetchAutomations = () => {
+  const fetchAutomations = useCallback(() => {
     apiFetch(`/vaults/${vaultAddress}/automations`)
       .then((r) => r.json())
       .then((data) => {
@@ -41,13 +41,13 @@ export function AutomationList({ vaultAddress }: AutomationListProps) {
         setLoading(false);
       })
       .catch(() => setLoading(false));
-  };
+  }, [vaultAddress]);
 
   useEffect(() => {
     fetchAutomations();
     const interval = setInterval(fetchAutomations, 30_000);
     return () => clearInterval(interval);
-  }, [vaultAddress]);
+  }, [fetchAutomations]);
 
   const handleToggle = async (a: AutomationListItem, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -201,6 +201,7 @@ export function AutomationList({ vaultAddress }: AutomationListProps) {
                       </span>
                     ) : null}
                   </td>
+                  {/* biome-ignore lint/a11y/useKeyWithClickEvents: reine Klick-Propagation-Bremse für die Zeilen-Navigation — die eigentlichen Aktionen sind die Buttons darin, die schon für sich tastaturbedienbar sind. */}
                   <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center justify-end gap-2">
                       {!a.isDraft && a.ownerOnly && (

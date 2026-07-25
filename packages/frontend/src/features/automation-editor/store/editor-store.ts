@@ -469,7 +469,9 @@ export const useEditorStore = create<EditorState>((set, get) => {
 
     const suffix = `-copy-${Date.now()}`;
     const idMap = new Map<string, string>();
-    clipboard.nodes.forEach((n) => idMap.set(n.id, `${n.id}${suffix}`));
+    clipboard.nodes.forEach((n) => {
+      idMap.set(n.id, `${n.id}${suffix}`);
+    });
 
     const newNodes: Node<EditorNodeData>[] = clipboard.nodes.map((n) => ({
       ...n,
