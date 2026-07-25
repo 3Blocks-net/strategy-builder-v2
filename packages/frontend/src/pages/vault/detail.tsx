@@ -186,6 +186,7 @@ export function VaultDetailPage() {
                     if (e.key === 'Escape') setEditingLabel(false);
                   }}
                   onBlur={handleLabelSave}
+                  // biome-ignore lint/a11y/noAutofocus: Click-to-edit — Fokus muss beim Umschalten in den Edit-Modus sofort im Input landen.
                   autoFocus
                   className="rounded-md border border-input bg-background px-2 py-1 text-2xl font-bold"
                 />
@@ -196,16 +197,19 @@ export function VaultDetailPage() {
                 )}
               </div>
             ) : (
-              <h1
-                className="cursor-pointer text-2xl font-bold hover:text-primary"
-                onClick={() => {
-                  setLabelInput(label);
-                  setEditingLabel(true);
-                  setLabelError(null);
-                }}
-                title="Click to edit"
-              >
-                {label || 'Vault'}
+              <h1 className="text-2xl font-bold">
+                <button
+                  type="button"
+                  className="cursor-pointer hover:text-primary"
+                  onClick={() => {
+                    setLabelInput(label);
+                    setEditingLabel(true);
+                    setLabelError(null);
+                  }}
+                  title="Click to edit"
+                >
+                  {label || 'Vault'}
+                </button>
               </h1>
             )}
           </div>

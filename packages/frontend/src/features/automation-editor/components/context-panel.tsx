@@ -45,6 +45,7 @@ export function ContextPanel() {
           />
         ) : (
           <button
+            type="button"
             className="w-full border border-dashed border-gray-300 rounded-lg py-2 text-sm text-gray-500 hover:border-blue-400 hover:text-blue-600"
             onClick={() => setShowCreate(true)}
           >
@@ -102,12 +103,14 @@ export function ContextPanel() {
               </div>
               <div className="flex gap-2 justify-end pt-1">
                 <button
+                  type="button"
                   className="px-3 py-1 text-xs border border-gray-300 rounded bg-white hover:bg-gray-50"
                   onClick={() => setEditingSlot(null)}
                 >
                   Abbrechen
                 </button>
                 <button
+                  type="button"
                   className="px-3 py-1 text-xs rounded bg-blue-500 text-white hover:bg-blue-600"
                   onClick={() => {
                     updateContextVariable(v.slotIndex, {
@@ -132,6 +135,7 @@ export function ContextPanel() {
                   <span className="text-sm font-semibold text-gray-900">{v.name}</span>
                 </div>
                 <button
+                  type="button"
                   className="text-xs text-gray-400 hover:text-gray-600"
                   onClick={() => startEdit(v)}
                 >
@@ -144,11 +148,7 @@ export function ContextPanel() {
               {usageMap.get(v.name) && (
                 <div className="text-xs text-gray-400 mt-1">
                   Benutzt von:{' '}
-                  {usageMap.get(v.name)!.map((stepName, i) => (
-                    <span key={i} className="text-blue-500">
-                      {i > 0 ? ', ' : ''}{stepName}
-                    </span>
-                  ))}
+                  <span className="text-blue-500">{usageMap.get(v.name)!.join(', ')}</span>
                 </div>
               )}
             </div>

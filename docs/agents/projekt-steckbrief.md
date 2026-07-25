@@ -23,7 +23,7 @@ git_commit: 7ca671beafc34c201d4980a6ef66297bec67aa7f
   - `pnpm --filter mcp test`
   - `pnpm contracts:test` (Hardhat; Fork-Tests brauchen laufenden Fork `pnpm contracts:fork:bsc`)
 - E2E: `pnpm frontend:test:e2e` (Playwright, `packages/frontend/playwright.config.ts`); Backend-E2E: `pnpm backend:test:e2e`
-- Lint: `TBD — needs research` (kein ESLint/Lint-Setup im Repo gefunden; CLAUDE.md-DoD verlangt „Lint sauber" — Setup fehlt)
+- Lint: `pnpm lint` (Biome `check`, ohne Auto-Fix — CI-tauglich; Config `biome.jsonc` im Root, deckt alle fünf TS-Pakete ab, Solidity ausgenommen)
 - Typecheck: über die Builds (`tsc`): `pnpm shared:build && pnpm --filter mcp build && pnpm frontend:build && pnpm backend:build`
 - Build: `pnpm shared:build`, `pnpm backend:build`, `pnpm frontend:build`, `pnpm --filter mcp build`, `pnpm contracts:compile`
 - Dev-Server: `pnpm dev` (Orchestrator `scripts/dev.mjs`) — backend :3001, frontend :5173, Hardhat-Fork :8545; DB via `pnpm db:up` (Docker), Migration `pnpm db:migrate`, Seed `pnpm db:seed`

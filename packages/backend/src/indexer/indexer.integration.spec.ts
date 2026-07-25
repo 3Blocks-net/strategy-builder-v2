@@ -228,7 +228,10 @@ describe('IndexerService.tick (integration)', () => {
 
     await svc.tick();
 
-    const byVault = prisma._executions.reduce((m: any, e: any) => ((m[e.vaultId] = e), m), {});
+    const byVault = prisma._executions.reduce((m: any, e: any) => {
+      m[e.vaultId] = e;
+      return m;
+    }, {});
     expect(byVault['va'].automationId).toBe(1);
     expect(byVault['vb'].automationId).toBe(2);
   });

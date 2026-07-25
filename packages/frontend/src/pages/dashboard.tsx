@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '@/providers/auth-context';
 import { Button } from '@/components/ui/button';
@@ -49,7 +49,7 @@ export function DashboardPage() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const fetchVaults = async () => {
+  const fetchVaults = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -62,11 +62,11 @@ export function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchVaults();
-  }, []);
+  }, [fetchVaults]);
 
   return (
     <div className="min-h-screen p-6">

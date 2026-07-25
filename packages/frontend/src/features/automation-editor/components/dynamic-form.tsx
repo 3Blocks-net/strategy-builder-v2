@@ -651,11 +651,12 @@ function HealthFactorField({
   );
   return (
     <div>
-      <label className="text-xs font-medium text-gray-700">Target health factor</label>
+      <label htmlFor={`hf-target-${nodeId}`} className="text-xs font-medium text-gray-700">Target health factor</label>
       <p className="text-xs text-gray-400 mt-0.5 mb-1">
         Move the position toward this health factor (must be above 1.05). No-op if already past it.
       </p>
       <input
+        id={`hf-target-${nodeId}`}
         type="text"
         inputMode="decimal"
         className={`nodrag w-full border rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 ${
@@ -765,11 +766,11 @@ function TickRangeField({
   // onChange — so the previewed width would never be written, minting a
   // degenerate single-spacing range. Only fires in preset mode with no delta yet
   // (explicit-price nodes and already-sized nodes are left untouched).
+  // biome-ignore lint/correctness/useExhaustiveDependencies: bewusst mount-only — mode/pct/storedDelta/applyPreset in die Deps aufzunehmen würde den Effect bei jedem Preset-/Modus-Wechsel erneut feuern und manuell gesetzte Werte überschreiben.
   useEffect(() => {
     if (mode === 1 && !(storedDelta > 0)) {
       applyPreset(pct);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
@@ -1049,9 +1050,12 @@ function StartTimeField({
 }
 
 function FieldLabel({ schema }: { schema: FieldSchema }) {
+  // Generischer, schema-getriebener Feld-Titel — wird vor ganz unterschiedlichen
+  // Control-Typen gerendert (Text, Select, Range-Picker, Datum, ...), daher kein
+  // htmlFor-fähiges <label> für ein einzelnes Control, sondern eine Überschrift.
   return (
     <div className="mb-1">
-      <label className="text-xs font-medium text-gray-700">{schema.title}</label>
+      <span className="text-xs font-medium text-gray-700">{schema.title}</span>
       {schema.description && (
         <p className="text-xs text-gray-400 mt-0.5">{schema.description}</p>
       )}

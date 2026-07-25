@@ -33,7 +33,9 @@ export function ContextOutputField({
   return (
     <div className="nodrag">
       <div className="mb-1">
-        <label className="text-xs font-medium text-gray-700">{title}</label>
+        {/* Feld-Überschrift für die ganze Gruppe (Checkbox + Variablen-Picker unten haben
+            je ihre eigene Assoziation) — kein einzelnes Control, daher <span> statt <label>. */}
+        <span className="text-xs font-medium text-gray-700">{title}</span>
         {desc && <p className="text-xs text-gray-400 mt-0.5">{desc}</p>}
       </div>
       <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-700 mb-2">
@@ -61,6 +63,7 @@ export function ContextOutputField({
                 <span className="bg-blue-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">ctx</span>
                 <span className="text-blue-700 font-medium">{selectedName}</span>
                 <button
+                  type="button"
                   className="ml-auto text-blue-300 hover:text-blue-500 text-sm"
                   onClick={() => onChange(fieldName, '')}
                 >
@@ -68,6 +71,7 @@ export function ContextOutputField({
                 </button>
               </div>
               <button
+                type="button"
                 className="border border-gray-300 rounded px-2 py-1 text-sm text-gray-400 hover:text-gray-600"
                 onClick={() => setShowDropdown(!showDropdown)}
               >
@@ -78,6 +82,7 @@ export function ContextOutputField({
             <div>
               {!showDropdown ? (
                 <button
+                  type="button"
                   className="w-full text-left border border-dashed border-gray-300 rounded px-2 py-1.5 text-sm text-gray-500 hover:border-blue-400 hover:text-blue-600"
                   onClick={() => setShowDropdown(true)}
                 >

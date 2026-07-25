@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { id, getAddress } from 'ethers';
-import { WalletSigner, trustTx } from './wallet-signer.js';
+import { WalletSigner, trustTx, type ContractTxReceipt } from './wallet-signer.js';
 import { BackendClient } from './backend-client.js';
 import type { SendCreateVault } from './tools/create-vault.js';
 import type { DeployOnChain } from './tools/deploy-automation.js';
@@ -96,7 +96,7 @@ export function buildDeployOnChain(
       txHashes.push(ctx.hash);
     }
 
-    let auto;
+    let auto: ContractTxReceipt;
     try {
       auto = await signer.sendRawTransaction(trustTx({
         rpcUrl,

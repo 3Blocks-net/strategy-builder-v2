@@ -79,8 +79,9 @@ export function WithdrawForm({
       <h3 className="font-semibold">Withdraw</h3>
 
       <div>
-        <label className="text-sm font-medium">Token</label>
+        <label htmlFor="withdraw-token" className="text-sm font-medium">Token</label>
         <select
+          id="withdraw-token"
           value={selectedToken?.address ?? ''}
           onChange={(e) => {
             const p =
@@ -103,9 +104,10 @@ export function WithdrawForm({
       {selectedToken && (
         <>
           <div>
-            <label className="text-sm font-medium">Amount (gross)</label>
+            <label htmlFor="withdraw-amount" className="text-sm font-medium">Amount (gross)</label>
             <div className="mt-1 flex gap-2">
               <input
+                id="withdraw-amount"
                 type="text"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}

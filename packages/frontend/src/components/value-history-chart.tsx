@@ -74,7 +74,7 @@ export function ValueHistoryChart({
 
   // Map points → SVG coordinates.
   let path = '';
-  let markerDots: { x: number; color: string; title: string }[] = [];
+  let markerDots: { t: number; x: number; color: string; title: string }[] = [];
   if (hasCurve) {
     const times = points.map((p) => new Date(p.t).getTime());
     const values = points.map((p) => p.valueUsd);
@@ -96,12 +96,13 @@ export function ValueHistoryChart({
         const t = new Date(m.t).getTime();
         if (t < minT || t > maxT) return null;
         return {
+          t,
           x: x(t),
           color: m.type === 'DEPOSIT' ? '#22c55e' : '#ef4444',
           title: `${m.type} ${m.amountUsd != null ? formatUsd(m.amountUsd) : ''} @ ${formatDate(m.t)}`,
         };
       })
-      .filter((d): d is { x: number; color: string; title: string } => d != null);
+      .filter((d): d is { t: number; x: number; color: string; title: string } => d != null);
   }
 
   return (
@@ -129,6 +130,7 @@ export function ValueHistoryChart({
             className="h-40 w-full"
             preserveAspectRatio="none"
           >
+            <title>Value history chart</title>
             <path
               d={path}
               fill="none"
@@ -137,9 +139,9 @@ export function ValueHistoryChart({
               className="text-primary"
               vectorEffect="non-scaling-stroke"
             />
-            {markerDots.map((d, i) => (
+            {markerDots.map((d) => (
               <line
-                key={i}
+                key={d.t}
                 x1={d.x}
                 x2={d.x}
                 y1={PAD}

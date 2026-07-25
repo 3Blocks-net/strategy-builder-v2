@@ -1,0 +1,46 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.5.5/schema.json",
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
+  "files": {
+    "ignoreUnknown": true,
+    "includes": [
+      "**",
+      "!**/node_modules",
+      "!**/dist",
+      "!**/build",
+      "!**/generated",
+      "!packages/contracts/types",
+      "!packages/contracts/artifacts",
+      "!packages/contracts/cache",
+      "!backlog",
+      "!docs",
+      // CSS linting/Tailwind-v4-Parsing ist nicht Teil dieses Tickets (Scope: TS-Pakete) —
+      // eigenes Ticket, falls gewünscht.
+      "!**/*.css"
+    ]
+  },
+  "formatter": {
+    "enabled": false
+  },
+  "javascript": {
+    "parser": {
+      // backend (NestJS) uses legacy parameter decorators (@Body(), @Param(), ...),
+      // enabled project-wide via tsconfig `experimentalDecorators` — Biome treats the
+      // syntax as "unsafe" by default; this repo relies on it deliberately.
+      "unsafeParameterDecoratorsEnabled": true
+    }
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "preset": "recommended"
+    }
+  },
+  "assist": {
+    "enabled": false
+  }
+}

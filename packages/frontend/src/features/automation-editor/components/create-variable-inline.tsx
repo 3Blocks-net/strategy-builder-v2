@@ -20,6 +20,7 @@ export function CreateVariableInline({ onSave, onCancel }: CreateVariableInlineP
           placeholder="z.B. transfer-amount"
           value={name}
           onChange={(e) => setName(e.target.value)}
+          // biome-ignore lint/a11y/noAutofocus: Inline-Create-Formular öffnet sich per Klick im Editor — Fokus muss sofort im Namensfeld landen.
           autoFocus
         />
       </div>
@@ -48,12 +49,14 @@ export function CreateVariableInline({ onSave, onCancel }: CreateVariableInlineP
       </div>
       <div className="flex gap-2 justify-end pt-1">
         <button
+          type="button"
           className="px-3 py-1 text-xs border border-gray-300 rounded bg-white hover:bg-gray-50"
           onClick={onCancel}
         >
           Abbrechen
         </button>
         <button
+          type="button"
           className="px-3 py-1 text-xs border-none rounded bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-50"
           disabled={!name.trim()}
           onClick={() => onSave({ name: name.trim(), type, description: description.trim() })}

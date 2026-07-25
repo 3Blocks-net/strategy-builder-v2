@@ -163,7 +163,7 @@ export function GasDepositCard({ vaultAddress }: GasDepositCardProps) {
           </div>
 
           <div className="rounded-md border border-gray-200 p-4">
-            <label className="mb-1 block text-xs font-medium text-gray-700">
+            <label htmlFor="gas-deposit-min" className="mb-1 block text-xs font-medium text-gray-700">
               Mindest-Reserve (minFeeDeposit)
             </label>
             <p className="mb-2 text-xs text-gray-400">
@@ -175,6 +175,7 @@ export function GasDepositCard({ vaultAddress }: GasDepositCardProps) {
             </p>
             <div className="flex gap-2">
               <input
+                id="gas-deposit-min"
                 type="text"
                 inputMode="decimal"
                 className="flex-1 rounded border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
@@ -201,7 +202,7 @@ export function GasDepositCard({ vaultAddress }: GasDepositCardProps) {
           </div>
 
           <div className="rounded-md border border-gray-200 p-4">
-            <label className="mb-1 block text-xs font-medium text-gray-700">
+            <label htmlFor="gas-deposit-amount" className="mb-1 block text-xs font-medium text-gray-700">
               Fees einzahlen
             </label>
             <p className="mb-2 text-xs text-gray-400">
@@ -209,6 +210,7 @@ export function GasDepositCard({ vaultAddress }: GasDepositCardProps) {
             </p>
             <div className="flex gap-2">
               <input
+                id="gas-deposit-amount"
                 type="text"
                 inputMode="decimal"
                 className="flex-1 rounded border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
