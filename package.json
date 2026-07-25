@@ -4,6 +4,7 @@
   "description": "Strategy Builder V2 - Pecunity Platform",
   "private": true,
   "scripts": {
+    "lint": "biome check .",
     "shared:build": "pnpm --filter shared build",
     "shared:build:watch": "pnpm --filter shared build:watch",
     "contracts:compile": "pnpm --filter contracts compile",
@@ -38,5 +39,8 @@
       "keytar",
       "prisma"
     ]
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.5"
   }
 }
