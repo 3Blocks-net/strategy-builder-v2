@@ -1,5 +1,7 @@
 # CLAUDE.md
 
+@AGENTS.md
+
 Steuert, wie Claude Code in diesem Repo arbeitet. Der wichtigste Hebel dafür, dass alle Entwickler und jeder Agent gleich arbeiten. Kurz und aktuell halten.
 
 > Der Entwicklungs-Workflow (Idee → Spec → Build → Review) läuft über **shipcraft** (`/setup`, `/idee`, `/weiter`). Die Pro-Projekt-Konfiguration liegt nach dem Setup unter `docs/agents/`.
