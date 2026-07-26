@@ -26,7 +26,11 @@ export function resolveRpcUrl(envFilePath, env = process.env) {
       if (separatorIndex === -1) continue;
       const key = line.slice(0, separatorIndex).trim();
       if (key !== 'RPC_URL') continue;
-      const value = line.slice(separatorIndex + 1).trim();
+      let value = line.slice(separatorIndex + 1).trim();
+      // Inline-Kommentare und umschließende Quotes tolerieren (RPC_URL="…" # foo)
+      const hashIndex = value.indexOf(' #');
+      if (hashIndex !== -1) value = value.slice(0, hashIndex).trim();
+      value = value.replace(/^["']|["']$/g, '');
       if (value) return value;
     }
   }

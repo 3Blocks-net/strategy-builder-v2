@@ -34,7 +34,7 @@ ordinal: 8000
 **Acceptance criteria:**
 - [x] Ohne laufenden Fork zeigt `pnpm dev` den Hinweis mit den drei Kommandos
 - [x] Mit laufendem Fork erscheint kein Hinweis, Verhalten unverändert
-- [ ] Kein Blockieren: dev.mjs startet Backend/Frontend in beiden Fällen weiter
+- [x] Kein Blockieren: dev.mjs startet Backend/Frontend in beiden Fällen weiter (checkFork awaited, max. 2s, danach unveränderter Ablauf — strukturell verifiziert)
 
 **Out of scope:** Automatischer deploy-fork/seed; Änderungen an contracts-Skripten.
 
