@@ -299,6 +299,31 @@ describe('IndexerService.tick (integration)', () => {
     expect(advanced?.lastProcessedBlock).toBe(15); // head 20 - confirmations 5 => cursor advanced past the collision log's block too
   });
 
+  it('survives a topic-colliding log emitted by a KNOWN vault (e.g. via delegatecall into foreign code) and still persists a real vault event, advancing the cursor (task-9)', async () => {
+    const prisma = makePrisma([{ id: 'va', address: VAULT_A, createdAtBlock: 1 }]);
+    const head = { head: 20 };
+    const logs = [
+      // Unlike the UNKNOWN-address case above, this collision log's address
+      // IS a known vault (e.g. a delegatecall into unrelated foreign code) —
+      // it passes the address gate and reaches `parseVaultLog` directly, so
+      // this exercises the belt-and-suspenders guard inside the mapper
+      // itself (never throw; return null on decode failure), not the
+      // address gate.
+      makeCollisionLog(VAULT_A, { txHash: '0xcollision-known', blockNumber: 9, index: 0 }),
+      makeLog(VAULT_A, 'AutomationExecuted', [1, EXECUTOR], { txHash: '0xreal-known', blockNumber: 10, index: 0 }),
+    ];
+    const { svc, cursor } = buildService(prisma, makeProvider(logs, head));
+    await cursor.initIfMissing(0);
+
+    await expect(svc.tick()).resolves.toBeUndefined(); // must not throw / abort the tick
+
+    expect(prisma._executions).toHaveLength(1);
+    expect(prisma._executions[0]).toMatchObject({ txHash: '0xreal-known', vaultId: 'va' });
+
+    const advanced = await cursor.get();
+    expect(advanced?.lastProcessedBlock).toBe(15); // head 20 - confirmations 5 => cursor advanced past the collision log's block too
+  });
+
   it('does not index events still inside the confirmation window', async () => {
     const prisma = makePrisma([{ id: 'va', address: VAULT_A, createdAtBlock: 1 }]);
     const head = { head: 12 }; // confirmations=5 => safe head 7
