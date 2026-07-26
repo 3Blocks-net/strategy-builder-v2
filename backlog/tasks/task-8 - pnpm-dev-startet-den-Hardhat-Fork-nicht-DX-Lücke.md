@@ -1,9 +1,11 @@
 ---
 id: TASK-8
 title: pnpm dev startet den Hardhat-Fork nicht (DX-Lücke)
-status: Ready for Agent
-assignee: []
+status: In Progress
+assignee:
+  - auto-builder
 created_date: '2026-07-26 10:10'
+updated_date: '2026-07-26 10:35'
 labels:
   - enhancement
   - ready-for-agent
