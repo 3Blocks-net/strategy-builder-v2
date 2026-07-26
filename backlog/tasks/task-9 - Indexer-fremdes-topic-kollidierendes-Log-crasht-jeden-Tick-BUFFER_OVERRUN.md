@@ -1,9 +1,11 @@
 ---
 id: TASK-9
 title: 'Indexer: fremdes topic-kollidierendes Log crasht jeden Tick (BUFFER_OVERRUN)'
-status: Ready for Agent
-assignee: []
+status: In Progress
+assignee:
+  - auto-builder
 created_date: '2026-07-26 10:10'
+updated_date: '2026-07-26 10:16'
 labels:
   - bug
   - ready-for-agent
