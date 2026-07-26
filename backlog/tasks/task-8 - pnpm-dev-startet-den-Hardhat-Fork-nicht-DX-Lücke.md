@@ -1,9 +1,11 @@
 ---
 id: TASK-8
 title: pnpm dev startet den Hardhat-Fork nicht (DX-Lücke)
-status: Ready for Agent
-assignee: []
+status: Done
+assignee:
+  - auto-builder
 created_date: '2026-07-26 10:10'
+updated_date: '2026-07-26 10:49'
 labels:
   - enhancement
   - ready-for-agent
@@ -30,9 +32,9 @@ ordinal: 8000
 **Desired behavior:** Beim Start prüft dev.mjs per eth_chainId-Request, ob unter RPC_URL (aus packages/backend/.env, Default http://localhost:8545) ein Node antwortet. Wenn nein: gut sichtbarer Hinweis mit den drei Kommandos (contracts:fork:bsc, contracts:deploy:fork, db:seed) — Verhalten sonst unverändert. Optional (Kann): Flag `--fork`, das den Fork als vierten Kind-Prozess mitstartet.
 
 **Acceptance criteria:**
-- [ ] Ohne laufenden Fork zeigt `pnpm dev` den Hinweis mit den drei Kommandos
-- [ ] Mit laufendem Fork erscheint kein Hinweis, Verhalten unverändert
-- [ ] Kein Blockieren: dev.mjs startet Backend/Frontend in beiden Fällen weiter
+- [x] Ohne laufenden Fork zeigt `pnpm dev` den Hinweis mit den drei Kommandos
+- [x] Mit laufendem Fork erscheint kein Hinweis, Verhalten unverändert
+- [x] Kein Blockieren: dev.mjs startet Backend/Frontend in beiden Fällen weiter (checkFork awaited, max. 2s, danach unveränderter Ablauf — strukturell verifiziert)
 
 **Out of scope:** Automatischer deploy-fork/seed; Änderungen an contracts-Skripten.
 
