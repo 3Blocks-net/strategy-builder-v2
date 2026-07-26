@@ -2,11 +2,21 @@
 import { execSync, spawn } from 'child_process';
 import { existsSync, copyFileSync } from 'fs';
 import { resolve } from 'path';
+import { checkFork } from './fork-check.mjs';
 
 const root = resolve(import.meta.dirname, '..');
 const backendDir = resolve(root, 'packages/backend');
 const envFile = resolve(backendDir, '.env');
 const envExample = resolve(backendDir, '.env.example');
+
+// --check-fork-only (TASK-8): run only the fork-reachability check and exit —
+// no Docker, no migrations, no dev servers. Exit 0 either way; prints the
+// hint only when no chain node answers under RPC_URL.
+if (process.argv.includes('--check-fork-only')) {
+  const { hint } = await checkFork({ envFilePath: envFile });
+  if (hint) console.log(hint);
+  process.exit(0);
+}
 
 // 1. Ensure backend .env exists
 if (!existsSync(envFile)) {
@@ -43,6 +53,12 @@ for (let i = 0; i < 30; i++) {
   }
 }
 console.log('PostgreSQL ready.\n');
+
+// 3b. Non-blocking hint if the local fork (RPC_URL) isn't reachable (TASK-8).
+// Without this, a missing fork just shows up later as the indexer's
+// misleading per-tick "failed to detect network" — looks like a backend bug.
+const { hint: forkHint } = await checkFork({ envFilePath: envFile });
+if (forkHint) console.log(`${forkHint}\n`);
 
 // 4. Run Prisma migrations
 console.log('Running Prisma migrations...');
