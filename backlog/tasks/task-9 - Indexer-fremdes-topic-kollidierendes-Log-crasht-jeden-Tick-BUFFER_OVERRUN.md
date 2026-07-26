@@ -1,9 +1,11 @@
 ---
 id: TASK-9
 title: 'Indexer: fremdes topic-kollidierendes Log crasht jeden Tick (BUFFER_OVERRUN)'
-status: Ready for Agent
-assignee: []
+status: Done
+assignee:
+  - auto-builder
 created_date: '2026-07-26 10:10'
+updated_date: '2026-07-26 10:33'
 labels:
   - bug
   - ready-for-agent
@@ -35,9 +37,9 @@ ordinal: 9000
 - Kein Schema-/API-Change
 
 **Acceptance criteria:**
-- [ ] Neuer Test (event-mapper.spec): Log mit Withdrawn-topicHash, 4 Topics, 32-Byte-Data → parseVaultLog === null, kein Throw
-- [ ] Neuer Test (indexer.integration.spec): Range mit fremdem Kollisions-Log + echtem Vault-Event → Vault-Event persistiert, Cursor advanced
-- [ ] Bestehende Indexer-Tests grün
+- [x] Neuer Test (event-mapper.spec): Log mit Withdrawn-topicHash, 4 Topics, 32-Byte-Data → parseVaultLog === null, kein Throw
+- [x] Neuer Test (indexer.integration.spec): Range mit fremdem Kollisions-Log + echtem Vault-Event → Vault-Event persistiert, Cursor advanced
+- [x] Bestehende Indexer-Tests grün
 
 **Out of scope:** Umstellung auf adress-gebundene getLogs-Filter pro Vault (Performance-Thema, eigenes Ticket falls gewünscht); Protokoll-Flow-Pfad (bereits warn-gefangen).
 

@@ -56,6 +56,32 @@ describe('event-mapper', () => {
       };
       expect(parseVaultLog(log)).toBeNull();
     });
+
+    it('returns null (no throw) for a topic-colliding foreign log with a mismatched indexed/data layout (BUFFER_OVERRUN regression, task-9)', () => {
+      // A foreign contract can declare an event with the exact same name+types
+      // as our Withdrawn (same topic0 hash — the hash only depends on the
+      // signature text, not on which args are `indexed`), but index a
+      // different number of args. Here: 3 indexed args (4 topics incl. topic0)
+      // instead of our 2, so the non-indexed `data` carries only 1 word (32
+      // bytes) where our ABI's decode expects 2 (amount + fee = 64 bytes) —
+      // this reproduces the reported `data out-of-bounds (BUFFER_OVERRUN)`.
+      const withdrawnTopic = vaultEventInterface.getEvent('Withdrawn')!.topicHash;
+      const log = {
+        address: getAddress('0x9999999999999999999999999999999999999999'),
+        transactionHash: '0xcc',
+        blockNumber: 1,
+        index: 0,
+        topics: [
+          withdrawnTopic,
+          '0x' + '11'.repeat(32),
+          '0x' + '22'.repeat(32),
+          '0x' + '33'.repeat(32),
+        ],
+        data: '0x' + '44'.repeat(32), // 32-byte data — only 1 word, not the 2 (amount, fee) our ABI expects
+      };
+      expect(() => parseVaultLog(log)).not.toThrow();
+      expect(parseVaultLog(log)).toBeNull();
+    });
   });
 
   describe('buildExecutionRows', () => {
