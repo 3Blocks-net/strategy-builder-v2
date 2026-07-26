@@ -31,6 +31,9 @@
       // backend (NestJS) uses legacy parameter decorators (@Body(), @Param(), ...),
       // enabled project-wide via tsconfig `experimentalDecorators` — Biome treats the
       // syntax as "unsafe" by default; this repo relies on it deliberately.
+      // (Scoping per overrides auf packages/backend wurde probiert und revertiert:
+      // ein Override-Match ändert die Regel-Auswertung der Backend-Dateien —
+      // useNodejsImportProtocol feuert dann neu. Global bleibt der pragmatische Stand.)
       "unsafeParameterDecoratorsEnabled": true
     }
   },

@@ -215,14 +215,16 @@ export function CockpitPositionsPanel({ address }: { address: string }) {
                 {groups[proto].map((p) =>
                   p.error ? (
                     <div
-                      key={`${p.kind}-${p.label}`}
+                      // kind+label sind nicht eindeutig (z. B. Spam-Token mit
+                      // gleichem Symbol) — Leg-Token-Adressen als Tie-Breaker.
+                      key={`${p.kind}-${p.label}-${p.legs.map((l) => l.token).join('.')}`}
                       className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive"
                     >
                       {p.label}: {p.error}
                     </div>
                   ) : (
                     <div
-                      key={`${p.kind}-${p.label}`}
+                      key={`${p.kind}-${p.label}-${p.legs.map((l) => l.token).join('.')}`}
                       className="flex items-center justify-between rounded-md bg-muted/40 px-3 py-2 text-sm"
                     >
                       <div>

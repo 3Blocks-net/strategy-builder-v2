@@ -92,17 +92,19 @@ export function ValueHistoryChart({
       .join(' ');
 
     markerDots = (data?.markers ?? [])
-      .map((m) => {
+      .map((m, i) => {
         const t = new Date(m.t).getTime();
         if (t < minT || t > maxT) return null;
         return {
-          t,
+          // Marker-Zeitstempel sind nicht eindeutig (Deposit+Withdraw im selben
+          // Block) — Index als Tie-Breaker gegen doppelte React-Keys.
+          key: `${t}-${m.type}-${i}`,
           x: x(t),
           color: m.type === 'DEPOSIT' ? '#22c55e' : '#ef4444',
           title: `${m.type} ${m.amountUsd != null ? formatUsd(m.amountUsd) : ''} @ ${formatDate(m.t)}`,
         };
       })
-      .filter((d): d is { t: number; x: number; color: string; title: string } => d != null);
+      .filter((d): d is { key: string; x: number; color: string; title: string } => d != null);
   }
 
   return (
@@ -141,7 +143,7 @@ export function ValueHistoryChart({
             />
             {markerDots.map((d) => (
               <line
-                key={d.t}
+                key={d.key}
                 x1={d.x}
                 x2={d.x}
                 y1={PAD}
