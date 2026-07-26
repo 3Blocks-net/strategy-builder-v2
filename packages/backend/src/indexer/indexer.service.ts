@@ -197,11 +197,27 @@ export class IndexerService implements OnModuleInit, OnModuleDestroy {
 
     for (const range of ranges) {
       const logs = await this.fetchLogs(range);
-      const parsed = logs
+      // Gate on known vaults BEFORE decoding (task-9). The address-less
+      // getLogs call above can return logs from ANY contract on chain,
+      // including a foreign one whose event happens to collide with one of
+      // our topic0 hashes (same signature text) but uses a different
+      // indexed/data layout — decoding that first can throw
+      // (`BUFFER_OVERRUN`) and would abort the whole tick, wedging the
+      // cursor forever. Filtering by address first means we never even
+      // attempt to decode a foreign log.
+      const knownVaultLogs = logs.filter((l) => {
+        try {
+          return vaultByAddress.has(getAddress(l.address));
+        } catch {
+          return false; // malformed/exotic address — never a known vault
+        }
+      });
+      const parsed = knownVaultLogs
         .map((l) => parseVaultLog(l))
-        .filter((p): p is ParsedVaultLog => p !== null)
-        // gate on known vaults (address-less filter may catch foreign logs)
-        .filter((p) => vaultByAddress.has(p.address));
+        // Belt-and-suspenders: parseVaultLog itself never throws on a decode
+        // failure (returns null instead) — e.g. a known vault emitting a
+        // colliding event via delegatecall into foreign code.
+        .filter((p): p is ParsedVaultLog => p !== null);
 
       if (parsed.length > 0) {
         const blockTimestamps = await this.resolveBlockTimestamps(parsed);

@@ -11,7 +11,10 @@
  * `Deposited` / `Withdrawn` are declared in the ABI for the shared topic filter
  * but mapped in a later slice.
  */
+import { Logger } from '@nestjs/common';
 import { Interface, Log, getAddress } from 'ethers';
+
+const logger = new Logger('event-mapper');
 
 export const VAULT_EVENT_SIGNATURES = [
   'event AutomationExecuted(uint32 indexed automationId, address indexed executor)',
@@ -69,12 +72,31 @@ export interface ExecutionRowData {
   gasCompToken: string | null;
 }
 
-/** Decode a single log against the vault ABI; returns null for foreign logs. */
+/**
+ * Decode a single log against the vault ABI; returns null for foreign logs.
+ *
+ * Also returns null (never throws) when the decode itself fails (task-9): a
+ * foreign contract can emit a log whose topic0 collides with one of ours
+ * (identical event signature text) but indexes a different number of args,
+ * so the non-indexed `data` doesn't match our ABI's expected word count —
+ * ethers then throws `BUFFER_OVERRUN` instead of returning null. Guarding
+ * here is belt-and-suspenders on top of the caller's known-vault address
+ * gate: even a known vault could in principle emit a colliding event via
+ * delegatecall into foreign code.
+ */
 export function parseVaultLog(log: RawLogLike | Log): ParsedVaultLog | null {
-  const parsed = vaultEventInterface.parseLog({
-    topics: Array.from(log.topics),
-    data: log.data,
-  });
+  let parsed: ReturnType<typeof vaultEventInterface.parseLog>;
+  try {
+    parsed = vaultEventInterface.parseLog({
+      topics: Array.from(log.topics),
+      data: log.data,
+    });
+  } catch (err) {
+    logger.debug(
+      `parseLog failed for tx=${(log as RawLogLike).transactionHash} logIndex=${(log as RawLogLike).index}: ${(err as Error).message}`,
+    );
+    return null;
+  }
   if (!parsed) return null;
   return {
     name: parsed.name,

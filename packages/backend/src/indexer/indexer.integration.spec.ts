@@ -45,6 +45,33 @@ function makeLog(
   };
 }
 
+/**
+ * A foreign contract's log that collides with our `Withdrawn` topic0 (same
+ * signature text) but indexes 3 args (4 topics incl. topic0) instead of our
+ * 2 — the non-indexed `data` therefore carries only 1 word (32 bytes) where
+ * our ABI's decode expects 2 (amount + fee = 64 bytes). Reproduces the
+ * reported `data out-of-bounds (BUFFER_OVERRUN)` (task-9).
+ */
+function makeCollisionLog(
+  address: string,
+  o: { txHash: string; blockNumber: number; index: number },
+): FakeLog {
+  const withdrawnTopic = vaultEventInterface.getEvent('Withdrawn')!.topicHash;
+  return {
+    address,
+    transactionHash: o.txHash,
+    blockNumber: o.blockNumber,
+    index: o.index,
+    topics: [
+      withdrawnTopic,
+      '0x' + '11'.repeat(32),
+      '0x' + '22'.repeat(32),
+      '0x' + '33'.repeat(32),
+    ],
+    data: '0x' + '44'.repeat(32),
+  };
+}
+
 /** Minimal in-memory Prisma double covering the surface the indexer touches. */
 function makePrisma(vaults: { id: string; address: string; createdAtBlock: number }[]) {
   const executions: any[] = [];
@@ -248,6 +275,28 @@ describe('IndexerService.tick (integration)', () => {
     await svc.tick();
 
     expect(prisma._executions).toHaveLength(0);
+  });
+
+  it('survives a topic-colliding foreign log (BUFFER_OVERRUN repro) and still persists a real vault event, advancing the cursor (task-9)', async () => {
+    const prisma = makePrisma([{ id: 'va', address: VAULT_A, createdAtBlock: 1 }]);
+    const head = { head: 20 };
+    const logs = [
+      // Foreign contract, NOT a known vault, emits a log that collides with our
+      // Withdrawn topic0 but uses a different indexed/data layout — the
+      // address-less getLogs still returns it (same repro as production).
+      makeCollisionLog(UNKNOWN, { txHash: '0xcollision', blockNumber: 9, index: 0 }),
+      makeLog(VAULT_A, 'AutomationExecuted', [1, EXECUTOR], { txHash: '0xreal', blockNumber: 10, index: 0 }),
+    ];
+    const { svc, cursor } = buildService(prisma, makeProvider(logs, head));
+    await cursor.initIfMissing(0);
+
+    await expect(svc.tick()).resolves.toBeUndefined(); // must not throw / abort the tick
+
+    expect(prisma._executions).toHaveLength(1);
+    expect(prisma._executions[0]).toMatchObject({ txHash: '0xreal', vaultId: 'va' });
+
+    const advanced = await cursor.get();
+    expect(advanced?.lastProcessedBlock).toBe(15); // head 20 - confirmations 5 => cursor advanced past the collision log's block too
   });
 
   it('does not index events still inside the confirmation window', async () => {
