@@ -135,10 +135,56 @@ S5 PEC-Burn · E8 Multi-Chain · E7 gehosteter KI-Assistent · Track-Record/Soci
 Vault ohne Slippage-Schutz; S1 ist technische Wurzel und zugleich risikoarm; die
 Einsteiger-UX (E1) lohnt erst, wenn das, was Einsteiger anfassen, abgesichert ist (E2).
 
-## F. Offene strategische Entscheidungen (→ Grilling)
+## F. Getroffene strategische Entscheidungen (Grilling 2026-07-27, Entscheider: Florian)
 
-1. Ziel-Persona V1: Power-User-Beachhead vs. Einsteiger-Nordstern — was priorisiert H2?
-2. Base-Fee: 5 % halten / senken / in Pläne verschieben?
-3. Reihenfolge bestätigen: Absicherung (E2) vor Monetarisierung (S2/S3)?
-4. PEC-Tokenomics: verbindlicher V1-Bestandteil oder H3?
-5. Multi-Chain: BSC-only bis PMF?
+1. **Persona: Power-User zuerst.** Einsteiger-UX (E1 Template-Galerie) rückt nach H3;
+   H2 vertieft den Power-User-Wert.
+2. **Base-Fee: senken auf 1–2 % p.a.** (endgültige Höhe vor S3-Umsetzung validieren);
+   Umsatzlücke über Performance-Fee + Credits kompensieren.
+3. **Reihenfolge: Vertrauen zuerst.** Absicherung (E2) + S1 in H1; Fees erst mit/nach Audit live.
+4. **PEC-Burn (S5): nach H3 geschoben.** Kein V1-/V2-Bestandteil.
+5. **Multi-Chain: zweite Chain bereits in H2** (Power-User-Wert; welche Chain = TBD im Epic).
+6. **Power-User-Vertiefung H2:** mehr Strategie-Bausteine (Stop-Loss, DCA, Grid,
+   Limit-Orders) + zweite Chain.
+7. **Audit: Ende H1 verbindlich beauftragen.** Scope: Vault-Kern + Absicherungs-Paket + S1/S2.
+8. **Monetarisierungs-Modell NEU — Credits statt Pläne (Dual-Rail):**
+   - **Rail 1 (Credits):** Nutzer kaufen Credits; das Backend setzt via S1-Rabatt-Vektor
+     alle On-Chain-Fees auf 0 und berechnet sämtliche Gebühren off-chain gegen das
+     Credit-Guthaben.
+   - **Rail 2 (On-Chain):** ohne Credits zahlen Nutzer alle Fees normal über die
+     Smart Contracts.
+   - Konsequenzen: kein Plan-Tier-System; S4 (Free-Tx/Gas-Comp-Skip) wird Bestandteil des
+     Credit-Rails; die Off-Chain-Fee-Berechnung MUSS dieselbe Quelle nutzen wie on-chain
+     (Drift-Verbot analog Encode-Boundary-Prinzip).
+   - Offen (TBD — needs research): Zahlungsmittel für Credits (Stablecoin/PEC/Fiat),
+     Preisvorteil Credits vs. on-chain, Erstattungs-Regeln, regulatorische Einordnung
+     (Prepaid-Guthaben), Verhalten bei Guthaben 0 (Fallback-Umschaltung des Vektors),
+     Abrechnungs-Transparenz für den Nutzer.
+
+## G. Finale Roadmap (nach Entscheidungen)
+
+**H1 — Vertrauen & Wurzel:**
+Epic A „Absicherungs-Paket" (Slippage-Schutz, Action-Whitelist, Schutz-Steps-Basis) ·
+Epic B Teil 1: S1 Rabatt-Vektor · Epic D „Benachrichtigungen MVP" (Fehlschlag-Alerts) ·
+Audit-Beauftragung Ende H1 (Meilenstein, Human-Task).
+
+**H2 — Monetarisierung + Power-User-Tiefe:**
+Epic B Teil 2: S2 Performance-Fee 15 % + S3 Base-Fee 1–2 % · Epic C „Credits-System"
+(Kauf, Ledger, Off-Chain-Fee-Engine, Vektor-Sync, Gas-Comp-Skip) · Epic E
+„Strategie-Bausteine" (Stop-Loss, DCA, Grid, Limit) · Epic F „Zweite Chain" ·
+Audit-Durchführung.
+
+**H3 — Skalierung & Einsteiger:**
+E1 Template-First-Einsteiger-UX · S5 PEC-Burn · E7 gehosteter KI-Assistent ·
+weitere Chains.
+
+## H. Epic-Schnitt (Kandidaten für die Übertragung)
+
+| Epic | Inhalt | Horizont | Quelle |
+|---|---|---|---|
+| A — Absicherungs-Paket | Slippage-Schutz, Action-Whitelist (kuratierte Registry, Experten-Opt-out), Stop-Loss-/HF-Schutz-Basis | H1 | Reverse-Spec-Lücken |
+| B — Fee-System on-chain | S1 Vektor (H1) → S2 Perf-Fee → S3 Base-Fee 1–2 % (H2); S4-Skip-Mechanik als Contract-Hook | H1/H2 | ENG-48, angepasst |
+| C — Credits-System | Kauf, Guthaben-Ledger, Off-Chain-Fee-Engine (eine Quelle mit on-chain), Vektor-Sync, Abrechnungs-UI | H2 | Entscheidung 8 |
+| D — Benachrichtigungen | Fehlschlag-/HF-/Depot-Alerts (Kanal TBD) | H1 | Gap E5 |
+| E — Strategie-Bausteine | Stop-Loss, DCA, Grid, Limit-Orders als Steps | H2 | Entscheidung 6 |
+| F — Zweite Chain | Chain-Wahl (TBD), Adapter/Indexer/Keeper-Erweiterung | H2 | Entscheidung 5 |
