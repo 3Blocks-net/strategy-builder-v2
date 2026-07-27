@@ -4,6 +4,7 @@ title: 'Epic: Absicherungs-Paket'
 status: Needs Triage
 assignee: []
 created_date: '2026-07-27 13:19'
+updated_date: '2026-07-27 14:40'
 labels:
   - epic
 dependencies: []
@@ -18,12 +19,18 @@ created: 2026-07-27
 last_verified: 2026-07-27
 git_commit: d2243f1
 status: eingefroren
-version: 1
+version: 2
 modus: solo
-ticket: <wird beim Freeze gefüllt>
+ticket: TASK-11
 ---
 
 # Epic: Absicherungs-Paket
+
+> **v2 (2026-07-27): A5 gestrichen, Verbot 5 entfallen — Grund:** Produkt ist nicht live;
+> die aktuellen Deployments dürfen frei geändert werden (Entscheidung Florian, Station-2-
+> Klärung). Der Whitelist-Check wandert direkt in den bestehenden Vault-Contract statt in
+> eine V2-Version; eine Bestands-Migrations-Mechanik wird erst mit dem Mainnet-Launch
+> relevant (v-next). Historie: Freigabe-Quittung.
 
 ## Einseiter
 
@@ -50,16 +57,14 @@ graph TD
     F -- nein --> G[Deploy blockiert:<br/>Hinweis auf kuratierte Alternativen<br/>oder Experten-Opt-out]
     F -- ja --> H[Ausdrückliche Warnbestätigung] --> E
     E --> I[Deploy: on-chain erzwingt minOut<br/>+ Whitelist-Gate im Standard-Modus]
-    I --> J[Cockpit zeigt Schutz-Status-Badge:<br/>Geschützt / Experten-Modus / Alt-Automationen]
-    K[Bestands-Automation ohne Schutz] --> L[Kennzeichnung im Cockpit/Editor<br/>+ Ein-Klick-Migrationsvorschlag]
-    L -- Owner migriert freiwillig --> A
+    I --> J[Cockpit zeigt Schutz-Status-Badge:<br/>Geschützt / Experten-Modus]
 ```
 
 ## Personas & Rollen-/Rechte-Matrix
 
 | Rolle | darf sehen/tun | um zu erreichen |
 |---|---|---|
-| Vault-Owner (Standard) | nur kuratierte Actions/Conditions deployen; Slippage-Toleranz pro Swap-Step setzen (sicherer Default); Preis-Schock-Preview sehen; Bestands-Warnungen sehen + migrieren | geschützt automatisieren, ohne Contract-Detailwissen |
+| Vault-Owner (Standard) | nur kuratierte Actions/Conditions deployen; Slippage-Toleranz pro Swap-Step setzen (sicherer Default); Preis-Schock-Preview sehen | geschützt automatisieren, ohne Contract-Detailwissen |
 | Vault-Owner (Experten-Modus) | pro Vault Opt-out aktivieren (ausdrückliche Warnbestätigung) → beliebige Targets deploybar | volle Self-Custody-Freiheit behalten |
 | Kurator (3Blocks-Rolle) | kuratierte Action-/Condition-Liste pflegen (aufnehmen/entfernen); Aufnahme nur nach Code-Review + Fork-Tests | Schutz-Standard aktuell halten |
 | Keeper/Executor | unverändert — führt nur bei erfülltem Trigger aus | bestehendes Verhalten |
@@ -73,8 +78,8 @@ Altersspanne: 18+ (DeFi-Nutzer) · Nicht-Zielgruppe: Verwahr-Kunden (Custodial) 
 2. Im Standard-Modus darf NIE ein unkuratiertes delegatecall-Target deploybar sein.
 3. Der Experten-Opt-out darf NIE still aktiv werden — immer ausdrückliche, pro Vault dokumentierte Bestätigung.
 4. Der KI-Assistent darf die Schutzregeln NIE umgehen (PolicyGate erzwingt sie serverseitig).
-5. Die Kennzeichnung „ohne Slippage-Schutz" für Bestands-Automationen darf NIE fehlen, solange solche laufen.
-6. Bestehende Vaults/Gelder dürfen durch die Einführung NIE blockiert werden (Bestand läuft weiter, Migration ist freiwillig).
+5. *(v2 entfallen — Bestands-Kennzeichnung erst mit Mainnet-Launch relevant.)*
+6. Bestehende Vaults/Gelder dürfen durch die Einführung NIE blockiert werden (lokale Bestands-Vaults laufen unverändert weiter, bis neu deployt wird).
 
 ## Plattform-Familie
 
@@ -107,7 +112,7 @@ Bestehendes Design-System der DApp; keine neue Design-Richtung. Badge/Warnungen 
 - Rolle: Vault-Owner (Standard + Experte)
 - Fähigkeit: Für jeden Swap-Step eine Slippage-Toleranz setzen (Pflichtfeld, sicherer Default), die on-chain als minOut erzwungen wird.
 - Zweck: Sandwich-/Slippage-Verluste auf das explizit akzeptierte Maß begrenzen.
-- Fachliche Kriterien: Normalfall: Deploy mit Default-Toleranz, Ausführung revertiert bei Unterschreitung. Randfälle: sehr illiquide Pools (Preview warnt), Toleranz-Grenzwerte (Min/Max validiert im Editor wie on-chain). Fehlerfälle: Ausführung mit verletztem minOut revertiert mit klarer Fehlermeldung; alte Action-Version bleibt unangetastet (A5 kennzeichnet).
+- Fachliche Kriterien: Normalfall: Deploy mit Default-Toleranz, Ausführung revertiert bei Unterschreitung. Randfälle: sehr illiquide Pools (Preview warnt), Toleranz-Grenzwerte (Min/Max validiert im Editor wie on-chain); TWAP nicht verfügbar → Fallback auf Spot-Preis mit engerer Toleranz (v2-Klärung Station 2). Fehlerfälle: Ausführung mit verletztem minOut revertiert mit klarer Fehlermeldung.
 
 ### A2 — Kuratierte Action-/Condition-Whitelist (Muss)
 - Rolle: Vault-Owner (Standard); Kurator
@@ -127,20 +132,18 @@ Bestehendes Design-System der DApp; keine neue Design-Richtung. Badge/Warnungen 
 - Zweck: Risiko vor dem Absenden greifbar machen.
 - Fachliche Kriterien: Normalfall: Preview für Steps mit Preis-Exposure (Swaps, LP-Ranges, Lending-HF). Randfälle: fehlender Preis → „Preview nicht verfügbar" statt Blockade. Fehlerfälle: Preview-Fehler verhindert nie den Deploy (Anzeige degradiert, Verbot 6 sinngemäß).
 
-### A5 — Bestands-Kennzeichnung + Ein-Klick-Migration (Muss)
-- Rolle: Vault-Owner mit Alt-Automationen
-- Fähigkeit: Laufende Automationen ohne Slippage-Schutz werden im Cockpit/Editor sichtbar gekennzeichnet; ein Klick erzeugt den Migrationsvorschlag auf die neuen Action-Versionen (Owner bestätigt und deployt selbst).
-- Zweck: Bestand ehrlich behandeln, Migration ohne Zwang fördern.
-- Fachliche Kriterien: Normalfall: Kennzeichnung erscheint automatisch. Randfälle: gemischte Automationen (teils geschützt) korrekt ausgewiesen. Fehlerfälle: Migration schlägt fehl → Alt-Automation läuft unverändert weiter.
+### A5 — *(v2 gestrichen)* Bestands-Kennzeichnung + Ein-Klick-Migration
+Entfallen in v2: Produkt nicht live, Deployments frei änderbar — Migrations-/Kennzeichnungs-Mechanik wird erst mit dem Mainnet-Launch relevant (v-next). ID bleibt reserviert.
 
 ### A6 — Schutz-Status-Badge im Cockpit (Kann)
 - Rolle: Vault-Owner
-- Fähigkeit: Pro Vault den Status „Geschützt / Experten-Modus / enthält ungeschützte Alt-Automationen" auf einen Blick sehen.
+- Fähigkeit: Pro Vault den Status „Geschützt / Experten-Modus" auf einen Blick sehen.
 - Zweck: Den Schutz sichtbar machen (Vertrauens-Signal).
 - Fachliche Kriterien: Normalfall: Badge aus On-Chain-/Katalog-Zustand abgeleitet. Fehlerfälle: unklarer Zustand → konservativste Anzeige.
 
 ## Out of Scope / v-next
 
+- Bestands-Kennzeichnung + Migrations-Mechanik (ex-A5) — v-next, erst mit Mainnet-Launch relevant.
 - Panik-Withdraw (Ein-Klick-Notausstieg) — v-next.
 - Dry-Run auf Fork / historisches Backtesting — v-next (Kandidat H2/H3).
 - Stop-Loss-/HF-Wächter-Steps — Epic E (Strategie-Bausteine, H2).
@@ -149,11 +152,11 @@ Bestehendes Design-System der DApp; keine neue Design-Richtung. Badge/Warnungen 
 
 ## Annahmen & offene Fragen
 
-1. **TBD — needs research:** Verankerung der Whitelist ohne Bruch der nicht-upgradebaren Bestands-Vaults (Registry-Gate in neuen Action-Versionen vs. neue Vault-Version über die Factory) — Architektur-Entscheidung in Station 2.
-2. **TBD — needs research:** minOut-Quelle (nutzerdefinierte Toleranz relativ zu welchem Referenzpreis — Oracle vs. Pool-Spot) inkl. Manipulationsresistenz.
-3. Annahme: Anzahl betroffener Mainnet-Bestands-Automationen ist klein (Produkt vor Traktion) — Migration bleibt freiwillig vertretbar.
+1. *(v2 aufgelöst, Station-2-Klärung):* Whitelist-Check direkt im bestehenden Vault-Contract (`createAutomation`-Gate gegen CuratedRegistry + Experten-Flag) — kein V2-Versionierungs-Weg nötig, da Produkt nicht live und Deployments frei änderbar.
+2. *(v2 aufgelöst, Station-2-Klärung):* minOut-Referenz = Pool-TWAP zur Ausführungszeit; bei nicht verfügbarem observe() Fallback auf Spot-Preis mit engerer Toleranz. Bewusster Trade-off: Verfügbarkeit vor maximaler Manipulationsresistenz im Fallback-Pfad (dokumentiert im PRD).
+3. Annahme: Produkt bleibt bis zum Abschluss dieses Epics nicht live auf Mainnet — Contract-Änderungen ohne Migrationspfad sind zulässig.
 4. Annahme: Kuratierungs-Prozess (Review + Fork-Tests) ist mit Solo-/Kleinteam-Kapazität leistbar; Durchlaufzeit pro neuer Action unkritisch in H1.
 
 ---
-Freeze-Commit: e81611f3cf81ce37631a1b645c84b4bd2165d498 · Quelle: docs/discovery/absicherungs-paket/epic.md
+Freeze-Commit v2: bd2b11fc119c35fdbdbf9ab0e6943a7b721e78a6 · Quelle: docs/discovery/absicherungs-paket/epic.md
 <!-- SECTION:DESCRIPTION:END -->
