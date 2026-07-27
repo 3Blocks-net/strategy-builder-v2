@@ -1,11 +1,26 @@
 ---
+id: TASK-11
+title: 'Epic: Absicherungs-Paket'
+status: Needs Triage
+assignee: []
+created_date: '2026-07-27 13:19'
+labels:
+  - epic
+dependencies: []
+ordinal: 11000
+---
+
+## Description
+
+<!-- SECTION:DESCRIPTION:BEGIN -->
+---
 created: 2026-07-27
 last_verified: 2026-07-27
 git_commit: d2243f1
 status: eingefroren
 version: 1
 modus: solo
-ticket: TASK-11
+ticket: <wird beim Freeze gefüllt>
 ---
 
 # Epic: Absicherungs-Paket
@@ -138,3 +153,7 @@ Bestehendes Design-System der DApp; keine neue Design-Richtung. Badge/Warnungen 
 2. **TBD — needs research:** minOut-Quelle (nutzerdefinierte Toleranz relativ zu welchem Referenzpreis — Oracle vs. Pool-Spot) inkl. Manipulationsresistenz.
 3. Annahme: Anzahl betroffener Mainnet-Bestands-Automationen ist klein (Produkt vor Traktion) — Migration bleibt freiwillig vertretbar.
 4. Annahme: Kuratierungs-Prozess (Review + Fork-Tests) ist mit Solo-/Kleinteam-Kapazität leistbar; Durchlaufzeit pro neuer Action unkritisch in H1.
+
+---
+Freeze-Commit: e81611f3cf81ce37631a1b645c84b4bd2165d498 · Quelle: docs/discovery/absicherungs-paket/epic.md
+<!-- SECTION:DESCRIPTION:END -->
