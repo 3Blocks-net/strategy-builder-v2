@@ -7,7 +7,7 @@
     "node": ">=22.22.0"
   },
   "scripts": {
-    "lint": "biome check .",
+    "lint": "biome check . && node scripts/check-shipcraft-remnants.mjs",
     "shared:build": "pnpm --filter shared build",
     "shared:build:watch": "pnpm --filter shared build:watch",
     "contracts:compile": "pnpm --filter contracts compile",
