@@ -1,28 +1,15 @@
-# Triage-Labels
+# Triage Labels
 
-Die Skills sprechen in Begriffen von fünf kanonischen Triage-Rollen. Diese Datei ordnet diese
-Rollen den tatsächlichen Label-Strings in diesem Repo zu.
+The skills speak in terms of five canonical triage roles. This file maps those roles to the actual label strings used in this repo's issue tracker.
 
-| Label bei shipcraft      | Label in unserem Tracker | Bedeutung                                |
-| ------------------------ | ------------------------ | ----------------------------------------- |
-| `needs-triage`            | `needs-triage`            | Maintainer muss dieses Issue bewerten     |
-| `needs-info`               | `needs-info`               | Wartet auf weitere Infos vom Melder       |
-| `ready-for-agent`          | `ready-for-agent`          | Vollständig spezifiziert, bereit für einen AFK-Agenten |
-| `ready-for-human`          | `ready-for-human`          | Braucht menschliche Umsetzung             |
-| `wontfix`                  | `wontfix`                  | Wird nicht umgesetzt                      |
+| Label in mattpocock/skills | Label in our tracker | Meaning                                  |
+| -------------------------- | -------------------- | ---------------------------------------- |
+| `needs-triage`             | `needs-triage`       | Maintainer needs to evaluate this issue  |
+| `needs-info`               | `needs-info`         | Waiting on reporter for more information |
+| `ready-for-agent`          | `ready-for-agent`    | Fully specified, ready for an AFK agent  |
+| `ready-for-human`          | `ready-for-human`    | Requires human implementation            |
+| `wontfix`                  | `wontfix`            | Will not be actioned                     |
 
-## Rollen und Status — ein Vokabular, zwei Ausprägungen
+When a skill mentions a role (e.g. "apply the AFK-ready triage label"), use the corresponding label string from this table.
 
-Die sechs Workflow-Status (`Needs Triage`, `Ready for Agent`, `In Progress`, `Needs Info`,
-`In Review`, `Done`) sind die kanonische Achse für den Zustand eines Tickets. Drei der fünf
-Triage-Rollen sind schlicht deren Label-Schreibweise für Tracker ohne echtes Status-Feld:
-`needs-triage` ↔ Needs Triage, `needs-info` ↔ Needs Info, `ready-for-agent` ↔ Ready for
-Agent (die Mapping-Tabellen in den Tracker-Seeds sind die verbindliche Übersetzung).
-Die übrigen zwei sind **Routing-Labels ohne Status-Zwilling**: `ready-for-human`
-(vollständig spezifiziert, aber ein Mensch setzt um — der Status bleibt der normale
-Workflow) und `wontfix` (Terminal-Entscheidung — als Label/Archiv, nie als siebter Status).
-
-Erwähnt ein Skill eine Rolle (z. B. „setze das AFK-bereit-Triage-Label"), nutze den
-entsprechenden Label-String aus dieser Tabelle.
-
-Bearbeite die rechte Spalte, damit sie zu deinem tatsächlich genutzten Vokabular passt.
+Edit the right-hand column to match whatever vocabulary you actually use.

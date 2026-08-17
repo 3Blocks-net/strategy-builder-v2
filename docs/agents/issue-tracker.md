@@ -1,246 +1,63 @@
-# Issue-Tracker: Backlog.md
+# Issue tracker: GitHub
 
-Issues und PRDs für dieses Repo leben als Backlog.md-Tasks — git-native Markdown-Dateien mit
-Frontmatter. Nutze die `backlog`-CLI für alle Operationen, überall mit `--plain` für
-nicht-interaktive, maschinenlesbare Ausgabe.
+Issues and specs for this repo live as GitHub issues. Use the `gh` CLI for all operations.
 
-**Nur Solo-Modus.** Im Übergabe-Modus ist Backlog.md gesperrt (Begründung: siehe Schritt 0
-im Haupt-Skill) — diese Datei wird nur geschrieben, wenn Modus `solo` gewählt wurde.
+## Conventions
 
-## Herkunft des `backlog`-Binaries
+- **Create an issue**: `gh issue create --title "..." --body "..."`. Use a heredoc for multi-line bodies.
+- **Read an issue**: `gh issue view <number> --comments`, filtering comments by `jq` and also fetching labels.
+- **List issues**: `gh issue list --state open --json number,title,body,labels,comments --jq '[.[] | {number, title, body, labels: [.labels[].name], comments: [.comments[].body]}]'` with appropriate `--label` and `--state` filters.
+- **Comment on an issue**: `gh issue comment <number> --body "..."`
+- **Apply / remove labels**: `gh issue edit <number> --add-label "..."` / `--remove-label "..."`
+- **Close**: `gh issue close <number> --comment "..."`
 
-Shipcraft bevorzugt einen eigenen Fork von Backlog.md (deutsches UI, Dark-Theme,
-Rechtsklick-Kontextmenü, Tooltip-Sweep — gleicher CLI-Vertrag wie Upstream; Quelle:
-`https://github.com/IT-Studio-Rech/Backlog.md`). Ausgeliefert wird er als npm-Paket mit
-vorkompilierten Binaries für macOS, Linux und Windows:
+Infer the repo from `git remote -v`, `gh` does this automatically when run inside a clone.
 
-```
-npm install -g @rechstudio/backlog.md
-```
+## Pull requests as a triage surface
 
-Der Fork trägt einen Versions-Marker: `backlog --version` enthält den Substring
-`-rechstudio.` (z. B. `1.47.1-rechstudio.2`); reines Upstream-Backlog.md (via
-`npm i -g backlog.md`) hat diesen Marker nicht. Beide Pakete installieren denselben Befehl
-`backlog` — es läuft immer nur eines von beiden. `setup` installiert bzw. aktualisiert den
-Fork bei Bedarf (Details: `skills/setup/SKILL.md`, Abschnitt „Backlog.md-Fork auflösen").
-Kein Submodule, kein Binary im Shipcraft-Repo — der `git pull`-Update-Weg von Shipcraft
-bleibt davon unberührt.
+**PRs as a request surface: no.** _(Set to `yes` if this repo treats external PRs as feature requests; `/triage` reads this flag.)_
 
-## Konventionen
+When set to `yes`, PRs run through the same labels and states as issues, using the `gh pr` equivalents:
 
-- **Task anlegen**: `backlog task create "..." --description "..." --plain`
-- **Task lesen**: `backlog task <id> --plain`
-- **Tasks auflisten**: `backlog task list --plain` mit passenden Status-/Label-Filtern
-- **Status ändern**: `backlog task edit <id> --status "In Progress" --plain`
-- **Kommentieren**: als Notiz an die Task-Datei anhängen (kein separater Kommentar-Befehl in
-  der CLI; Task-Datei direkt bearbeiten)
+- **Read a PR**: `gh pr view <number> --comments` and `gh pr diff <number>` for the diff.
+- **List external PRs for triage**: `gh pr list --state open --json number,title,body,labels,author,authorAssociation,comments` then keep only `authorAssociation` of `CONTRIBUTOR`, `FIRST_TIME_CONTRIBUTOR`, or `NONE` (drop `OWNER`/`MEMBER`/`COLLABORATOR`).
+- **Comment / label / close**: `gh pr comment`, `gh pr edit --add-label`/`--remove-label`, `gh pr close`.
 
-Integration läuft über CLI-Instruktionen, nicht über MCP (der Token-Overhead eines MCP-Servers
-lohnt sich hier nicht) — dieselbe Abwägung wie bei GitHub (`gh` statt Remote-MCP).
+GitHub shares one number space across issues and PRs, so a bare `#42` may be either, resolve with `gh pr view 42` and fall back to `gh issue view 42`.
 
-## Status-Modell (`config.yml`)
+## When a skill says "publish to the issue tracker"
 
-Der Status-Array wird direkt in der Projekt-`config.yml` gepflegt (per CLI nicht setzbar):
+Create a GitHub issue.
 
-```yaml
-statuses:
-  - Needs Triage
-  - Ready for Agent
-  - In Progress
-  - Needs Info
-  - In Review
-  - Done
-```
+## When a skill says "fetch the relevant ticket"
 
-Als Array-Literal: `['Needs Triage','Ready for Agent','In Progress','Needs Info','In Review','Done']`.
+Run `gh issue view <number> --comments`.
 
-**Der letzte Eintrag ist Terminal-Semantik** — `Done` schließt eine Task endgültig ab.
-`wont-do` gehört **nie ans Ende des Arrays**; bilde es stattdessen als Label oder über Archiv
-ab (z. B. Label `wont-do` + Status bleibt, wo er war, oder Task ins Archiv verschieben). Ein
-zusätzlicher Terminal-Status im Array würde die Terminal-Prüfung des Plugins verwirren, die
-nur den letzten Array-Eintrag als „fertig" liest.
+## Wayfinding operations
 
-## Abhängigkeiten (Dependencies)
+Used by `/wayfinder`. The **map** is a single issue with **child** issues as tickets.
 
-Backlog.md prüft Dependencies nur auf **Existenz** — verweist eine Task auf eine
-Dependency-ID, die es nicht gibt, schlägt der Befehl fehl. Es gibt **keinen Zyklus-Check**:
-zirkuläre Abhängigkeiten (A blockiert B blockiert A) werden von der CLI nicht erkannt. Das
-Plugin muss das selbst prüfen, bevor es sich auf eine Abhängigkeitskette verlässt (z. B. beim
-Readiness-Gate).
+- **Map**: a single issue labelled `wayfinder:map`, holding the Notes / Decisions-so-far / Fog body. `gh issue create --label wayfinder:map`.
+- **Child ticket**: an issue linked to the map as a GitHub sub-issue (`gh api` on the sub-issues endpoint). Where sub-issues aren't enabled, add the child to a task list in the map body and put `Part of #<map>` at the top of the child body. Labels: `wayfinder:<type>` (`research`/`prototype`/`grilling`/`task`). Once claimed, the ticket is assigned to the driving dev.
+- **Blocking**: GitHub's **native issue dependencies**, the canonical, UI-visible representation. Add an edge with `gh api --method POST repos/<owner>/<repo>/issues/<child>/dependencies/blocked_by -F issue_id=<blocker-db-id>`, where `<blocker-db-id>` is the blocker's numeric **database id** (`gh api repos/<owner>/<repo>/issues/<n> --jq .id`, _not_ the `#number` or `node_id`). GitHub reports `issue_dependencies_summary.blocked_by` (open blockers only, the live gate). Where dependencies aren't available, fall back to a `Blocked by: #<n>, #<n>` line at the top of the child body. A ticket is unblocked when every blocker is closed.
+- **Frontier query**: list the map's open children (`gh issue list --state open`, scoped to the map's sub-issues / task list), drop any with an open blocker (`issue_dependencies_summary.blocked_by > 0`, or an open issue in the `Blocked by` line) or an assignee; first in map order wins.
+- **Claim**: `gh issue edit <n> --add-assignee @me`, the session's first write.
+- **Resolve**: `gh issue comment <n> --body "<answer>"`, then `gh issue close <n>`, then append a context pointer (gist + link) to the map's Decisions-so-far.
 
-Es gibt **keine eingebaute Unblocked-Abfrage** (kein Äquivalent zu „gib mir die nächste freie
-Task") — `sequence` wurde im Fork wieder entfernt (upstream BACK-520/#727), auf beiden Seiten
-also nicht verfügbar. Nutze stattdessen:
+## This repo
 
-```
-backlog task list --plain
-```
+Repo: `3Blocks-net/strategy-builder-v2`. Issues are written in German (they are read by the
+product owner); code, comments and commit messages stay English.
 
-Das listet alle Tasks (unsortiert nach Abhängigkeit); welche davon tatsächlich unblockiert
-ist, muss das Plugin selbst ableiten: pro Task deren `dependencies`-Frontmatter lesen
-(`backlog task <id> --plain`) und prüfen, ob jede dort genannte Dependency-ID im
-Terminal-Status steht (siehe oben).
+Two conventions inherited from the previous tracker, both worth keeping:
 
-## Akzeptanzkriterien (AC-Sektion)
+- Every issue body ends with a **Fundstellen** section listing `file:line` for the claims it
+  makes. Verify those against the code before acting on an issue; trackers drift from the
+  code.
+- Issues carry an **Akzeptanzkriterien** section as checkboxes, and where a check can be
+  automated, the command that proves it (e.g. `pnpm --filter backend exec jest src/cockpit`).
 
-Jede Task trägt eine AC-Sektion. Prüfe sie mit:
-
-```
-backlog task <id> --check-ac
-```
-
-## Wenn ein Skill „in den Issue-Tracker publizieren" sagt
-
-`backlog task create` ausführen.
-
-Publiziert ein Skill ein Epic oder PRD „mit vollem Inhalt", gehört der komplette
-Markdown-Inhalt ins Ticket (kein bloßer Verweis) plus Back-Link: Commit-Hash in den
-Ticket-Text, Ticket-ID/URL ins `ticket:`-Feld im Frontmatter des Artefakts.
-
-### Branding-Konventionen je Artefakt-Typ
-
-Shipcraft-Begriffe finden sich 1:1 auf dem Board wieder — Titel-Präfix und Label pro
-Artefakt-Typ, analog zum bestehenden Muster „Karte: …" bei Wayfinding (siehe
-„Wayfinding-Operationen" unten):
-
-| Artefakt | Titel-Präfix | Label | Beispiel |
-|---|---|---|---|
-| Epic | `Epic: <Name>` | `epic` | `backlog task create "Epic: <Name>" --description "<voller Epic-Text>" -l epic --plain` |
-| PRD | kein Präfix (Titel bleibt der Feature-Name) | `prd` | `backlog task create "<Name>" --description "<voller PRD-Text>" -l prd,ready-for-agent --plain` |
-
-Das PRD trägt bewusst keinen Titel-Präfix — es ist über die Label-Kombination `prd` +
-`ready-for-agent` bereits eindeutig als Plan-Artefakt erkennbar (kein Umsetzungs-Issue, der
-Bau-Loop zieht es nie, siehe `skills/to-prd/SKILL.md`). Das Label `prd` macht es zusätzlich
-per Board-Filter von Umsetzungs-Issues unterscheidbar.
-
-### Doku-Spiegelung (Dokumente ohne eigenes Ticket)
-
-Nicht jedes Stations-Dokument wird als Ticket publiziert — der Prüf-Report aus Station 5
-(`docs/pruefungen/<feature>.md`, `converge`) ist weder Umsetzungs-Issue noch Plan-Artefakt
-und bleibt deshalb sonst unsichtbar auf dem Board. Spiegel ihn stattdessen über das native
-Backlog.md-Dokument-Feature:
-
-```
-backlog doc create "Prüfbericht: <Name>" -p pruefungen/<feature> -t specification --plain
-```
-
-Der Doc-Titel trägt denselben Feature-/Epic-Namen wie das zugehörige Epic-Ticket, damit
-Epic, PRD und Prüfbericht auf dem Board als zusammengehörig erkennbar sind. Backlog.md-Docs
-kennen keine Labels (nur `type`: readme/guide/specification/other) — `specification` passt
-für ein Prüfergebnis. Anders als beim Ticket-Publizieren oben muss der Doc-Inhalt NICHT den
-vollen Report enthalten: eine kurze Statuszeile (bestanden / Anzahl offener Findings) plus
-Pfad- und Commit-Verweis auf `docs/pruefungen/<feature>.md` genügt — das Repo-Artefakt
-bleibt die kanonische Quelle, das Doc ist nur der Board-Spiegel.
-
-## Wenn ein Skill „das passende Ticket holen" sagt
-
-`backlog task <id> --plain` ausführen.
-
-Multi-Dev-Regel: nur Tickets ohne Assignee ziehen — nie ein geclaimtes Ticket übernehmen.
-Beim Ziehen setzt du dich selbst als Assignee (`backlog task edit <id> -a <name>`,
-quellcode-geprüft cli.ts:1564). **Achtung:** git-nativ = kein atomares Claiming, für
-Multi-Dev disqualifiziert — siehe `references/multi-dev.md`.
-
-## Status-Workflow
-
-Siehe „Status-Modell (`config.yml`)" oben — das `statuses`-Array trägt die sechs kanonischen
-Status wörtlich: `Needs Triage`, `Ready for Agent`, `In Progress`, `Needs Info`, `In Review`,
-`Done`. Letzter Eintrag = Terminal-Status; `wont-do` nie ans Array-Ende, sondern als Label
-oder über Archiv abbilden.
-
-## Wenn ein Skill „Status setzen" sagt
-
-`backlog task edit <id> --status "<Status>" --plain` ausführen, `<Status>` einer der sechs
-kanonischen Strings.
-
-## Wenn ein Skill „auf Statuswechsel reagieren" sagt
-
-Das Done-Gate läuft nicht über Tracker-Hooks, sondern über den Orchestrator: Der Bau-Loop
-re-runt am Ende die „Automatisierte Prüfung" des Issues in einem frischen Prozess und
-schreibt die Exit-Codes als doneCheck-Zeile in die Freigabe-Quittung — erst dann wird der
-Status Done gesetzt. Ein Done ohne doneCheck-Zeile gilt als verwaist; `/weiter` meldet das
-beim nächsten Aufruf als Konflikt (Polling — kein Push-Kanal nötig).
-
-**onStatusChange (nativ, mit klaren Grenzen):** Backlog.md kann bei Statuswechseln ein
-Kommando ausführen (`backlog/config.yml`, Schlüssel `onStatusChange`; Übergabe als
-Umgebungsvariablen `$TASK_ID`, `$OLD_STATUS`, `$NEW_STATUS`; läuft via `sh -c`, also nur
-Mac/Linux verlässlich). Quellcode-geprüft (v1.47.1): der Callback feuert NACH dem Wechsel
-und dem Auto-Commit, sein Exit-Code blockiert nichts, und direkte Datei-Edits umgehen ihn —
-er taugt als optionale Frühwarnung, nie als Gate. Das Gate bleibt die doneCheck-Quittung.
-
-## Board
-
-Backlog.md bringt eine Web-UI mit Drag-and-Drop-Board mit. `/weiter` startet sie beim Start
-über `skills/weiter/scripts/board-starten.mjs` (deterministischer Port-Manager, siehe
-`skills/weiter/SKILL.md` Schritt 4) als Hintergrundprozess und meldet die URL, unter der sie
-erreichbar ist (`http://localhost:<port>`).
-
-**Ein Board pro Repo, nicht pro Worktree:** Das Skript löst immer den Haupt-Worktree auf
-(`git rev-parse --git-common-dir` → dessen Elternverzeichnis) — alle Worktrees eines Repos
-landen so auf demselben Board, egal aus welchem Worktree `/weiter` läuft.
-
-**Port:** deterministisch aus dem absoluten Haupt-Worktree-Pfad abgeleitet (Range
-6421–6519), **nie** in `backlog/config.yml` persistiert — ein maschinenspezifischer Port in
-einer git-getrackten Datei wäre auf anderen Rechnern falsch. Ein manuell gesetzter
-`default_port` in der Projekt-`config.yml` wird als Override gelesen und respektiert, aber
-vom Skript nie geschrieben.
-
-**Cross-Worktree-Sichtbarkeit:** Damit das Ein-Repo-Board Task-Stände aus anderen Worktrees
-zeigt, muss `checkActiveBranches: true` in `backlog/config.yml` stehen (Backlog.md liest
-dafür Task-Zustände über aktive Branches hinweg, `checkActiveBranches`/`activeBranchDays`).
-Verifiziert (Fork v1.47.1): `backlog init --defaults` schreibt diesen Schlüssel bereits
-standardmäßig als `true` — `/setup` seedet ihn damit automatisch, ohne dass dieses Template
-zusätzlich etwas erzwingen muss. Nur bei einer bestehenden, vor dieser Prüfung von Hand
-editierten `config.yml` lohnt ein manueller Blick auf den Schlüssel.
-
-**onStatusChange (nativ, mit klaren Grenzen):** Backlog.md kann bei Statuswechseln ein
-Kommando ausführen (`backlog/config.yml`, Schlüssel `onStatusChange`; Übergabe als
-Umgebungsvariablen `$TASK_ID`, `$OLD_STATUS`, `$NEW_STATUS`; läuft via `sh -c`, also nur
-Mac/Linux verlässlich). Quellcode-geprüft (v1.47.1): der Callback feuert NACH dem Wechsel
-und dem Auto-Commit, sein Exit-Code blockiert nichts, und direkte Datei-Edits umgehen ihn —
-er taugt als optionale Frühwarnung, nie als Gate. Das Gate bleibt die doneCheck-Quittung.
-
-**DoD-Defaults pro Task:** Backlog.md erlaubt, eine Definition-of-Done pro Task zu hinterlegen
-(Default-Kriterien, die jede neue Task mitbekommt) — darüber lassen sich QA-/Security-Gates
-erzwingen, statt sich auf reine Konvention zu verlassen.
-
-## Übersicht exportieren/abfragen
-
-Wenn ein Skill (z. B. `/status --export`) eine Board-Übersicht braucht, ohne selbst einen
-Renderer zu bauen: `backlog board export --plain` ausführen und den rohen Output unverändert
-übernehmen. Das ist der native Board-Export der CLI — kein Board-Eigenbau des Plugins.
-
-## Diagramme
-
-Backlog.md rendert Mermaid-Blöcke in Task-Beschreibungen nativ als Bild (Web-UI;
-verifiziert mit v1.47.1 — ältere Installationen vorher aktualisieren). Die Link-Zeile
-„Ablauf als Bild: <Link>" ist im Ticket deshalb optional; der Skill `diagramm` erzeugt den
-Link, wo er gebraucht wird (z. B. für den Gate-Moment im Chat).
-
-## Wayfinding-Operationen
-
-Genutzt von `/erkunden`. Die **Karte** ist eine Task mit Label `wayfinder:map`; ihre
-**Klärungsfragen** sind Tasks mit Label `wayfinder:<typ>` und Dependencies auf ihre Blocker.
-Karten-Einträge stehen NIE im Status `Ready for Agent` — der Auto-Lauf und das Bau-Board
-fassen sie nie an. Status-Zuordnung: offen = `Needs Info`, beansprucht = `In Progress`,
-geklärt = `Done`.
-
-- **Karte**: `backlog task create "Karte: <Vorhaben>" --description "<body>" -l wayfinder:map -s "Needs Info" --plain`
-  — der Titel trägt das Präfix „Karte: ", damit die Needs-Info-Spalte lesbar bleibt.
-- **Klärungsfrage**: `backlog task create "<Frage als Titel>" --description "<frage>" -l wayfinder:<typ> -s "Needs Info" --dep <blocker-id> --plain`
-  (`--dep` mehrfach oder kommasepariert; Typ englisch: `research`/`prototype`/`grilling`/`task`).
-- **Blockierung**: die Task-Dependencies (`--dep`). Achtung: Backlog.md prüft nur Existenz,
-  keinen Zyklus — Ketten prüft das Plugin selbst (siehe „Abhängigkeiten" oben).
-- **Frontier-Abfrage**: `backlog task list --plain` listet alle Tasks; unblockiert ist eine
-  Klärungsfrage, wenn jede ihrer Dependencies (Frontmatter, `backlog task <id> --plain`) im
-  Terminal-Status (`Done`) steht — das leitet das Plugin selbst ab. Beanspruchte (Assignee
-  gesetzt) überspringen; die erste unblockierte, unbeanspruchte gewinnt.
-- **Claim**: `backlog task edit <id> -a <name> -s "In Progress" --plain` — der erste
-  Schreibzugriff der Session. Gleiches Nicht-atomar-Caveat wie beim Ticket-Claim
-  (`references/multi-dev.md`; Backlog.md ist ohnehin solo-only).
-- **Auflösen**: die Antwort als Datei-Nachtrag an die Task-Datei anhängen (Überschrift
-  `## Antwort`), dann `backlog task edit <id> -s Done --plain`, dann ein Einzeiler (Titel,
-  Kern der Antwort) an „Bisher entschieden" der Karten-Task (Datei-Nachtrag).
-- **Erkundungs-Ansicht** (getrennt vom Bau-Fluss): die Needs-Info-Spalte des Boards —
-  Karten-Einträge erkennbar am Titel-Präfix „Karte: " und den `wayfinder:*`-Labels — bzw.
-  `backlog task list -s "Needs Info" --plain` im Terminal.
+The tracker starts empty by design: the previous local tracker (Backlog.md, 12 tasks) was
+discarded on 2026-08-17. Its still-open items are preserved in `docs/offene-punkte.md`
+until they are filed as issues or resolved. The old tracker files remain in the git
+history (`git log --diff-filter=D --name-only -- backlog`).

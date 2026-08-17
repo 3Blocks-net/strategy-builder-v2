@@ -1,42 +1,68 @@
 # AGENTS.md
 
-Werkzeug-neutrale Anweisungs-Datei für alle Coding-Agenten in diesem Repo. `CLAUDE.md`
-importiert sie über `@AGENTS.md` und enthält zusätzlich die Projekt-Konventionen (Stack,
-Definition of Done, Encode-Boundary-Regel).
+Werkzeug-neutrale Anweisungen für Coding-Agenten in diesem Repo. Claude Code liest sie
+über den `@AGENTS.md`-Import in `CLAUDE.md`.
 
-## Agenten-Skills
+## Sprechweise
 
-### Sprechweise
+Rede von Haus aus klar und verständlich, auch für Nicht-Entwickler: keine Fachbegriffe in
+Klammern erklären, keine internen Werkzeug-Namen nach außen, in Schritten sprechen.
+Gespräch auf Deutsch; Code, Kommentare, Commit-Messages und Dateinamen auf Englisch.
 
-Rede von Haus aus klar und verständlich — auch für Nicht-Entwickler: keine Fachbegriffe in
-Klammern erklären, keine internen Skill-Namen nach außen, in Schritten sprechen. Verbindliche
-Hausregel: `references/uebersetzung.md` (Teil 1, im Plugin). Sprache, Länge und Anrede aus
-`docs/agents/ton-profil.md` — jede Sitzung lesen und befolgen.
+## Arbeitsweise
 
-### Vorrang
+Der Ablauf von der Idee bis zur geprüften Funktion läuft über einzeln aufgerufene Skills,
+nicht über eine durchgehende Pipeline:
 
-Vorrang: shipcraft führt den Entwicklungsprozess in diesem Projekt exklusiv. Beschreibt der
-Nutzer ein Feature, einen Bug oder eine Änderung, starte den shipcraft-Einstieg /weiter
-(Skill „weiter") — nie einen Prozess-Skill eines anderen Plugins (brainstorming, feature-dev
-o. ä.) und nie direkt losimplementieren. shipcraft-Helfer wie tdd, research, grilling oder
-code-review laufen nur innerhalb einer Station, nie als Einstieg auf eine Nutzer-Anfrage.
+`/grill-with-docs` (Plan schärfen, Begriffe und Entscheidungen festhalten) ->
+`/to-spec` (Gespräch zur Spezifikation verdichten) ->
+`/to-tickets` (in senkrechte Schnitte zerlegen) ->
+`/implement` (bauen, an vereinbarten Nähten test-getrieben) ->
+`/code-review` (vor dem Commit).
 
-### Betriebsmodus
+Für Vorhaben, die größer sind als eine Sitzung, steht `/wayfinder` darüber: eine Karte aus
+Entscheidungs-Tickets, die einzeln aufgelöst werden, bis der Weg klar ist.
 
-solo (Projekt-Eigenschaft — bei Übergabe gälte derselbe Modus für Fachseite und Dev-Seite).
-Siehe `docs/agents/modus.md`.
+Es gibt keinen Zwang, mit einem bestimmten Skill einzusteigen. Bei kleinen, klaren
+Änderungen darf direkt gebaut werden.
 
-### Issue-Tracker
+## Konfiguration für die Skills
 
-Issues leben als Backlog.md-Tasks im Repo (`backlog/`-Ordner, `backlog`-CLI, Web-Board);
-externe PRs sind keine Anfrage-Oberfläche. Siehe `docs/agents/issue-tracker.md`.
+Drei Dateien, die die Skills selbst lesen. Sie sind die Quelle, nicht diese Datei; bei
+Widerspruch gewinnen sie.
 
-### Triage-Labels
+| Datei | Was drin steht |
+|---|---|
+| `docs/agents/issue-tracker.md` | GitHub Issues über die `gh`-Kommandozeile, Repo `3Blocks-net/strategy-builder-v2`, dazu die Konventionen dieses Projekts (Fundstellen-Abschnitt, Akzeptanzkriterien, Sprache) |
+| `docs/agents/triage-labels.md` | Das Label-Vokabular: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix` |
+| `docs/agents/domain.md` | Wo Begriffe und Entscheidungen liegen (`CONTEXT.md`, `docs/adr/`), träge angelegt |
 
-Die fünf kanonischen Rollen heißen wie ihre Default-Namen (needs-triage, needs-info,
-ready-for-agent, ready-for-human, wontfix). Siehe `docs/agents/triage-labels.md`.
+Kurz gefasst: `ready-for-agent` heißt, ein Agent kann das direkt bauen. `ready-for-human`
+heißt, es braucht vorher eine Entscheidung eines Menschen. Neue, von einem Agenten
+angelegte Issues bekommen `needs-triage`, solange Florian sie nicht gesehen hat.
 
-### Domain-Doku
+Die Coding-Regeln, gegen die `/code-review` prüft, stehen in `CODING_STANDARDS.md`.
 
-Ein Kontext — eine `CONTEXT.md` + `docs/adr/` im Repo-Root (träge angelegt durch
-domain-modeling). Siehe `docs/agents/domain.md`.
+## Definition of Done
+
+Ein Issue ist erst fertig, wenn alle Akzeptanzkriterien erfüllt und durch Tests
+verifiziert sind, die Tests grün sind, der Lint sauber ist und ein Review ohne offene
+Hard Blocker abgeschlossen wurde. Eine gescheiterte Prüfung ist nie grün.
+
+## Was vorher war
+
+Bis August 2026 lief der Entwicklungsprozess über ein Pipeline-Werkzeug (shipcraft) mit
+eigenem Tracker (Backlog.md) und eigenen Artefakten (Gate-Quittungen, Auto-Lauf-Protokolle,
+Prozess-Konfiguration). Beides wurde am 2026-08-17 entfernt. Der neue Tracker (GitHub
+Issues) startet bewusst leer; die noch offenen Punkte aus dem alten Tracker stehen in
+`docs/offene-punkte.md`.
+
+Was aus der Zeit erhalten geblieben ist, weil es echtes Wissen trägt: die Reverse-Specs
+und fachlichen Pakete unter `docs/discovery/`, das PRD unter `docs/prd/` und der
+Doku-Altbestand unter `docs/legacy-specs/`. Wo etwas liegt, steht in `CLAUDE.md` unter
+"Wo was liegt".
+
+Alles Entfernte steht vollständig in der Git-Historie
+(`git log --diff-filter=D --name-only -- backlog docs/agents docs/freigaben docs/auto-laeufe docs/pruefungen`).
+Der Lint-Guard `scripts/check-shipcraft-remnants.mjs` verhindert, dass Merges aus alten
+Branches diese Pfade konfliktfrei zurückbringen.
