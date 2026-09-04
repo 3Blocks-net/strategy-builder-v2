@@ -179,7 +179,7 @@ A near-monochrome white/blue-gray palette with a single saturated blue and muted
 
 **Display/Body Font:** Geist Variable (with system-ui, sans-serif) — self-hosted via fontsource.
 **Mono Font:** Geist Mono Variable (with ui-monospace) — addresses, tx hashes, token balances.
-**Wordmark Font:** Chillax 600 (Fontshare CDN) — the lowercase "pecunity" wordmark, nothing else.
+**Wordmark Font:** Chillax 600 (self-hosted, like Geist) — the lowercase "pecunity" wordmark, nothing else.
 
 **Character:** One quiet grotesk at a handful of sizes; hierarchy is carried by weight (400/500/600) and color (Ink → Body Text → Muted Text), not by size jumps. Headings and money figures are `font-semibold tracking-tight`. `font-variant-numeric: tabular-nums` is set globally on `body`.
 

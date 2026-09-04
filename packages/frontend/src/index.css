@@ -3,6 +3,18 @@
 @import 'tailwindcss';
 @import '@xyflow/react/dist/style.css';
 
+/* Chillax 600 — the wordmark cut, self-hosted like Geist so no page view reaches
+   a third-party font CDN. Licensed under the ITF Free Font License, which permits
+   redistribution and self-hosting. The brand kit binds Chillax to the wordmark
+   alone, so this single weight is the whole family we ship. */
+@font-face {
+  font-family: 'Chillax';
+  src: url('./assets/fonts/chillax-600.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
 @theme {
   /* Pecunity brand kit (https://pecunity.io/branding): Geist for all UI,
      Chillax reserved for the wordmark, Brand Blue as the single accent. */
