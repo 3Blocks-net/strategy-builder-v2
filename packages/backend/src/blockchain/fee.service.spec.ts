@@ -1,6 +1,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { FeeService } from './fee.service';
+import {
+  VaultCodeService,
+  VaultNotOnChainError,
+} from './vault-code.service';
 
 const mockProvider = {
   getLogs: jest.fn(),
@@ -20,6 +24,11 @@ const mockVault = {
 
 const mockFeeRegistryDeposit = {
   vaultDeposit: jest.fn(),
+};
+
+// Vault has code unless a test says otherwise.
+const mockVaultCode = {
+  hasCode: jest.fn().mockResolvedValue(true),
 };
 
 jest.mock('ethers', () => {
@@ -46,10 +55,12 @@ describe('FeeService', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    mockVaultCode.hasCode.mockResolvedValue(true);
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         FeeService,
+        { provide: VaultCodeService, useValue: mockVaultCode },
         {
           provide: ConfigService,
           useValue: {
@@ -183,6 +194,19 @@ describe('FeeService', () => {
         deposited: '0',
         minFeeDeposit: '0',
       });
+      expect(mockFeeRegistryDeposit.vaultDeposit).not.toHaveBeenCalled();
+    });
+
+    it('says the vault is not on this chain instead of failing to decode an empty answer', async () => {
+      // A restarted fork keeps the database row and drops the contract.
+      mockVaultCode.hasCode.mockResolvedValue(false);
+
+      await expect(service.getVaultGasDeposit(VAULT)).rejects.toBeInstanceOf(
+        VaultNotOnChainError,
+      );
+      // No read is attempted at all — that read is what used to produce the
+      // BAD_DATA warning on every request.
+      expect(mockVault.depositToken).not.toHaveBeenCalled();
       expect(mockFeeRegistryDeposit.vaultDeposit).not.toHaveBeenCalled();
     });
   });

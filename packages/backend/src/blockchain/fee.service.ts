@@ -1,6 +1,7 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Contract, JsonRpcProvider, Interface, ZeroAddress } from "ethers";
+import { VaultCodeService, VaultNotOnChainError } from "./vault-code.service";
 
 const FEE_REGISTRY_ABI = [
   "function depositFeeBps() external view returns (uint16)",
@@ -52,7 +53,10 @@ export class FeeService {
   private tokensCache: { data: AcceptedToken[]; expiresAt: number } | null =
     null;
 
-  constructor(private readonly configService: ConfigService) {}
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly vaultCode: VaultCodeService,
+  ) {}
 
   async getFees(): Promise<FeeRates> {
     if (this.feesCache && Date.now() < this.feesCache.expiresAt) {
@@ -144,6 +148,13 @@ export class FeeService {
    * the vault was created without a deposit token (gas comp disabled).
    */
   async getVaultGasDeposit(vaultAddress: string): Promise<VaultGasDeposit> {
+    // A vault row can outlive the chain it was deployed to (restarted fork).
+    // Reading it would fail as an unreadable response; say what is actually
+    // wrong instead.
+    if (!(await this.vaultCode.hasCode(vaultAddress))) {
+      throw new VaultNotOnChainError(vaultAddress);
+    }
+
     const rpcUrl = this.configService.get<string>("RPC_URL")!;
     const feeRegistryAddress = this.configService.get<string>(
       "FEE_REGISTRY_ADDRESS",

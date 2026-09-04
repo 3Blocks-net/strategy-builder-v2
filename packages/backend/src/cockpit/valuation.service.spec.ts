@@ -1,5 +1,6 @@
 import { ValuationService } from './valuation.service';
 import { ProtocolAdapter, ValuedPosition } from './protocol-adapter';
+import { VaultNotOnChainError } from '../blockchain/vault-code.service';
 
 const VAULT = '0xVault';
 
@@ -24,6 +25,11 @@ function makePrice(map: Record<string, number> = {}) {
       return out;
     }),
   } as any;
+}
+
+/** Vault has code on this chain unless a test says otherwise. */
+function makeVaultCode(hasCode = true) {
+  return { hasCode: jest.fn().mockResolvedValue(hasCode) } as any;
 }
 
 function makeFee(deposit: any) {
@@ -59,7 +65,7 @@ describe('ValuationService', () => {
     });
     const price = makePrice({ '0xWBNB': 600 });
 
-    const svc = new ValuationService(portfolio, price, fee, []);
+    const svc = new ValuationService(portfolio, price, fee, [], makeVaultCode());
     const res = await svc.valueVault(VAULT);
 
     // idle USDT ($1) + gas reserve 2 WBNB × $600 = $1201
@@ -99,7 +105,7 @@ describe('ValuationService', () => {
 
     const svc = new ValuationService(portfolio, makePrice(), makeFee(noGas), [
       adapter,
-    ]);
+    ], makeVaultCode());
     const res = await svc.valueVault(VAULT);
 
     // The aUSDT idle entry is gone; only the adapter's supply remains.
@@ -131,7 +137,7 @@ describe('ValuationService', () => {
       },
     ]);
 
-    const svc = new ValuationService(portfolio, makePrice(), makeFee(noGas), []);
+    const svc = new ValuationService(portfolio, makePrice(), makeFee(noGas), [], makeVaultCode());
     const res = await svc.valueVault(VAULT);
 
     expect(res.totalValueUsd).toBe(2);
@@ -148,7 +154,7 @@ describe('ValuationService', () => {
 
     const svc = new ValuationService(portfolio, makePrice(), makeFee(noGas), [
       broken,
-    ]);
+    ], makeVaultCode());
     const res = await svc.valueVault(VAULT);
 
     const errRow = res.positions.find((p) => p.kind === 'error');
@@ -159,7 +165,7 @@ describe('ValuationService', () => {
 
   it('refresh bypasses the cache', async () => {
     const portfolio = makePortfolio([]);
-    const svc = new ValuationService(portfolio, makePrice(), makeFee(noGas), []);
+    const svc = new ValuationService(portfolio, makePrice(), makeFee(noGas), [], makeVaultCode());
 
     await svc.valueVault(VAULT);
     await svc.valueVault(VAULT); // cached
@@ -167,5 +173,55 @@ describe('ValuationService', () => {
 
     await svc.valueVault(VAULT, { refresh: true });
     expect(portfolio.getPortfolio).toHaveBeenCalledTimes(2);
+  });
+
+  it('values a vault whose contract is gone as empty, without asking any adapter', async () => {
+    const portfolio = makePortfolio([
+      { token: '0xUSDT', symbol: 'USDT', decimals: 18, balance: '1000000000000000000' },
+    ]);
+    const adapter = {
+      protocol: 'pancakeswap-v3',
+      claimedTokens: jest.fn().mockResolvedValue([]),
+      getPositions: jest.fn().mockResolvedValue([]),
+    } as any;
+
+    const svc = new ValuationService(
+      portfolio,
+      makePrice({ '0xUSDT': 1 }),
+      makeFee(noGas),
+      [adapter],
+      makeVaultCode(false),
+    );
+    const res = await svc.valueVault(VAULT);
+
+    expect(res.positions).toEqual([]);
+    expect(res.totalValueUsd).toBe(0);
+    // Nothing on chain to ask about — and no wall of adapter warnings either.
+    expect(adapter.claimedTokens).not.toHaveBeenCalled();
+    expect(adapter.getPositions).not.toHaveBeenCalled();
+    expect(portfolio.getPortfolio).not.toHaveBeenCalled();
+  });
+
+  it('leaves the gas reserve row out when the vault is gone, instead of showing an error row', async () => {
+    const portfolio = makePortfolio([]);
+    const fee = {
+      getVaultGasDeposit: jest
+        .fn()
+        .mockRejectedValue(new VaultNotOnChainError(VAULT)),
+    } as any;
+
+    // Code check says "present" so we reach the gas-reserve read; the read is
+    // what discovers the vault is gone. That is the race a cached check allows.
+    const svc = new ValuationService(
+      portfolio,
+      makePrice(),
+      fee,
+      [],
+      makeVaultCode(true),
+    );
+    const res = await svc.valueVault(VAULT);
+
+    expect(res.positions.find((p) => p.protocol === 'gas-reserve')).toBeUndefined();
+    expect(res.positions.find((p) => p.kind === 'error')).toBeUndefined();
   });
 });

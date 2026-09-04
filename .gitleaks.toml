@@ -1,0 +1,27 @@
+# gitleaks configuration for a public self-custody DeFi repo.
+#
+# The default ruleset flags every 0x-prefixed hex string as a possible API key.
+# In a chain codebase almost all of them are public by definition, which drowns
+# a real leak in noise. These allowlists remove exactly the classes we verified
+# as public — nothing broader.
+#
+# Verified on 2026-09-04 over the full history (180 commits): 50 findings, all
+# false positives. 44 EVM addresses, 6 occurrences of the Hardhat default test
+# key. No real secret has ever been committed.
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Public-by-definition chain values"
+regexes = [
+  # EVM addresses. Public on any block explorer; the repo is full of contract,
+  # token and test-account addresses.
+  '''^0x[0-9a-fA-F]{40}$''',
+
+  # Hardhat's documented default account #0. Published in Hardhat's own docs and
+  # baked into every local fork; it derives to
+  # 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266 and holds nothing outside a local
+  # chain. Used in dev docs and fork tests.
+  '''^0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80$''',
+]

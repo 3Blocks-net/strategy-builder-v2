@@ -3,6 +3,10 @@ import { VaultPortfolioService } from '../portfolio/vault-portfolio.service';
 import { PriceService } from '../portfolio/price.service';
 import { FeeService } from '../blockchain/fee.service';
 import {
+  VaultCodeService,
+  VaultNotOnChainError,
+} from '../blockchain/vault-code.service';
+import {
   PROTOCOL_ADAPTERS,
   ProtocolAdapter,
   ValuedPosition,
@@ -36,6 +40,7 @@ export class ValuationService {
     private readonly feeService: FeeService,
     @Inject(PROTOCOL_ADAPTERS)
     private readonly adapters: ProtocolAdapter[],
+    private readonly vaultCode: VaultCodeService,
   ) {}
 
   /**
@@ -49,6 +54,13 @@ export class ValuationService {
     const cached = this.cache.get(vaultAddress);
     if (!opts.refresh && cached && Date.now() < cached.expiresAt) {
       return cached.data;
+    }
+
+    // A vault whose contract is gone from this chain has nothing to value.
+    // Every adapter would fail the same way and say so on every request, so
+    // answer with an empty vault instead of a wall of identical warnings.
+    if (!(await this.vaultCode.hasCode(vaultAddress))) {
+      return this.emptyVault(vaultAddress);
     }
 
     // 1. Each adapter is isolated — a broken protocol never kills the cockpit.
@@ -105,6 +117,26 @@ export class ValuationService {
       asOf: new Date().toISOString(),
     };
 
+    this.cache.set(vaultAddress, {
+      data: result,
+      expiresAt: Date.now() + CACHE_TTL_MS,
+    });
+    return result;
+  }
+
+  /**
+   * The answer for a vault that does not exist on this chain: no positions and
+   * nothing of value, cached like any other result so the code check is not
+   * repeated per request.
+   */
+  private emptyVault(vaultAddress: string): ValuedVault {
+    const result: ValuedVault = {
+      vaultAddress,
+      positions: [],
+      totalValueUsd: 0,
+      asOfBlock: null,
+      asOf: new Date().toISOString(),
+    };
     this.cache.set(vaultAddress, {
       data: result,
       expiresAt: Date.now() + CACHE_TTL_MS,
@@ -180,6 +212,9 @@ export class ValuationService {
         valueUsd,
       };
     } catch (err) {
+      // The vault is gone from this chain — VaultCodeService has already said so
+      // once. Leaving the row out beats repeating it on every request.
+      if (err instanceof VaultNotOnChainError) return null;
       this.logger.warn(`gas reserve failed for ${vaultAddress}: ${err}`);
       return {
         protocol: 'gas-reserve',
