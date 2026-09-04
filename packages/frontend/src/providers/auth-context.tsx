@@ -10,12 +10,17 @@ import { useAccount, useSignMessage, useDisconnect } from 'wagmi';
 import { SiweMessage } from 'siwe';
 import { useNavigate } from 'react-router';
 import { fetchNonce, verifySignature, setOnAuthFailure } from '@/lib/api';
+import type { AuthFailure } from '@/lib/auth-error';
 
 interface AuthState {
   isAuthenticated: boolean;
   address: string | null;
   isLoading: boolean;
-  error: string | null;
+  /**
+   * The reason the last sign-in failed, not a finished sentence: the page that
+   * shows it turns it into words in the reader's language.
+   */
+  error: AuthFailure | null;
   login: () => Promise<void>;
   logout: () => void;
 }
@@ -37,7 +42,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [address, setAddress] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<AuthFailure | null>(null);
 
   useEffect(() => {
     const token = localStorage.getItem('accessToken');
@@ -101,11 +106,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setAddress(walletAddress);
       navigate('/dashboard');
     } catch (e) {
-      const msg =
-        e instanceof Error ? e.message : 'Authentication failed';
-      if (msg.includes('User rejected'))
-        setError('Signature rejected. Please try again.');
-      else setError(msg);
+      const message = e instanceof Error ? e.message : null;
+      setError({
+        code: message?.includes('User rejected')
+          ? 'signature-rejected'
+          : 'sign-in-failed',
+        message,
+      });
     } finally {
       setIsLoading(false);
     }

@@ -18,9 +18,15 @@
       "!packages/contracts/cache",
       "!backlog",
       "!docs",
-      // CSS linting/Tailwind-v4-Parsing ist nicht Teil dieses Tickets (Scope: TS-Pakete) —
-      // eigenes Ticket, falls gewünscht.
-      "!**/*.css"
+      // CSS linting / Tailwind v4 parsing is out of scope here (TS packages only);
+      // it needs its own ticket.
+      "!**/*.css",
+      // Brand over lint: the logo files come from the brand kit unmodified
+      // (see packages/frontend/src/assets/brand/README.md) and must stay
+      // byte-identical. Biome would demand a11y titles inside them — an edit to
+      // a brand file that the usage rules forbid. The alt text lives on the
+      // <img> tags in brand-logo.tsx instead.
+      "!packages/frontend/src/assets/brand/**"
     ]
   },
   "formatter": {

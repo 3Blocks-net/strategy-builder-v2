@@ -1,8 +1,11 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAccount } from 'wagmi';
 import { type Address, parseUnits, formatUnits } from 'viem';
 import { Button } from '@/components/ui/button';
 import { useWithdraw } from '@/hooks/use-withdraw';
+import { useFormatters } from '@/i18n';
+import { txErrorText } from '@/lib/tx-error';
 
 interface Position {
   address: string;
@@ -27,6 +30,8 @@ export function WithdrawForm({
   errorMap,
   onSuccess,
 }: WithdrawFormProps) {
+  const { t } = useTranslation();
+  const fmt = useFormatters();
   const { address: userAddress } = useAccount();
   const [selectedToken, setSelectedToken] = useState<Position | null>(null);
   const [amount, setAmount] = useState('');
@@ -64,11 +69,16 @@ export function WithdrawForm({
     }
   };
 
+  /**
+   * A revert the contract named is explained by the backend's error map; a
+   * wallet rejection is ours to phrase; anything else keeps the wording it
+   * arrived in.
+   */
   const decodeError = (msg: string): string => {
     for (const [name, description] of Object.entries(errorMap)) {
       if (msg.includes(name)) return description;
     }
-    if (msg.includes('User rejected')) return 'Transaction rejected by user.';
+    if (msg.includes('User rejected')) return t('withdraw.rejected');
     return msg;
   };
 
@@ -76,10 +86,12 @@ export function WithdrawForm({
 
   return (
     <div className="space-y-4 rounded-md border border-border p-4">
-      <h3 className="font-semibold">Withdraw</h3>
+      <h3 className="font-semibold">{t('withdraw.heading')}</h3>
 
       <div>
-        <label htmlFor="withdraw-token" className="text-sm font-medium">Token</label>
+        <label htmlFor="withdraw-token" className="text-sm font-medium">
+          {t('withdraw.token')}
+        </label>
         <select
           id="withdraw-token"
           value={selectedToken?.address ?? ''}
@@ -92,7 +104,7 @@ export function WithdrawForm({
           className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
           disabled={isLoading}
         >
-          <option value="">Select token</option>
+          <option value="">{t('common.selectToken')}</option>
           {positions.map((p) => (
             <option key={p.address} value={p.address}>
               {p.symbol} — {formatUnits(BigInt(p.balance), p.decimals)}
@@ -104,7 +116,9 @@ export function WithdrawForm({
       {selectedToken && (
         <>
           <div>
-            <label htmlFor="withdraw-amount" className="text-sm font-medium">Amount (gross)</label>
+            <label htmlFor="withdraw-amount" className="text-sm font-medium">
+              {t('withdraw.amount')}
+            </label>
             <div className="mt-1 flex gap-2">
               <input
                 id="withdraw-amount"
@@ -121,44 +135,46 @@ export function WithdrawForm({
                 onClick={() => setAmount(maxAmount)}
                 disabled={isLoading}
               >
-                Max
+                {t('common.max')}
               </Button>
             </div>
             <p className="mt-1 text-xs text-muted-foreground">
-              Vault balance: {maxAmount} {selectedToken.symbol}
+              {t('withdraw.vaultBalance', {
+                amount: maxAmount,
+                symbol: selectedToken.symbol,
+              })}
             </p>
           </div>
 
           {amount && parseFloat(amount) > 0 && (
             <p className="text-sm text-muted-foreground">
-              You receive:{' '}
-              {selectedToken
-                ? formatUnits(
-                    BigInt(Math.floor(netAmount)),
-                    selectedToken.decimals,
-                  )
-                : '0'}{' '}
-              {selectedToken.symbol} (Fee:{' '}
-              {selectedToken
-                ? formatUnits(
-                    BigInt(Math.floor(feeAmount)),
-                    selectedToken.decimals,
-                  )
-                : '0'}{' '}
-              {selectedToken.symbol}, {(feeBps / 100).toFixed(2)}%)
+              {t('withdraw.receiveLine', {
+                net: formatUnits(
+                  BigInt(Math.floor(netAmount)),
+                  selectedToken.decimals,
+                ),
+                fee: formatUnits(
+                  BigInt(Math.floor(feeAmount)),
+                  selectedToken.decimals,
+                ),
+                symbol: selectedToken.symbol,
+                percent: fmt.percent(feeBps / 10_000),
+              })}
             </p>
           )}
         </>
       )}
 
-      {withdraw.error && (
-        <p className="text-sm text-destructive">
-          {decodeError(withdraw.error)}
+      {(withdraw.error || withdraw.errorCode) && (
+        <p className="text-sm break-words text-destructive">
+          {withdraw.error
+            ? decodeError(withdraw.error)
+            : txErrorText(t, withdraw.errorCode, null)}
         </p>
       )}
 
       {withdraw.step === 'done' && (
-        <p className="text-sm text-green-600">Withdrawal successful!</p>
+        <p className="text-sm text-green-600">{t('withdraw.success')}</p>
       )}
 
       <Button
@@ -166,7 +182,7 @@ export function WithdrawForm({
         onClick={handleWithdraw}
         disabled={!selectedToken || !amount || isLoading}
       >
-        {isLoading ? 'Processing...' : 'Withdraw'}
+        {isLoading ? t('common.processing') : t('withdraw.submit')}
       </Button>
     </div>
   );

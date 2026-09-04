@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import { KeyRound, Lock, ShieldCheck } from 'lucide-react';
 import { PublicShell } from '@/components/public-shell';
@@ -8,25 +9,29 @@ import {
   type StrategyExample,
 } from '@/lib/discovery-fixtures';
 
-const nav = [
-  { href: '#strategies', label: 'Strategies' },
-  { href: '#markets', label: 'Markets' },
-  { href: '#how', label: 'How it works' },
-] as const;
-
 /**
  * Public discovery page (wireframes.md 3.1, mode: Persuade).
  * Sells with verifiable facts only: real strategy mechanics from the step
  * catalog, no performance figures until they exist on-chain.
  */
 export function DiscoveryPage() {
+  const { t } = useTranslation();
+
+  const nav = [
+    { href: '#strategies', label: t('discovery.nav.strategies') },
+    { href: '#markets', label: t('discovery.nav.markets') },
+    { href: '#how', label: t('discovery.nav.how') },
+  ];
+
   return (
     <PublicShell nav={nav} band={<Hero />}>
       <section id="strategies" className="scroll-mt-8 pt-14">
         <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-border pb-3">
-          <h2 className="text-lg font-semibold tracking-tight">Strategies</h2>
+          <h2 className="text-lg font-semibold tracking-tight">
+            {t('discovery.strategies.heading')}
+          </h2>
           <p className="text-xs text-muted-foreground">
-            Built from Pecunity's live step catalog
+            {t('discovery.strategies.source')}
           </p>
         </div>
         <div className="grid gap-4 pt-6 md:grid-cols-3">
@@ -35,28 +40,34 @@ export function DiscoveryPage() {
           ))}
         </div>
         <p className="pt-6 text-sm text-muted-foreground">
-          You'll see no yield promises here: performance figures appear only
-          once strategies run in production and their track record is
-          verifiable on-chain.
+          {t('discovery.strategies.noPromises')}
         </p>
       </section>
 
       <section id="markets" className="scroll-mt-8 pt-14">
         <div className="flex flex-wrap items-baseline gap-3 border-b border-border pb-3">
-          <h2 className="text-lg font-semibold tracking-tight">Markets</h2>
+          <h2 className="text-lg font-semibold tracking-tight">
+            {t('discovery.markets.heading')}
+          </h2>
           <span className="rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground">
-            Illustrative sample
+            {t('discovery.markets.sampleBadge')}
           </span>
         </div>
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border text-xs text-muted-foreground">
-              <th className="py-3 pr-4 text-left font-medium">Asset</th>
-              <th className="px-4 py-3 text-left font-medium">Venue</th>
-              <th className="hidden px-4 py-3 text-left font-medium sm:table-cell">
-                Type
+              <th className="py-3 pr-4 text-left font-medium">
+                {t('discovery.markets.asset')}
               </th>
-              <th className="py-3 pl-4 text-right font-medium">Yield source</th>
+              <th className="px-4 py-3 text-left font-medium">
+                {t('discovery.markets.venue')}
+              </th>
+              <th className="hidden px-4 py-3 text-left font-medium sm:table-cell">
+                {t('discovery.markets.type')}
+              </th>
+              <th className="py-3 pl-4 text-right font-medium">
+                {t('discovery.markets.yieldSource')}
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -65,40 +76,39 @@ export function DiscoveryPage() {
                 <td className="py-4 pr-4 font-medium">{m.asset}</td>
                 <td className="px-4 py-4 text-muted-foreground">{m.venue}</td>
                 <td className="hidden px-4 py-4 text-muted-foreground sm:table-cell">
-                  {m.kind}
+                  {t(`discovery.markets.kind.${m.kind}`)}
                 </td>
                 <td className="py-4 pl-4 text-right text-muted-foreground">
-                  {m.yieldNote}
+                  {t(`discovery.markets.yieldNote.${m.yieldNote}`)}
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
         <p className="pt-4 text-sm text-muted-foreground">
-          Live rates and pool data land with the public launch — like price
-          lists at a broker, but for pools and lending markets on BSC.
+          {t('discovery.markets.footnote')}
         </p>
       </section>
 
       <section id="how" className="scroll-mt-8 pt-14">
         <h2 className="border-b border-border pb-3 text-lg font-semibold tracking-tight">
-          How it works
+          {t('discovery.how.heading')}
         </h2>
         <ol className="divide-y divide-border">
           <HowStep
             n={1}
-            title="Connect a wallet"
-            text="Signing in is a free wallet signature — no allowance, no custody. Your keys stay yours, always."
+            title={t('discovery.how.connectTitle')}
+            text={t('discovery.how.connectText')}
           />
           <HowStep
             n={2}
-            title="Pick or compose a strategy"
-            text="Start from a strategy setup, or compose your own from building blocks in the graph editor — with validation that catches on-chain errors before they cost you."
+            title={t('discovery.how.composeTitle')}
+            text={t('discovery.how.composeText')}
           />
           <HowStep
             n={3}
-            title="It runs by your rules"
-            text="Your strategy deploys into your own vault contract. Keepers can only execute what you deployed, and every allowance is confirmed by you — one signature at a time."
+            title={t('discovery.how.runsTitle')}
+            text={t('discovery.how.runsText')}
           />
         </ol>
       </section>
@@ -110,18 +120,19 @@ export function DiscoveryPage() {
  * The hero, rendered inside the shell's Brand-Blue band.
  */
 function Hero() {
+  const { t } = useTranslation();
+
   return (
     <>
       <h1 className="max-w-2xl text-4xl font-semibold tracking-tight sm:text-5xl">
-        DeFi that feels like a broker.
+        {t('discovery.hero.headline')}
       </h1>
       <p className="mt-4 max-w-xl text-base text-on-band-sub">
-        Portfolio, strategies, and automation in one place — running from a
-        vault only you control.
+        {t('discovery.hero.subline')}
       </p>
       <div className="mt-8 flex flex-wrap items-center gap-3">
         <Button asChild size="lg" className="bg-white text-band-deep hover:bg-on-band-sub">
-          <Link to="/connect">Launch App</Link>
+          <Link to="/connect">{t('shell.launchApp')}</Link>
         </Button>
         <Button
           asChild
@@ -129,21 +140,23 @@ function Hero() {
           variant="outline"
           className="border-on-band-line bg-transparent text-on-band shadow-none hover:bg-white/10 hover:text-on-band"
         >
-          <a href="#strategies">See strategies</a>
+          <a href="#strategies">{t('discovery.hero.seeStrategies')}</a>
         </Button>
       </div>
+      {/* items-start, not items-center: the German promises wrap into two
+          lines, and the icon has to stay on the first one. */}
       <ul className="mt-10 flex flex-wrap gap-x-8 gap-y-2 text-sm text-on-band-sub">
-        <li className="flex items-center gap-2">
-          <Lock className="h-4 w-4" aria-hidden />
-          Funds never leave your own vault
+        <li className="flex items-start gap-2">
+          <Lock className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+          {t('discovery.hero.trustFunds')}
         </li>
-        <li className="flex items-center gap-2">
-          <KeyRound className="h-4 w-4" aria-hidden />
-          Every action needs your signature
+        <li className="flex items-start gap-2">
+          <KeyRound className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+          {t('discovery.hero.trustSignature')}
         </li>
-        <li className="flex items-center gap-2">
-          <ShieldCheck className="h-4 w-4" aria-hidden />
-          Automation executes only rules you deployed
+        <li className="flex items-start gap-2">
+          <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+          {t('discovery.hero.trustAutomation')}
         </li>
       </ul>
     </>
@@ -151,30 +164,38 @@ function Hero() {
 }
 
 function StrategyCard({ strategy }: { strategy: StrategyExample }) {
+  const { t } = useTranslation();
+
   return (
     <article className="group flex flex-col rounded-md border border-border p-5">
       <div className="flex items-start justify-between gap-3">
         <h3 className="text-base font-semibold tracking-tight">
-          {strategy.name}
+          {t(`discovery.examples.${strategy.id}.name`)}
         </h3>
         <span className="mt-0.5 shrink-0 rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground">
-          {strategy.risk}
+          {t(`discovery.risk.${strategy.risk}`)}
         </span>
       </div>
       <p className="mt-2 flex-1 text-sm text-secondary-foreground">
-        {strategy.summary}
+        {t(`discovery.examples.${strategy.id}.summary`)}
       </p>
 
-      <StepFlow steps={strategy.steps} />
+      <StepFlow strategy={strategy} />
 
       <dl className="mt-4 space-y-1 border-t border-border pt-3 text-xs">
         <div className="flex justify-between gap-4">
-          <dt className="text-muted-foreground">Protocols</dt>
+          <dt className="text-muted-foreground">
+            {t('discovery.strategies.protocols')}
+          </dt>
           <dd className="text-right">{strategy.protocols.join(', ')}</dd>
         </div>
         <div className="flex justify-between gap-4">
-          <dt className="text-muted-foreground">Assets</dt>
-          <dd className="text-right">{strategy.assets}</dd>
+          <dt className="text-muted-foreground">
+            {t('discovery.strategies.assets')}
+          </dt>
+          <dd className="text-right">
+            {t(`discovery.examples.${strategy.id}.assets`)}
+          </dd>
         </div>
       </dl>
     </article>
@@ -185,11 +206,13 @@ function StrategyCard({ strategy }: { strategy: StrategyExample }) {
  * The card's signature: the strategy's real condition→action chain drawn as a
  * flow. On hover the connectors "run", dramatizing that the recipe executes.
  */
-function StepFlow({ steps }: { steps: StrategyExample['steps'] }) {
+function StepFlow({ strategy }: { strategy: StrategyExample }) {
+  const { t } = useTranslation();
+
   return (
-    <ul className="mt-4" aria-label="Strategy flow">
-      {steps.map((step, i) => (
-        <li key={step.label}>
+    <ul className="mt-4" aria-label={t('discovery.strategies.flowLabel')}>
+      {strategy.steps.map((step, i) => (
+        <li key={step.id}>
           {i > 0 && (
             <span
               className="ml-4 block h-3 w-px bg-border transition-colors duration-200 ease-out group-hover:bg-primary"
@@ -205,7 +228,7 @@ function StepFlow({ steps }: { steps: StrategyExample['steps'] }) {
             }`}
             style={i > 0 ? { transitionDelay: `${2 * i * 110}ms` } : undefined}
           >
-            {step.label}
+            {t(`discovery.stepLabels.${step.id}`)}
           </span>
         </li>
       ))}

@@ -1,10 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { formatUnits } from 'viem';
 import { Button } from '@/components/ui/button';
 import { ExecutionStatusBadge } from '@/components/execution-status-badge';
 import { FreshnessIndicator } from '@/components/freshness-indicator';
 import { useExecutionsSocket } from '@/hooks/use-executions-socket';
 import { useIndexerStatus } from '@/hooks/use-indexer-status';
+import { useFormatters, type Formatters } from '@/i18n';
 import { apiFetch } from '@/lib/api';
 
 /**
@@ -60,15 +63,7 @@ interface Props {
 
 const PAGE_SIZE = 20;
 
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
+
 
 function truncateHash(hash: string): string {
   if (hash.length <= 14) return hash;
@@ -81,6 +76,7 @@ function getBscScanUrl(txHash: string, chainId?: number): string {
 }
 
 function formatAmount(
+  fmt: Formatters,
   amount: string | null,
   token: string | null,
   tokenMeta: Map<string, AcceptedToken>,
@@ -90,37 +86,33 @@ function formatAmount(
   const decimals = meta?.decimals ?? 18;
   try {
     const num = parseFloat(formatUnits(BigInt(amount), decimals));
-    const formatted = new Intl.NumberFormat('en-US', {
+    const formatted = fmt.number(num, {
       minimumFractionDigits: 2,
       maximumFractionDigits: 6,
-    }).format(num);
+    });
     return meta?.symbol ? `${formatted} ${meta.symbol}` : formatted;
   } catch {
     return amount;
   }
 }
 
-function formatUsd(value: string | null): string {
+function formatUsd(fmt: Formatters, value: string | null): string {
   if (value === null) return '—';
   const num = Number(value);
   if (!Number.isFinite(num)) return '—';
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 4,
-  }).format(num);
+  return fmt.usd(num, { maximumFractionDigits: 4 });
 }
 
 function VaultEventBadge({ eventType }: { eventType: string | null }) {
+  const { t } = useTranslation();
   const isDeposit = eventType === 'DEPOSIT';
   return (
     <span
-      className={`rounded px-2 py-0.5 text-xs font-medium ${
+      className={`whitespace-nowrap rounded px-2 py-0.5 text-xs font-medium ${
         isDeposit ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'
       }`}
     >
-      {isDeposit ? 'Deposit' : 'Withdrawal'}
+      {isDeposit ? t('history.deposit') : t('history.withdrawal')}
     </span>
   );
 }
@@ -133,39 +125,55 @@ function renderBadge(row: HistoryRow) {
   return <ExecutionStatusBadge status="success" />;
 }
 
-function renderDetail(row: HistoryRow, tokenMeta: Map<string, AcceptedToken>) {
-  if (row.kind === 'vault_event') return formatAmount(row.amount, row.token, tokenMeta);
+function renderDetail(
+  t: TFunction,
+  fmt: Formatters,
+  row: HistoryRow,
+  tokenMeta: Map<string, AcceptedToken>,
+) {
+  if (row.kind === 'vault_event')
+    return formatAmount(fmt, row.amount, row.token, tokenMeta);
+  const automation = t('history.automation', { id: row.automationId ?? '' });
   if (row.kind === 'failure') {
     return (
       <span>
-        Automation #{row.automationId}
-        {row.attemptCount && row.attemptCount > 1 ? ` · ${row.attemptCount}× failed` : ''}
+        {automation}
+        {row.attemptCount && row.attemptCount > 1
+          ? ` · ${t('history.attempts', { times: row.attemptCount })}`
+          : ''}
         {row.errorMessage ? (
           <span className="block text-xs text-muted-foreground/80">{row.errorMessage}</span>
         ) : null}
       </span>
     );
   }
-  return `Automation #${row.automationId}`;
+  return automation;
 }
 
-function renderCost(row: HistoryRow, tokenMeta: Map<string, AcceptedToken>) {
-  if (row.kind === 'execution') return formatAmount(row.gasCompAmount, row.gasCompToken, tokenMeta);
+function renderCost(
+  fmt: Formatters,
+  row: HistoryRow,
+  tokenMeta: Map<string, AcceptedToken>,
+) {
+  if (row.kind === 'execution')
+    return formatAmount(fmt, row.gasCompAmount, row.gasCompToken, tokenMeta);
   if (row.kind === 'vault_event') {
-    return `${formatAmount(row.feeAmount, row.token, tokenMeta)}${
-      row.feeBps != null ? ` (${(row.feeBps / 100).toFixed(2)}%)` : ''
+    return `${formatAmount(fmt, row.feeAmount, row.token, tokenMeta)}${
+      row.feeBps != null ? ` (${fmt.percent(row.feeBps / 10_000)})` : ''
     }`;
   }
   return '—'; // failure
 }
 
 export function ExecutionHistoryTable({ vaultAddress, chainId }: Props) {
+  const { t } = useTranslation();
+  const fmt = useFormatters();
   const [rows, setRows] = useState<HistoryRow[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [automationId, setAutomationId] = useState<number | ''>('');
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
   const [tokenMeta, setTokenMeta] = useState<Map<string, AcceptedToken>>(new Map());
   const [automations, setAutomations] = useState<AutomationOption[]>([]);
   const [reloadKey, setReloadKey] = useState(0);
@@ -190,16 +198,19 @@ export function ExecutionHistoryTable({ vaultAddress, chainId }: Props) {
         setAutomations(
           items
             .filter((a) => a.onChainId !== null && a.onChainId !== undefined)
-            .map((a) => ({ onChainId: a.onChainId, label: a.label || `Automation #${a.onChainId}` })),
+            .map((a) => ({
+              onChainId: a.onChainId,
+              label: a.label || t('history.automation', { id: a.onChainId }),
+            })),
         );
       })
       .catch(() => {});
-  }, [vaultAddress]);
+  }, [vaultAddress, t]);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: reloadKey wird nie gelesen, nur als Cache-Busting-Signal hochgezählt (Realtime-Event / 15s-Poll), damit diese Callback-Identität wechselt und der Effect unten neu fetcht.
   const fetchHistory = useCallback(async () => {
     setLoading(true);
-    setError(null);
+    setFailed(false);
     try {
       const params = new URLSearchParams({ page: String(page), pageSize: String(PAGE_SIZE) });
       if (automationId !== '') params.set('automationId', String(automationId));
@@ -209,7 +220,7 @@ export function ExecutionHistoryTable({ vaultAddress, chainId }: Props) {
       setRows(data.rows ?? []);
       setTotal(data.total ?? 0);
     } catch {
-      setError('Failed to load execution history');
+      setFailed(true);
     } finally {
       setLoading(false);
     }
@@ -243,8 +254,12 @@ export function ExecutionHistoryTable({ vaultAddress, chainId }: Props) {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-3">
-          <h3 className="text-base font-semibold tracking-tight">Execution History</h3>
+        {/* flex-wrap: "Verbindung wird wiederhergestellt · aktualisiert vor
+            2 Min." is far wider than its English counterpart. */}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <h3 className="text-base font-semibold tracking-tight">
+            {t('history.heading')}
+          </h3>
           <FreshnessIndicator
             connected={connected}
             lastProcessedBlockTimestamp={indexerStatus?.lastProcessedBlockTimestamp ?? null}
@@ -259,7 +274,7 @@ export function ExecutionHistoryTable({ vaultAddress, chainId }: Props) {
               setAutomationId(e.target.value === '' ? '' : Number(e.target.value));
             }}
           >
-            <option value="">All activity</option>
+            <option value="">{t('history.allActivity')}</option>
             {automations.map((a) => (
               <option key={a.onChainId} value={a.onChainId}>
                 {a.label}
@@ -277,33 +292,47 @@ export function ExecutionHistoryTable({ vaultAddress, chainId }: Props) {
         </div>
       )}
 
-      {error && (
+      {failed && (
         <div className="py-8 text-center">
-          <p className="text-sm text-destructive">{error}</p>
+          <p className="text-sm text-destructive">{t('history.loadFailed')}</p>
           <Button variant="outline" size="sm" className="mt-2" onClick={fetchHistory}>
-            Retry
+            {t('common.retry')}
           </Button>
         </div>
       )}
 
-      {!loading && !error && rows.length === 0 && (
+      {!loading && !failed && rows.length === 0 && (
         <div className="rounded-md border border-dashed p-6 text-center">
-          <p className="text-muted-foreground">No activity yet.</p>
+          <p className="text-muted-foreground">{t('history.empty')}</p>
         </div>
       )}
 
-      {!loading && !error && rows.length > 0 && (
+      {!loading && !failed && rows.length > 0 && (
         <>
-          <div className="overflow-hidden rounded-md border">
+          {/* The German headings are the wide ones — the table scrolls inside
+              its own box rather than pushing the page sideways. */}
+          <div className="overflow-x-auto rounded-md border">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b bg-muted/50">
-                  <th className="px-4 py-3 text-left font-medium">Type</th>
-                  <th className="px-4 py-3 text-left font-medium">Detail</th>
-                  <th className="px-4 py-3 text-right font-medium">Cost</th>
-                  <th className="px-4 py-3 text-right font-medium">USD</th>
-                  <th className="px-4 py-3 text-left font-medium">TX Hash</th>
-                  <th className="px-4 py-3 text-right font-medium">Date</th>
+                  <th className="px-4 py-3 text-left font-medium">
+                    {t('history.table.type')}
+                  </th>
+                  <th className="px-4 py-3 text-left font-medium">
+                    {t('history.table.detail')}
+                  </th>
+                  <th className="px-4 py-3 text-right font-medium">
+                    {t('history.table.cost')}
+                  </th>
+                  <th className="px-4 py-3 text-right font-medium">
+                    {t('history.table.usd')}
+                  </th>
+                  <th className="px-4 py-3 text-left font-medium">
+                    {t('history.table.txHash')}
+                  </th>
+                  <th className="px-4 py-3 text-right font-medium">
+                    {t('history.table.date')}
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -311,16 +340,16 @@ export function ExecutionHistoryTable({ vaultAddress, chainId }: Props) {
                   <tr key={row.id} className="border-b last:border-0">
                     <td className="px-4 py-3">{renderBadge(row)}</td>
                     <td className="px-4 py-3 text-muted-foreground">
-                      {renderDetail(row, tokenMeta)}
+                      {renderDetail(t, fmt, row, tokenMeta)}
                     </td>
                     <td className="px-4 py-3 text-right font-mono">
-                      {renderCost(row, tokenMeta)}
+                      {renderCost(fmt, row, tokenMeta)}
                     </td>
                     <td className="px-4 py-3 text-right text-muted-foreground">
                       {row.kind === 'execution'
-                        ? formatUsd(row.gasCompUsd)
+                        ? formatUsd(fmt, row.gasCompUsd)
                         : row.kind === 'vault_event'
-                          ? formatUsd(row.amountUsd)
+                          ? formatUsd(fmt, row.amountUsd)
                           : '—'}
                     </td>
                     <td className="px-4 py-3">
@@ -338,7 +367,7 @@ export function ExecutionHistoryTable({ vaultAddress, chainId }: Props) {
                       )}
                     </td>
                     <td className="px-4 py-3 text-right text-muted-foreground">
-                      {formatDate(row.blockTimestamp)}
+                      {fmt.dateTime(row.blockTimestamp)}
                     </td>
                   </tr>
                 ))}
@@ -354,10 +383,10 @@ export function ExecutionHistoryTable({ vaultAddress, chainId }: Props) {
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={page === 1}
               >
-                Previous
+                {t('history.previous')}
               </Button>
               <span className="text-sm text-muted-foreground">
-                Page {page} of {totalPages}
+                {t('history.page', { page, total: totalPages })}
               </span>
               <Button
                 variant="outline"
@@ -365,7 +394,7 @@ export function ExecutionHistoryTable({ vaultAddress, chainId }: Props) {
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={page >= totalPages}
               >
-                Next
+                {t('history.next')}
               </Button>
             </div>
           )}

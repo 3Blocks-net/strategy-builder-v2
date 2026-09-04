@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import { usePublicClient, useWriteContract } from 'wagmi';
 import { type Address, erc20Abi, maxUint256 } from 'viem';
 import { StrategyBuilderVaultAbi } from '@/lib/abis';
+import type { TxErrorCode } from '@/lib/tx-error';
 
 type DepositStep = 'idle' | 'checking' | 'approving' | 'depositing' | 'confirming' | 'done' | 'error';
 
@@ -14,6 +15,7 @@ export function useApproveAndDeposit() {
   const [currentStep, setCurrentStep] = useState(0);
   const [totalSteps, setTotalSteps] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState<TxErrorCode | null>(null);
 
   const { writeContractAsync } = useWriteContract();
   const publicClient = usePublicClient();
@@ -26,6 +28,7 @@ export function useApproveAndDeposit() {
       currentAllowance: bigint;
     }) => {
       setError(null);
+      setErrorCode(null);
       setStep('checking');
 
       try {
@@ -80,8 +83,8 @@ export function useApproveAndDeposit() {
         setStep('done');
         return true;
       } catch (e) {
-        const msg = e instanceof Error ? e.message : 'Transaction failed';
-        setError(msg);
+        if (e instanceof Error) setError(e.message);
+        else setErrorCode('transaction-failed');
         setStep('error');
         return false;
       }
@@ -94,7 +97,16 @@ export function useApproveAndDeposit() {
     setCurrentStep(0);
     setTotalSteps(0);
     setError(null);
+    setErrorCode(null);
   }, []);
 
-  return { approveAndDeposit, step, currentStep, totalSteps, error, reset };
+  return {
+    approveAndDeposit,
+    step,
+    currentStep,
+    totalSteps,
+    error,
+    errorCode,
+    reset,
+  };
 }

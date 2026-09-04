@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { usePublicClient, useWriteContract } from 'wagmi';
 import { formatUnits, parseUnits, type Address } from 'viem';
 import { Button } from '@/components/ui/button';
+import { useFormatters, type Formatters } from '@/i18n';
 import { apiFetch } from '@/lib/api';
 import { StrategyBuilderVaultAbi } from '@/lib/abis';
 import { shouldWarnGasDeposit, type GasDepositAutomation } from '@/lib/gas-deposit';
@@ -17,20 +19,35 @@ interface GasDepositCardProps {
   vaultAddress: string;
 }
 
-function format(raw: string, decimals: number): string {
+/** Reserve amount as the reader sees it — notation follows the UI language. */
+function formatReserve(fmt: Formatters, raw: string, decimals: number): string {
   try {
     const n = parseFloat(formatUnits(BigInt(raw), decimals));
-    return new Intl.NumberFormat('en-US', { maximumFractionDigits: 6 }).format(n);
+    return fmt.number(n, { maximumFractionDigits: 6 });
+  } catch {
+    return raw;
+  }
+}
+
+/**
+ * Machine form of an amount: the value the input field expects back, so it
+ * stays dot-separated in every language.
+ */
+function rawAmount(raw: string, decimals: number): string {
+  try {
+    return formatUnits(BigInt(raw), decimals);
   } catch {
     return raw;
   }
 }
 
 export function GasDepositCard({ vaultAddress }: GasDepositCardProps) {
+  const { t } = useTranslation();
+  const fmt = useFormatters();
   const [data, setData] = useState<GasDeposit | null>(null);
   const [automations, setAutomations] = useState<GasDepositAutomation[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
 
   const [amount, setAmount] = useState('');
   const [depositing, setDepositing] = useState(false);
@@ -45,7 +62,7 @@ export function GasDepositCard({ vaultAddress }: GasDepositCardProps) {
 
   const fetchData = useCallback(async () => {
     setLoading(true);
-    setError(null);
+    setFailed(false);
     try {
       const [depRes, autoRes] = await Promise.all([
         apiFetch(`/vaults/${vaultAddress}/gas-deposit`),
@@ -55,7 +72,7 @@ export function GasDepositCard({ vaultAddress }: GasDepositCardProps) {
       setData(await depRes.json());
       setAutomations(autoRes.ok ? await autoRes.json() : []);
     } catch {
-      setError('Failed to load gas deposit');
+      setFailed(true);
     } finally {
       setLoading(false);
     }
@@ -82,7 +99,9 @@ export function GasDepositCard({ vaultAddress }: GasDepositCardProps) {
       setAmount('');
       await fetchData();
     } catch (e) {
-      setDepositError(e instanceof Error ? e.message : 'Deposit failed');
+      setDepositError(
+        e instanceof Error ? e.message : t('gasReserve.depositFailed'),
+      );
     } finally {
       setDepositing(false);
     }
@@ -105,7 +124,9 @@ export function GasDepositCard({ vaultAddress }: GasDepositCardProps) {
       setMinInput('');
       await fetchData();
     } catch (e) {
-      setSetMinError(e instanceof Error ? e.message : 'Failed to set minimum');
+      setSetMinError(
+        e instanceof Error ? e.message : t('gasReserve.setMinFailed'),
+      );
     } finally {
       setSettingMin(false);
     }
@@ -118,59 +139,62 @@ export function GasDepositCard({ vaultAddress }: GasDepositCardProps) {
   return (
     <div>
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-base font-semibold tracking-tight">Gas Reserve</h2>
+        <h2 className="text-base font-semibold tracking-tight">
+          {t('gasReserve.heading')}
+        </h2>
         <Button variant="ghost" size="sm" disabled={loading} onClick={fetchData}>
-          {loading ? 'Refreshing…' : 'Refresh'}
+          {loading ? t('common.refreshing') : t('common.refresh')}
         </Button>
       </div>
 
       {loading && !data ? (
-        <p className="text-sm text-muted-foreground">Loading gas reserve…</p>
-      ) : error ? (
+        <p className="text-sm text-muted-foreground">{t('gasReserve.loading')}</p>
+      ) : failed ? (
         <div className="py-8 text-center">
-          <p className="text-sm text-destructive">{error}</p>
+          <p className="text-sm text-destructive">{t('gasReserve.loadFailed')}</p>
           <Button variant="outline" size="sm" className="mt-3" onClick={fetchData}>
-            Retry
+            {t('common.retry')}
           </Button>
         </div>
       ) : data && !data.enabled ? (
         <div className="rounded-md border border-dashed border-border p-6 text-center text-muted-foreground">
-          <p className="text-sm">Gas-Kompensation für diesen Vault deaktiviert (kein Deposit-Token).</p>
+          <p className="text-sm">{t('gasReserve.disabled')}</p>
         </div>
       ) : data && data.token ? (
         <div className="space-y-3">
           {warn && (
             <div className="rounded-md border border-warning-border bg-warning-surface px-3 py-2 text-sm text-warning">
-              Zu geringe Gas-Reserve hinterlegt — externe Executor werden nicht
-              kompensiert und führen deine public Automations daher voraussichtlich
-              nicht aus.
+              {t('gasReserve.warning')}
             </div>
           )}
 
           <div className="rounded-md border border-border p-4">
             <div className="flex items-baseline justify-between">
-              <span className="text-sm text-muted-foreground">Hinterlegte Reserve</span>
+              <span className="text-sm text-muted-foreground">
+                {t('gasReserve.deposited')}
+              </span>
               <span className="font-mono font-medium text-foreground">
-                {format(data.deposited, data.token.decimals)} {data.token.symbol}
+                {formatReserve(fmt, data.deposited, data.token.decimals)} {data.token.symbol}
               </span>
             </div>
             <div className="mt-1 flex items-baseline justify-between">
-              <span className="text-xs text-muted-foreground">Ziel (minFeeDeposit)</span>
+              <span className="text-xs text-muted-foreground">
+                {t('gasReserve.target')}
+              </span>
               <span className="font-mono text-xs text-muted-foreground">
-                {format(data.minFeeDeposit, data.token.decimals)} {data.token.symbol}
+                {formatReserve(fmt, data.minFeeDeposit, data.token.decimals)} {data.token.symbol}
               </span>
             </div>
           </div>
 
           <div className="rounded-md border border-border p-4">
             <label htmlFor="gas-deposit-min" className="mb-1 block text-xs font-medium text-foreground">
-              Mindest-Reserve (minFeeDeposit)
+              {t('gasReserve.minLabel')}
             </label>
             <p className="mb-2 text-xs text-muted-foreground">
-              Auffüllziel der FeeDepositAction. Bei 0 füllt sie die Reserve nicht
-              automatisch auf. Aktuell:{' '}
+              {t('gasReserve.minHint')}{' '}
               <span className="font-mono">
-                {format(data.minFeeDeposit, data.token.decimals)} {data.token.symbol}
+                {formatReserve(fmt, data.minFeeDeposit, data.token.decimals)} {data.token.symbol}
               </span>
             </p>
             <div className="flex gap-2">
@@ -179,7 +203,7 @@ export function GasDepositCard({ vaultAddress }: GasDepositCardProps) {
                 type="text"
                 inputMode="decimal"
                 className="flex-1 rounded border border-input px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-                placeholder={`${format(data.minFeeDeposit, data.token.decimals)} ${data.token.symbol}`}
+                placeholder={`${rawAmount(data.minFeeDeposit, data.token.decimals)} ${data.token.symbol}`}
                 value={minInput}
                 onChange={(e) => setMinInput(e.target.value)}
               />
@@ -193,20 +217,22 @@ export function GasDepositCard({ vaultAddress }: GasDepositCardProps) {
                 }
                 onClick={handleSetMin}
               >
-                {settingMin ? 'Setzen…' : 'Setzen'}
+                {settingMin ? t('gasReserve.settingMin') : t('gasReserve.setMin')}
               </Button>
             </div>
             {setMinError && (
-              <p className="mt-2 text-xs text-destructive">{setMinError}</p>
+              <p className="mt-2 text-xs break-words text-destructive">
+                {setMinError}
+              </p>
             )}
           </div>
 
           <div className="rounded-md border border-border p-4">
             <label htmlFor="gas-deposit-amount" className="mb-1 block text-xs font-medium text-foreground">
-              Fees einzahlen
+              {t('gasReserve.depositLabel')}
             </label>
             <p className="mb-2 text-xs text-muted-foreground">
-              Wird aus der Token-Balance des Vaults entnommen.
+              {t('gasReserve.depositHint')}
             </p>
             <div className="flex gap-2">
               <input
@@ -223,11 +249,13 @@ export function GasDepositCard({ vaultAddress }: GasDepositCardProps) {
                 disabled={depositing || !amount || Number(amount) <= 0}
                 onClick={handleDeposit}
               >
-                {depositing ? 'Einzahlen…' : 'Einzahlen'}
+                {depositing ? t('gasReserve.depositing') : t('gasReserve.depositSubmit')}
               </Button>
             </div>
             {depositError && (
-              <p className="mt-2 text-xs text-destructive">{depositError}</p>
+              <p className="mt-2 text-xs break-words text-destructive">
+                {depositError}
+              </p>
             )}
           </div>
         </div>

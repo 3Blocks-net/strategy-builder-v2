@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
 import { useAccount, useReadContract } from 'wagmi';
 import { type Address, erc20Abi, parseUnits, formatUnits } from 'viem';
@@ -7,7 +8,9 @@ import { AppShell } from '@/components/app-shell';
 import { useAuth } from '@/providers/auth-context';
 import { useCreateVault } from '@/hooks/use-create-vault';
 import { useApproveAndDeposit } from '@/hooks/use-approve-and-deposit';
+import { useFormatters } from '@/i18n';
 import { apiFetch } from '@/lib/api';
+import { txErrorText } from '@/lib/tx-error';
 
 interface AcceptedToken {
   address: string;
@@ -24,6 +27,7 @@ interface FeeRates {
 type WizardStep = 'label' | 'token' | 'fees' | 'create' | 'deposit' | 'done';
 
 export function CreateVaultPage() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { address: userAddress } = useAccount();
   useAuth();
@@ -120,11 +124,11 @@ export function CreateVaultPage() {
     <AppShell>
       <div className="mx-auto w-full max-w-md space-y-6">
         <div>
-          <h1 className="text-lg font-semibold tracking-tight">Create Vault</h1>
+          <h1 className="text-lg font-semibold tracking-tight">
+            {t('vaultCreate.heading')}
+          </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            A vault is a smart contract only you control. We get no admin
-            access to it, and every later allowance is confirmed by you, one
-            by one.
+            {t('vaultCreate.intro')}
           </p>
         </div>
 
@@ -141,8 +145,8 @@ export function CreateVaultPage() {
             tokens={tokens}
             selected={selectedToken}
             userAddress={userAddress}
-            onSelect={(t) => {
-              setSelectedToken(t);
+            onSelect={(token) => {
+              setSelectedToken(token);
               setWizardStep('fees');
             }}
             onBack={() => setWizardStep('label')}
@@ -201,26 +205,28 @@ function StepLabel({
   onChange: (v: string) => void;
   onNext: () => void;
 }) {
+  const { t } = useTranslation();
+
   return (
     <div className="space-y-4">
       <div>
         <label htmlFor="vault-create-label" className="text-sm font-medium">
-          Vault Label (optional)
+          {t('vaultCreate.labelStep.label')}
         </label>
         <input
           id="vault-create-label"
           type="text"
           value={label}
           onChange={(e) => onChange(e.target.value)}
-          placeholder="e.g. My DCA Vault"
+          placeholder={t('vaultCreate.labelStep.placeholder')}
           className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
         />
         <p className="mt-1 text-xs text-muted-foreground">
-          Leave empty for automatic naming (Vault #1, #2, ...)
+          {t('vaultCreate.labelStep.hint')}
         </p>
       </div>
       <Button className="w-full" onClick={onNext}>
-        Next: Select Token
+        {t('vaultCreate.labelStep.next')}
       </Button>
     </div>
   );
@@ -236,14 +242,18 @@ function StepToken({
   tokens: AcceptedToken[];
   selected: AcceptedToken | null;
   userAddress: Address | undefined;
-  onSelect: (t: AcceptedToken) => void;
+  onSelect: (token: AcceptedToken) => void;
   onBack: () => void;
 }) {
+  const { t } = useTranslation();
+
   return (
     <div className="space-y-4">
-      <p className="text-sm font-medium">Select Deposit Token</p>
+      <p className="text-sm font-medium">{t('vaultCreate.tokenStep.heading')}</p>
       {tokens.length === 0 && (
-        <p className="text-sm text-muted-foreground">Loading tokens...</p>
+        <p className="text-sm text-muted-foreground">
+          {t('vaultCreate.tokenStep.loading')}
+        </p>
       )}
       <div className="space-y-2">
         {tokens.map((token) => (
@@ -257,7 +267,7 @@ function StepToken({
         ))}
       </div>
       <Button variant="outline" className="w-full" onClick={onBack}>
-        Back
+        {t('common.back')}
       </Button>
     </div>
   );
@@ -318,34 +328,42 @@ function StepFees({
   onNext: () => void;
   onBack: () => void;
 }) {
+  const { t } = useTranslation();
+  const fmt = useFormatters();
+
   return (
     <div className="space-y-4">
-      <p className="text-sm font-medium">Fee Preview</p>
+      <p className="text-sm font-medium">{t('vaultCreate.feeStep.heading')}</p>
       {selectedToken && (
         <p className="text-sm text-muted-foreground">
-          Token: {selectedToken.symbol} ({selectedToken.name})
+          {t('vaultCreate.feeStep.token', {
+            symbol: selectedToken.symbol,
+            name: selectedToken.name,
+          })}
         </p>
       )}
       {fees ? (
         <div className="space-y-2 rounded-md border border-input p-4">
-          <div className="flex justify-between text-sm">
-            <span>Deposit Fee</span>
-            <span>{(fees.depositFeeBps / 100).toFixed(2)}%</span>
+          <div className="flex justify-between gap-4 text-sm">
+            <span>{t('vaultCreate.feeStep.depositFee')}</span>
+            <span>{fmt.percent(fees.depositFeeBps / 10_000)}</span>
           </div>
-          <div className="flex justify-between text-sm">
-            <span>Withdraw Fee</span>
-            <span>{(fees.withdrawFeeBps / 100).toFixed(2)}%</span>
+          <div className="flex justify-between gap-4 text-sm">
+            <span>{t('vaultCreate.feeStep.withdrawFee')}</span>
+            <span>{fmt.percent(fees.withdrawFeeBps / 10_000)}</span>
           </div>
         </div>
       ) : (
-        <p className="text-sm text-muted-foreground">Loading fees...</p>
+        <p className="text-sm text-muted-foreground">
+          {t('vaultCreate.feeStep.loading')}
+        </p>
       )}
       <div className="flex gap-2">
         <Button variant="outline" className="flex-1" onClick={onBack}>
-          Back
+          {t('common.back')}
         </Button>
         <Button className="flex-1" onClick={onNext}>
-          Next: Create Vault
+          {t('vaultCreate.feeStep.next')}
         </Button>
       </div>
     </div>
@@ -375,6 +393,7 @@ function StepCreate({
   onSubmit: () => void;
   onBack: () => void;
 }) {
+  const { t } = useTranslation();
   const isLoading = ['simulating', 'confirming', 'waiting', 'registering'].includes(
     createState.step,
   );
@@ -387,12 +406,14 @@ function StepCreate({
   return (
     <div className="space-y-4">
       <div className="rounded-md border border-input p-4 space-y-2 text-sm">
-        <div className="flex justify-between">
-          <span>Label</span>
-          <span>{label || 'Auto-assigned'}</span>
+        <div className="flex justify-between gap-4">
+          <span>{t('vaultCreate.createStep.label')}</span>
+          <span className="text-right">
+            {label || t('vaultCreate.createStep.autoAssigned')}
+          </span>
         </div>
-        <div className="flex justify-between">
-          <span>Token</span>
+        <div className="flex justify-between gap-4">
+          <span>{t('vaultCreate.createStep.token')}</span>
           <span>{selectedToken?.symbol}</span>
         </div>
       </div>
@@ -404,7 +425,7 @@ function StepCreate({
             checked={wantDeposit}
             onChange={(e) => setWantDeposit(e.target.checked)}
           />
-          Make initial deposit after creation
+          {t('vaultCreate.createStep.wantDeposit')}
         </label>
 
         {wantDeposit && (
@@ -422,11 +443,14 @@ function StepCreate({
                 size="sm"
                 onClick={() => setDepositAmount(maxAmount)}
               >
-                Max
+                {t('common.max')}
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">
-              Balance: {maxAmount} {selectedToken?.symbol}
+              {t('vaultCreate.createStep.balance', {
+                amount: maxAmount,
+                symbol: selectedToken?.symbol ?? '',
+              })}
             </p>
           </div>
         )}
@@ -434,25 +458,29 @@ function StepCreate({
 
       {createState.step === 'confirming' && (
         <p className="text-sm text-muted-foreground">
-          Please confirm the transaction in your wallet...
+          {t('vaultCreate.createStep.confirming')}
         </p>
       )}
       {createState.step === 'waiting' && (
         <p className="text-sm text-muted-foreground">
-          Waiting for transaction confirmation...
+          {t('vaultCreate.createStep.waiting')}
         </p>
       )}
       {createState.step === 'registering' && (
         <p className="text-sm text-muted-foreground">
-          Registering vault...
+          {t('vaultCreate.createStep.registering')}
         </p>
       )}
-      {createState.error && (
+      {(createState.error || createState.errorCode) && (
         <div className="text-sm text-destructive">
-          <p>{createState.error}</p>
+          <p className="break-words">
+            {txErrorText(t, createState.errorCode, createState.error)}
+          </p>
           {createState.result && (
             <p className="mt-1 text-xs break-all">
-              Vault address: {createState.result.vaultAddress}
+              {t('vaultCreate.createStep.vaultAddress', {
+                address: createState.result.vaultAddress,
+              })}
             </p>
           )}
         </div>
@@ -465,10 +493,12 @@ function StepCreate({
           onClick={onBack}
           disabled={isLoading}
         >
-          Back
+          {t('common.back')}
         </Button>
         <Button className="flex-1" onClick={onSubmit} disabled={isLoading}>
-          {isLoading ? 'Creating...' : 'Create Vault'}
+          {isLoading
+            ? t('vaultCreate.createStep.submitting')
+            : t('vaultCreate.createStep.submit')}
         </Button>
       </div>
     </div>
@@ -484,21 +514,30 @@ function StepDeposit({
   onSubmit: () => void;
   onSkip: () => void;
 }) {
+  const { t } = useTranslation();
   const isLoading = ['checking', 'approving', 'depositing'].includes(deposit.step);
 
   return (
     <div className="space-y-4">
-      <p className="text-sm font-medium">Initial Deposit</p>
+      <p className="text-sm font-medium">{t('vaultCreate.depositStep.heading')}</p>
 
       {deposit.totalSteps > 0 && (
         <p className="text-sm text-muted-foreground">
-          Step {deposit.currentStep}/{deposit.totalSteps}:{' '}
-          {deposit.step === 'approving' ? 'Approving...' : 'Depositing...'}
+          {t('deposit.step', {
+            current: deposit.currentStep,
+            total: deposit.totalSteps,
+            action:
+              deposit.step === 'approving'
+                ? t('deposit.approving')
+                : t('deposit.depositing'),
+          })}
         </p>
       )}
 
-      {deposit.error && (
-        <p className="text-sm text-destructive">{deposit.error}</p>
+      {(deposit.error || deposit.errorCode) && (
+        <p className="text-sm break-words text-destructive">
+          {txErrorText(t, deposit.errorCode, deposit.error)}
+        </p>
       )}
 
       <div className="flex gap-2">
@@ -508,14 +547,16 @@ function StepDeposit({
           onClick={onSkip}
           disabled={isLoading}
         >
-          Skip
+          {t('common.skip')}
         </Button>
         <Button
           className="flex-1"
           onClick={onSubmit}
           disabled={isLoading || deposit.step === 'done'}
         >
-          {isLoading ? 'Processing...' : 'Deposit'}
+          {isLoading
+            ? t('common.processing')
+            : t('vaultCreate.depositStep.submit')}
         </Button>
       </div>
     </div>
@@ -529,16 +570,18 @@ function StepDone({
   vaultAddress: string | undefined;
   onGoToDashboard: () => void;
 }) {
+  const { t } = useTranslation();
+
   return (
     <div className="space-y-4 text-center">
-      <p className="text-lg font-medium">Vault Created!</p>
+      <p className="text-lg font-medium">{t('vaultCreate.doneStep.heading')}</p>
       {vaultAddress && (
         <p className="text-xs text-muted-foreground break-all">
           {vaultAddress}
         </p>
       )}
       <Button className="w-full" onClick={onGoToDashboard}>
-        Go to Dashboard
+        {t('vaultCreate.doneStep.goToDashboard')}
       </Button>
     </div>
   );

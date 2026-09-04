@@ -1,3 +1,5 @@
+import { useTranslation } from 'react-i18next';
+
 /**
  * Status badge for the execution history (PEC-219).
  *
@@ -7,32 +9,32 @@
  */
 export type ExecutionStatus = 'success' | 'failed' | 'resolved';
 
-const STYLES: Record<ExecutionStatus, { label: string; className: string; dot: string }> = {
+const STYLES: Record<ExecutionStatus, { className: string; dot: string }> = {
   success: {
-    label: 'Success',
     className: 'bg-green-100 text-green-700',
     dot: 'bg-green-500',
   },
   failed: {
-    label: 'Failed',
     className: 'bg-red-100 text-red-700',
     dot: 'bg-red-500',
   },
   resolved: {
-    label: 'Resolved',
     className: 'bg-muted text-muted-foreground',
     dot: 'bg-muted-foreground',
   },
 };
 
 export function ExecutionStatusBadge({ status }: { status: ExecutionStatus }) {
-  const s = STYLES[status] ?? STYLES.success;
+  const { t } = useTranslation();
+  const known = status in STYLES ? status : 'success';
+  const style = STYLES[known];
+
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded px-2 py-0.5 text-xs font-medium ${s.className}`}
+      className={`inline-flex items-center gap-1.5 rounded px-2 py-0.5 text-xs font-medium ${style.className}`}
     >
-      <span className={`h-1.5 w-1.5 rounded-full ${s.dot}`} />
-      {s.label}
+      <span className={`h-1.5 w-1.5 rounded-full ${style.dot}`} />
+      {t(`executionStatus.${known}`)}
     </span>
   );
 }

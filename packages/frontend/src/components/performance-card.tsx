@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { useFormatters } from '@/i18n';
 import { apiFetch } from '@/lib/api';
 import { RangeToggle } from '@/components/range-toggle';
 
@@ -10,20 +12,6 @@ interface Performance {
   costsUsd: number;
 }
 
-function formatUsd(value: number): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value);
-}
-
-function formatSignedUsd(value: number): string {
-  const sign = value > 0 ? '+' : '';
-  return `${sign}${formatUsd(value)}`;
-}
-
 export function PerformanceCard({
   address,
   range,
@@ -33,13 +21,15 @@ export function PerformanceCard({
   range: string;
   onRangeChange: (range: string) => void;
 }) {
+  const { t } = useTranslation();
+  const fmt = useFormatters();
   const [data, setData] = useState<Performance | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
-    setError(null);
+    setFailed(false);
     try {
       const res = await apiFetch(
         `/vaults/${address}/performance?range=${range}`,
@@ -47,7 +37,7 @@ export function PerformanceCard({
       if (!res.ok) throw new Error('failed');
       setData(await res.json());
     } catch {
-      setError('Failed to load performance');
+      setFailed(true);
     } finally {
       setLoading(false);
     }
@@ -62,46 +52,54 @@ export function PerformanceCard({
   return (
     <section>
       <div className="flex flex-col gap-2 border-b border-border pb-3 sm:flex-row sm:items-center sm:justify-between">
-        <h2 className="text-base font-semibold tracking-tight">Performance</h2>
+        <h2 className="text-base font-semibold tracking-tight">
+          {t('performance.heading')}
+        </h2>
         <RangeToggle value={range} onChange={onRangeChange} />
       </div>
       <div className="pt-4">
 
       {loading && (
-        <p className="text-sm text-muted-foreground">Loading performance…</p>
+        <p className="text-sm text-muted-foreground">{t('performance.loading')}</p>
       )}
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      {failed && (
+        <p className="text-sm text-destructive">{t('performance.loadFailed')}</p>
+      )}
 
-      {!loading && !error && data && (
+      {!loading && !failed && data && (
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
           <div>
-            <p className="text-xs text-muted-foreground">PnL</p>
+            <p className="text-xs text-muted-foreground">{t('performance.pnl')}</p>
             <p
               className={`text-xl font-semibold ${up ? 'text-positive' : 'text-destructive'}`}
             >
-              {formatSignedUsd(data.pnlAbsUsd)}
+              {fmt.signedUsd(data.pnlAbsUsd)}
             </p>
             <p className={`text-xs ${up ? 'text-positive' : 'text-destructive'}`}>
-              {data.pnlPct == null
-                ? '—'
-                : `${(data.pnlPct * 100).toFixed(2)}%`}
+              {data.pnlPct == null ? '—' : fmt.percent(data.pnlPct)}
             </p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">Current value</p>
+            <p className="text-xs text-muted-foreground">
+              {t('performance.currentValue')}
+            </p>
             <p className="text-xl font-semibold">
-              {formatUsd(data.currentValueUsd)}
+              {fmt.usd(data.currentValueUsd)}
             </p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">Net deposits</p>
+            <p className="text-xs text-muted-foreground">
+              {t('performance.netDeposits')}
+            </p>
             <p className="text-xl font-semibold">
-              {formatUsd(data.netDepositsUsd)}
+              {fmt.usd(data.netDepositsUsd)}
             </p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">Costs (fees + gas)</p>
-            <p className="text-xl font-semibold">{formatUsd(data.costsUsd)}</p>
+            <p className="text-xs text-muted-foreground">
+              {t('performance.costs')}
+            </p>
+            <p className="text-xl font-semibold">{fmt.usd(data.costsUsd)}</p>
           </div>
         </div>
       )}

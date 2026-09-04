@@ -1,3 +1,6 @@
+import { useTranslation } from 'react-i18next';
+import { useFormatters } from '@/i18n';
+
 /**
  * Connection + freshness indicator for the execution history (PEC-219 #07).
  *
@@ -10,26 +13,23 @@ interface Props {
   lastProcessedBlockTimestamp: string | null;
 }
 
-function relativeAge(iso: string | null): string | null {
-  if (!iso) return null;
-  const secs = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000));
-  if (secs < 60) return `${secs}s ago`;
-  if (secs < 3600) return `${Math.floor(secs / 60)}m ago`;
-  return `${Math.floor(secs / 3600)}h ago`;
-}
-
 export function FreshnessIndicator({ connected, lastProcessedBlockTimestamp }: Props) {
-  const age = relativeAge(lastProcessedBlockTimestamp);
+  const { t } = useTranslation();
+  const fmt = useFormatters();
+  const age = lastProcessedBlockTimestamp
+    ? fmt.relativeAge(lastProcessedBlockTimestamp)
+    : null;
+
   return (
     <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
       <span
         className={`h-2 w-2 rounded-full ${
           connected ? 'bg-positive' : 'bg-amber-500'
         }`}
-        title={connected ? 'Live' : 'Reconnecting — polling for updates'}
+        title={connected ? t('freshness.live') : t('freshness.reconnectingHint')}
       />
-      <span>{connected ? 'Live' : 'Reconnecting'}</span>
-      {age && <span>· updated {age}</span>}
+      <span>{connected ? t('freshness.live') : t('freshness.reconnecting')}</span>
+      {age && <span>{t('freshness.updated', { age })}</span>}
     </span>
   );
 }

@@ -1,8 +1,25 @@
 <!doctype html>
+<!-- lang is the English fallback until the app applies the visitor's
+     language (src/i18n/index.ts) -->
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Brand kit symbol as the tab icon. Both links are declared, so no
+         browser falls back to guessing /favicon.ico — that guess is what used
+         to 404. Vite fingerprints both files out of src/assets/brand/.
+         The symbol may stand alone here because the tab also carries the name
+         (see <title>), which is the brand kit's condition for using it. -->
+    <link
+      rel="icon"
+      type="image/svg+xml"
+      href="/src/assets/brand/pecunity-symbol.svg"
+    />
+    <link
+      rel="alternate icon"
+      type="image/x-icon"
+      href="/src/assets/brand/pecunity-favicon.ico"
+    />
     <title>Pecunity</title>
   </head>
   <body>

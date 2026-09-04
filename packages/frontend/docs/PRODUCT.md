@@ -80,9 +80,34 @@ refuses that trade.
   5. One source of truth for fee logic on-chain and off-chain.
 - Architecture invariants (encode boundary, step semantics, self-custody) are
   binding: `CODING_STANDARDS.md`.
-- **Languages: both German and English are planned** for the UI (confirmed
-  2026-08-25). Current code and UI copy are English; rollout order and i18n
-  mechanism are undecided — record decisions here when made.
+- **Languages: the UI ships in German and English** (confirmed 2026-08-25,
+  binding since `CLAUDE.md` / "Sprachen"). Code, comments, file names and
+  database identifiers stay English; finance and DeFi terms (Vault, Deposit
+  Token, Performance Fee, Stop-Loss …) keep their established English form in
+  German copy too.
+  - **Mechanism (decided 2026-09-04): `i18next` + `react-i18next`.** Chosen
+    over hand-rolled context and over `react-intl` because it is the standard
+    React choice with a built-in fallback chain and plural rules, and because
+    its TypeScript integration lets the English catalog type every key: an
+    unknown key fails `tsc`, so a raw `dashboard.heading` can never reach the
+    screen. English is the source catalog; German is an overlay that may be
+    incomplete, and a missing German phrase falls back to the English one.
+  - **Starting language and persistence:** the browser's preferred languages
+    decide on a first visit; the visitor's own choice is stored under
+    `pecunity.language` and wins from then on, including after a reload.
+    `<html lang>` follows the active language.
+  - **Number, currency and date formatting follows the UI language**
+    (decided 2026-09-04). Whoever picks German reads `1.234,56 $` and
+    `15. Mai 2026`; the counter-argument (crypto amounts are often passed
+    around in English notation) applies to machine-readable values, not to
+    displayed ones — so addresses, transaction hashes, raw on-chain amounts
+    and the values an input field expects back are deliberately *not*
+    localized. Every displayed figure goes through one place,
+    `src/i18n/formatting.ts` (`useFormatters()`); no component formats with a
+    hard-coded locale.
+  - **Rollout:** the mechanism plus the dashboard are bilingual; the remaining
+    pages are translated in a follow-up (issue #17), the graph editor with
+    milestone M5.
 - Next planned work package: `docs/prd/absicherungs-paket.md` (12 stories,
   protection features; approved, not yet built).
 
@@ -97,8 +122,11 @@ refuses that trade.
 - Logo: five variants (Symbol, Logo Light/Dark, Mono Light/Dark) downloadable
   from the brand kit. Clear space ≥ height of the "P" on all sides; never
   stretch, rotate, or recolor; contrasting backgrounds only.
-- Logo assets are **not yet vendored into this repo** — download from the
-  brand kit before first use in the UI.
+- Logo assets are vendored in `src/assets/brand/` (all five variants plus the
+  brand owner's `favicon.ico`), with source URLs, usage rules and the
+  clear-space measurement in that folder's `README.md`. They are trademark
+  files: replace them only by re-downloading from the brand kit, never by
+  redrawing, tracing or re-exporting.
 - Standing visual preference (chosen 2026-08-25): **category-standard fintech
   execution** — no experimental visual world; conventional broker-app design
   language at full craft. The craft bar is **Trade Republic and Robinhood**:

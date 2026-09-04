@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { useFormatters } from '@/i18n';
 import { apiFetch } from '@/lib/api';
 import { RangeToggle } from '@/components/range-toggle';
 
@@ -20,21 +22,17 @@ interface ValueHistory {
   historyStartsAt: string | null;
 }
 
+/** One dashed deposit/withdraw marker, positioned on the chart's x axis. */
+interface MarkerDot {
+  key: string;
+  x: number;
+  color: string;
+  title: string;
+}
+
 const W = 600;
 const H = 160;
 const PAD = 8;
-
-function formatUsd(v: number): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    maximumFractionDigits: 0,
-  }).format(v);
-}
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString();
-}
 
 export function ValueHistoryChart({
   address,
@@ -45,13 +43,15 @@ export function ValueHistoryChart({
   range: string;
   onRangeChange: (range: string) => void;
 }) {
+  const { t } = useTranslation();
+  const fmt = useFormatters();
   const [data, setData] = useState<ValueHistory | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
-    setError(null);
+    setFailed(false);
     try {
       const res = await apiFetch(
         `/vaults/${address}/value-history?range=${range}`,
@@ -59,7 +59,7 @@ export function ValueHistoryChart({
       if (!res.ok) throw new Error('failed');
       setData(await res.json());
     } catch {
-      setError('Failed to load value history');
+      setFailed(true);
     } finally {
       setLoading(false);
     }
@@ -75,7 +75,7 @@ export function ValueHistoryChart({
   // Map points → SVG coordinates.
   let path = '';
   let areaPath = '';
-  let markerDots: { key: string; x: number; color: string; title: string }[] = [];
+  let markerDots: MarkerDot[] = [];
   if (hasCurve) {
     const times = points.map((p) => new Date(p.t).getTime());
     const values = points.map((p) => p.valueUsd);
@@ -94,48 +94,63 @@ export function ValueHistoryChart({
     areaPath = `${path} L${x(maxT)},${H - PAD} L${x(minT)},${H - PAD} Z`;
 
     markerDots = (data?.markers ?? [])
-      .map((m, i) => {
-        const t = new Date(m.t).getTime();
-        if (t < minT || t > maxT) return null;
+      .map((m, i): MarkerDot | null => {
+        const at = new Date(m.t).getTime();
+        if (at < minT || at > maxT) return null;
         return {
           // Marker-Zeitstempel sind nicht eindeutig (Deposit+Withdraw im selben
           // Block) — Index als Tie-Breaker gegen doppelte React-Keys.
-          key: `${t}-${m.type}-${i}`,
-          x: x(t),
+          key: `${at}-${m.type}-${i}`,
+          x: x(at),
           color: m.type === 'DEPOSIT' ? '#1e7f4f' : '#c2402a',
-          title: `${m.type} ${m.amountUsd != null ? formatUsd(m.amountUsd) : ''} @ ${formatDate(m.t)}`,
+          title: t('valueHistory.marker', {
+            type:
+              m.type === 'DEPOSIT'
+                ? t('valueHistory.legendDeposit')
+                : t('valueHistory.legendWithdraw'),
+            amount:
+              m.amountUsd != null
+                ? fmt.usd(m.amountUsd, {
+                    minimumFractionDigits: 0,
+                    maximumFractionDigits: 0,
+                  })
+                : '',
+            date: fmt.date(m.t),
+          }),
         };
       })
-      .filter((d): d is { key: string; x: number; color: string; title: string } => d != null);
+      .filter((d): d is MarkerDot => d != null);
   }
 
   return (
     <section>
       <div className="flex flex-col gap-2 border-b border-border pb-3 sm:flex-row sm:items-center sm:justify-between">
-        <h2 className="text-base font-semibold tracking-tight">Value history</h2>
+        <h2 className="text-base font-semibold tracking-tight">
+          {t('valueHistory.heading')}
+        </h2>
         <RangeToggle value={range} onChange={onRangeChange} />
       </div>
       <div className="pt-4">
 
       {loading && (
-        <p className="text-sm text-muted-foreground">Loading history…</p>
+        <p className="text-sm text-muted-foreground">{t('valueHistory.loading')}</p>
       )}
-      {error && <p className="text-sm text-destructive">{error}</p>}
-
-      {!loading && !error && !hasCurve && (
-        <p className="text-sm text-muted-foreground">
-          Not enough history yet — snapshots are still being collected.
-        </p>
+      {failed && (
+        <p className="text-sm text-destructive">{t('valueHistory.loadFailed')}</p>
       )}
 
-      {!loading && !error && hasCurve && (
+      {!loading && !failed && !hasCurve && (
+        <p className="text-sm text-muted-foreground">{t('valueHistory.empty')}</p>
+      )}
+
+      {!loading && !failed && hasCurve && (
         <>
           <svg
             viewBox={`0 0 ${W} ${H}`}
             className="h-40 w-full"
             preserveAspectRatio="none"
           >
-            <title>Value history chart</title>
+            <title>{t('valueHistory.chartTitle')}</title>
             <defs>
               <linearGradient id="value-history-fill" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0" stopColor="#4568d0" stopOpacity="0.14" />
@@ -171,15 +186,17 @@ export function ValueHistoryChart({
             <span className="flex items-center gap-3">
               <span className="flex items-center gap-1.5">
                 <span className="h-2 w-2 rounded-full bg-positive" aria-hidden />
-                deposit
+                {t('valueHistory.legendDeposit')}
               </span>
               <span className="flex items-center gap-1.5">
                 <span className="h-2 w-2 rounded-full bg-destructive" aria-hidden />
-                withdraw
+                {t('valueHistory.legendWithdraw')}
               </span>
             </span>
             {data?.historyStartsAt && (
-              <span>History since {formatDate(data.historyStartsAt)}</span>
+              <span>
+                {t('valueHistory.since', { date: fmt.date(data.historyStartsAt) })}
+              </span>
             )}
           </div>
         </>

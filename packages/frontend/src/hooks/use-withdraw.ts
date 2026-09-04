@@ -2,12 +2,14 @@ import { useState, useCallback } from 'react';
 import { usePublicClient, useWriteContract } from 'wagmi';
 import { type Address } from 'viem';
 import { StrategyBuilderVaultAbi } from '@/lib/abis';
+import type { TxErrorCode } from '@/lib/tx-error';
 
 type WithdrawStep = 'idle' | 'confirming' | 'waiting' | 'done' | 'error';
 
 export function useWithdraw() {
   const [step, setStep] = useState<WithdrawStep>('idle');
   const [error, setError] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState<TxErrorCode | null>(null);
 
   const { writeContractAsync } = useWriteContract();
   const publicClient = usePublicClient();
@@ -20,6 +22,7 @@ export function useWithdraw() {
       recipient: Address;
     }) => {
       setError(null);
+      setErrorCode(null);
       setStep('confirming');
 
       try {
@@ -37,8 +40,8 @@ export function useWithdraw() {
         setStep('done');
         return true;
       } catch (e) {
-        const msg = e instanceof Error ? e.message : 'Transaction failed';
-        setError(msg);
+        if (e instanceof Error) setError(e.message);
+        else setErrorCode('transaction-failed');
         setStep('error');
         return false;
       }
@@ -49,7 +52,8 @@ export function useWithdraw() {
   const reset = useCallback(() => {
     setStep('idle');
     setError(null);
+    setErrorCode(null);
   }, []);
 
-  return { withdraw, step, error, reset };
+  return { withdraw, step, error, errorCode, reset };
 }

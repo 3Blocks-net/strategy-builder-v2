@@ -1,7 +1,9 @@
-import { render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
 import { DiscoveryPage } from './discovery';
+import { en } from '@/i18n/locales/en';
+import { setLanguage } from '@/i18n';
 import { strategyExamples } from '@/lib/discovery-fixtures';
 
 function renderPage() {
@@ -11,6 +13,19 @@ function renderPage() {
     </MemoryRouter>,
   );
 }
+
+/** Clicking a language reloads the catalog — let React settle before asserting. */
+async function chooseLanguage(name: string) {
+  await act(async () => {
+    fireEvent.click(screen.getByRole('button', { name }));
+  });
+}
+
+afterEach(async () => {
+  cleanup();
+  window.localStorage.clear();
+  await setLanguage('en');
+});
 
 describe('DiscoveryPage', () => {
   it('leads with the offer and a launch action into the app', () => {
@@ -28,7 +43,7 @@ describe('DiscoveryPage', () => {
   it('shows every strategy example from the catalog fixtures', () => {
     renderPage();
     for (const s of strategyExamples) {
-      expect(screen.getByText(s.name)).toBeInTheDocument();
+      expect(screen.getByText(en.discovery.examples[s.id].name)).toBeInTheDocument();
     }
   });
 
@@ -51,5 +66,46 @@ describe('DiscoveryPage', () => {
       'href',
       'https://docs.octodefi.com',
     );
+  });
+});
+
+describe('DiscoveryPage in German', () => {
+  it('translates the shop window without translating the finance terms', async () => {
+    renderPage();
+    expect(
+      screen.getByRole('heading', { level: 2, name: 'How it works' }),
+    ).toBeInTheDocument();
+
+    await chooseLanguage('Deutsch');
+
+    expect(
+      screen.getByRole('heading', {
+        level: 1,
+        name: 'DeFi, das sich anfühlt wie ein Broker.',
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { level: 2, name: 'So funktioniert es' }),
+    ).toBeInTheDocument();
+    // Named strategies and terms stay as they are …
+    expect(screen.getByText('Wick-Wait Range Rebalance')).toBeInTheDocument();
+    expect(screen.getByText('Swap auf Range-Ratio')).toBeInTheDocument();
+    expect(screen.getAllByText('Liquidity Pool').length).toBeGreaterThan(0);
+    // … while the ordinary copy around them is German.
+    expect(
+      screen.getByRole('heading', { level: 2, name: 'Märkte' }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Beispielhafte Auswahl')).toBeInTheDocument();
+  });
+
+  it('still keeps the sample data visibly labeled and promises nothing', async () => {
+    renderPage();
+    await chooseLanguage('Deutsch');
+
+    expect(screen.getByText(/keine Yield-Versprechen/)).toBeInTheDocument();
+    const percents = screen.queryAllByText(/\d+(\.\d+)?\s?%/);
+    for (const el of percents) {
+      expect(el.textContent).toMatch(/PancakeSwap V3/);
+    }
   });
 });

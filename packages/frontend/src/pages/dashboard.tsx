@@ -1,8 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
 import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { AppShell } from '@/components/app-shell';
+import { useFormatters, type Formatters } from '@/i18n';
 import { apiFetch } from '@/lib/api';
 
 interface VaultOverview {
@@ -14,39 +16,24 @@ interface VaultOverview {
   createdAt: string;
 }
 
-function formatUsd(value: number): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value);
-}
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  });
-}
-
 export function DashboardPage() {
+  const { t } = useTranslation();
+  const fmt = useFormatters();
   const navigate = useNavigate();
   const [vaults, setVaults] = useState<VaultOverview[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
 
   const fetchVaults = useCallback(async () => {
     setLoading(true);
-    setError(null);
+    setFailed(false);
     try {
       const res = await apiFetch('/vaults/overview');
-      if (!res.ok) throw new Error('Failed to load vaults');
+      if (!res.ok) throw new Error('request failed');
       const data = await res.json();
       setVaults(data.vaults ?? []);
     } catch {
-      setError('Failed to load vaults');
+      setFailed(true);
     } finally {
       setLoading(false);
     }
@@ -62,66 +49,68 @@ export function DashboardPage() {
     <AppShell
       band={
         <div>
-          <p className="text-sm text-on-band-sub">Portfolio value</p>
+          <p className="text-sm text-on-band-sub">{t('dashboard.portfolioValue')}</p>
           {loading ? (
             <div className="mt-2 h-10 w-56 animate-pulse rounded-md bg-on-band-line" />
           ) : (
             <p className="mt-1 text-5xl font-semibold tracking-tight">
-              {error ? '—' : formatUsd(totalUsd)}
+              {failed ? '—' : fmt.usd(totalUsd)}
             </p>
           )}
           <p className="mt-2 text-sm text-on-band-sub">
-            {error
-              ? 'Portfolio value unavailable right now'
+            {failed
+              ? t('dashboard.portfolioUnavailable')
               : loading
-                ? 'Loading your vaults…'
+                ? t('dashboard.loadingVaults')
                 : vaults.length === 0
-                  ? 'No vaults yet · BSC'
-                  : `Across ${vaults.length} ${vaults.length === 1 ? 'vault' : 'vaults'} · BSC`}
+                  ? t('dashboard.noVaultsYet')
+                  : t('dashboard.acrossVaults', { count: vaults.length })}
           </p>
         </div>
       }
     >
       <div className="flex items-baseline justify-between border-b border-border pb-4">
-        <h1 className="text-lg font-semibold tracking-tight">Your Vaults</h1>
+        <h1 className="text-lg font-semibold tracking-tight">
+          {t('dashboard.heading')}
+        </h1>
         <Button size="sm" onClick={() => navigate('/vault/create')}>
           <Plus className="h-4 w-4" aria-hidden />
-          Create Vault
+          {t('dashboard.createVault')}
         </Button>
       </div>
 
       {loading && <VaultTableSkeleton />}
 
-      {error && (
-        <div className="py-12 text-center">
-          <p className="text-sm text-destructive">{error}</p>
-          <Button
-            variant="outline"
-            size="sm"
-            className="mt-3"
-            onClick={fetchVaults}
-          >
-            Retry
+      {failed && (
+        <div className="py-16 text-center">
+          <p className="font-medium text-destructive">
+            {t('dashboard.loadFailedTitle')}
+          </p>
+          <p className="mx-auto mt-2 max-w-sm text-sm text-muted-foreground">
+            {t('dashboard.loadFailedBody')}
+          </p>
+          <Button variant="outline" className="mt-6" onClick={fetchVaults}>
+            {t('dashboard.retry')}
           </Button>
         </div>
       )}
 
-      {!loading && !error && vaults.length === 0 && (
+      {!loading && !failed && vaults.length === 0 && (
         <div className="py-16 text-center">
-          <p className="font-medium">You don't have any vaults yet.</p>
+          <p className="font-medium">{t('dashboard.emptyTitle')}</p>
           <p className="mx-auto mt-2 max-w-sm text-sm text-muted-foreground">
-            A vault is a smart contract only you control — your strategies and
-            funds live there, never with us.
+            {t('dashboard.emptyBody')}
           </p>
           <Button className="mt-6" onClick={() => navigate('/vault/create')}>
-            Create Your First Vault
+            {t('dashboard.createFirstVault')}
           </Button>
         </div>
       )}
 
-      {!loading && !error && vaults.length > 0 && (
+      {!loading && !failed && vaults.length > 0 && (
         <VaultTable
           vaults={vaults}
+          fmt={fmt}
           onRowClick={(addr) => navigate(`/vault/${addr}`)}
         />
       )}
@@ -131,22 +120,30 @@ export function DashboardPage() {
 
 function VaultTable({
   vaults,
+  fmt,
   onRowClick,
 }: {
   vaults: VaultOverview[];
+  fmt: Formatters;
   onRowClick: (address: string) => void;
 }) {
+  const { t } = useTranslation();
+
   return (
     <table className="w-full text-sm">
       <thead>
         <tr className="border-b border-border text-xs text-muted-foreground">
-          <th className="py-3 pr-4 text-left font-medium">Label</th>
-          <th className="hidden px-4 py-3 text-left font-medium md:table-cell">
-            Deposit Token
+          <th className="py-3 pr-4 text-left font-medium">
+            {t('dashboard.table.label')}
           </th>
-          <th className="px-4 py-3 text-right font-medium">Total Value (USD)</th>
+          <th className="hidden px-4 py-3 text-left font-medium md:table-cell">
+            {t('dashboard.table.depositToken')}
+          </th>
+          <th className="px-4 py-3 text-right font-medium">
+            {t('dashboard.table.totalValueUsd')}
+          </th>
           <th className="hidden py-3 pl-4 text-right font-medium md:table-cell">
-            Created
+            {t('dashboard.table.created')}
           </th>
         </tr>
       </thead>
@@ -162,10 +159,10 @@ function VaultTable({
               {vault.depositToken.slice(0, 6)}…{vault.depositToken.slice(-4)}
             </td>
             <td className="px-4 py-4 text-right font-semibold">
-              {formatUsd(vault.totalValueUsd)}
+              {fmt.usd(vault.totalValueUsd)}
             </td>
             <td className="hidden py-4 pl-4 text-right text-muted-foreground md:table-cell">
-              {formatDate(vault.createdAt)}
+              {fmt.date(vault.createdAt)}
             </td>
           </tr>
         ))}

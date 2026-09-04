@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { Button } from '@/components/ui/button';
+import { useFormatters, type Formatters } from '@/i18n';
 import { apiFetch } from '@/lib/api';
 
 interface PositionLeg {
@@ -32,48 +35,81 @@ interface ValuedVault {
   source?: 'snapshot' | 'live';
 }
 
-const PROTOCOL_LABELS: Record<string, string> = {
-  idle: 'Idle / unallocated',
-  'gas-reserve': 'Gas reserve',
+/**
+ * Protocol names are proper names and stay as they are; only the two
+ * house-made groups have copy that a reader expects in their language.
+ */
+const PROTOCOL_NAMES: Record<string, string> = {
   'aave-v3': 'Aave V3',
   'pancakeswap-v3': 'PancakeSwap V3',
 };
 
-function formatUsd(value: number | null): string {
-  if (value == null) return '—';
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value);
+function protocolLabel(t: TFunction, protocol: string): string {
+  if (protocol === 'idle') return t('positions.protocol.idle');
+  if (protocol === 'gas-reserve') return t('positions.protocol.gas-reserve');
+  return PROTOCOL_NAMES[protocol] ?? protocol;
 }
 
-function formatAmount(amount: string, decimals: number): string {
+function formatUsd(fmt: Formatters, value: number | null): string {
+  if (value == null) return '—';
+  return fmt.usd(value);
+}
+
+function formatAmount(fmt: Formatters, amount: string, decimals: number): string {
   const num = Number(amount) / 10 ** decimals;
   if (num === 0) return '0';
   if (num < 0.001) return '<0.001';
-  return new Intl.NumberFormat('en-US', { maximumFractionDigits: 4 }).format(num);
+  return fmt.number(num, { maximumFractionDigits: 4 });
 }
 
-function formatMetrics(p: ValuedPosition): string | null {
+function formatMetrics(
+  t: TFunction,
+  fmt: Formatters,
+  p: ValuedPosition,
+): string | null {
   const m = p.metrics;
   if (!m) return null;
   const parts: string[] = [];
   if ('healthFactor' in m) {
     const hf = m.healthFactor as number | null;
-    parts.push(`Health factor ${hf == null ? '∞' : hf.toFixed(2)}`);
+    parts.push(
+      t('positions.metrics.healthFactor', {
+        value:
+          hf == null
+            ? '∞'
+            : fmt.number(hf, {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              }),
+      }),
+    );
   }
   if (typeof m.supplyApy === 'number')
-    parts.push(`APY ${(m.supplyApy * 100).toFixed(2)}%`);
+    parts.push(t('positions.metrics.supplyApy', { value: fmt.percent(m.supplyApy) }));
   if (typeof m.borrowApy === 'number')
-    parts.push(`Borrow APY ${(m.borrowApy * 100).toFixed(2)}%`);
-  if ('inRange' in m) parts.push(m.inRange ? 'In range' : 'Out of range');
-  if (typeof m.feeTier === 'number') parts.push(`${m.feeTier / 10000}% pool`);
+    parts.push(t('positions.metrics.borrowApy', { value: fmt.percent(m.borrowApy) }));
+  if ('inRange' in m)
+    parts.push(
+      m.inRange
+        ? t('positions.metrics.inRange')
+        : t('positions.metrics.outOfRange'),
+    );
+  if (typeof m.feeTier === 'number')
+    parts.push(
+      t('positions.metrics.feeTier', {
+        value: fmt.percent(m.feeTier / 1_000_000, { minimumFractionDigits: 0 }),
+      }),
+    );
   if (typeof m.uncollectedUsd === 'number')
-    parts.push(`Unclaimed fees ${formatUsd(m.uncollectedUsd)}`);
+    parts.push(
+      t('positions.metrics.uncollected', {
+        value: formatUsd(fmt, m.uncollectedUsd),
+      }),
+    );
   if (typeof p.earningsUsd === 'number')
-    parts.push(`Earnings ${formatUsd(p.earningsUsd)}`);
+    parts.push(
+      t('positions.metrics.earnings', { value: formatUsd(fmt, p.earningsUsd) }),
+    );
   return parts.length ? parts.join(' · ') : null;
 }
 
@@ -83,7 +119,11 @@ function formatMetrics(p: ValuedPosition): string | null {
  * with decimals/symbol. Price(token1 per token0) = 1.0001^tick · 10^(dec0−dec1);
  * inverted for readability when below 1 so the number stays legible.
  */
-function lpRangeLine(p: ValuedPosition): string | null {
+function lpRangeLine(
+  t: TFunction,
+  fmt: Formatters,
+  p: ValuedPosition,
+): string | null {
   const m = p.metrics;
   if (!m || typeof m.tickLower !== 'number' || typeof m.tickUpper !== 'number') {
     return null;
@@ -105,30 +145,30 @@ function lpRangeLine(p: ValuedPosition): string | null {
     base = t1.symbol;
     quote = t0.symbol;
   }
-  const fmt = (x: number) =>
-    new Intl.NumberFormat('en-US', { maximumSignificantDigits: 6 }).format(x);
-  return `Range ${fmt(lo)}–${fmt(hi)} ${quote}/${base} · ticks [${tl}, ${tu}]`;
-}
-
-function relativeAge(iso: string | null): string {
-  if (!iso) return '';
-  const secs = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000));
-  if (secs < 60) return `${secs}s ago`;
-  if (secs < 3600) return `${Math.floor(secs / 60)}m ago`;
-  return `${Math.floor(secs / 3600)}h ago`;
+  const price = (x: number) => fmt.number(x, { maximumSignificantDigits: 6 });
+  return t('positions.metrics.range', {
+    low: price(lo),
+    high: price(hi),
+    quote,
+    base,
+    tickLower: tl,
+    tickUpper: tu,
+  });
 }
 
 export function CockpitPositionsPanel({ address }: { address: string }) {
+  const { t } = useTranslation();
+  const fmt = useFormatters();
   const [data, setData] = useState<ValuedVault | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
 
   const load = useCallback(
     async (refresh = false) => {
       if (refresh) setRefreshing(true);
       else setLoading(true);
-      setError(null);
+      setFailed(false);
       try {
         const res = await apiFetch(
           `/vaults/${address}/positions${refresh ? '?refresh=1' : ''}`,
@@ -136,7 +176,7 @@ export function CockpitPositionsPanel({ address }: { address: string }) {
         if (!res.ok) throw new Error('failed');
         setData(await res.json());
       } catch {
-        setError('Failed to load positions');
+        setFailed(true);
       } finally {
         setLoading(false);
         setRefreshing(false);
@@ -170,18 +210,21 @@ export function CockpitPositionsPanel({ address }: { address: string }) {
 
   return (
     <div className="rounded-lg border border-border p-4">
-      <div className="mb-3 flex items-center justify-between">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <div>
-          <h2 className="text-base font-semibold tracking-tight">Protocol Positions</h2>
+          <h2 className="text-base font-semibold tracking-tight">
+            {t('positions.heading')}
+          </h2>
           {data && (
-            <p className="text-2xl font-bold">{formatUsd(data.totalValueUsd)}</p>
+            <p className="text-2xl font-bold">{formatUsd(fmt, data.totalValueUsd)}</p>
           )}
         </div>
         <div className="flex items-center gap-3">
           {data && (
             <span className="text-xs text-muted-foreground">
-              {data.source === 'live' ? 'Live · ' : ''}updated{' '}
-              {relativeAge(data.asOf)}
+              {t(data.source === 'live' ? 'positions.asOfLive' : 'positions.asOf', {
+                age: fmt.relativeAge(data.asOf),
+              })}
             </span>
           )}
           <Button
@@ -190,26 +233,28 @@ export function CockpitPositionsPanel({ address }: { address: string }) {
             onClick={() => load(true)}
             disabled={refreshing || loading}
           >
-            {refreshing ? 'Refreshing…' : 'Refresh'}
+            {refreshing ? t('common.refreshing') : t('common.refresh')}
           </Button>
         </div>
       </div>
 
-      {loading && <p className="text-sm text-muted-foreground">Loading positions…</p>}
-      {error && <p className="text-sm text-destructive">{error}</p>}
-
-      {!loading && !error && isEmpty && (
-        <p className="text-sm text-muted-foreground">
-          No positions yet. Deposit funds or deploy an automation to get started.
-        </p>
+      {loading && (
+        <p className="text-sm text-muted-foreground">{t('positions.loading')}</p>
+      )}
+      {failed && (
+        <p className="text-sm text-destructive">{t('positions.loadFailed')}</p>
       )}
 
-      {!loading && !error && !isEmpty && (
+      {!loading && !failed && isEmpty && (
+        <p className="text-sm text-muted-foreground">{t('positions.empty')}</p>
+      )}
+
+      {!loading && !failed && !isEmpty && (
         <div className="space-y-4">
           {groupKeys.map((proto) => (
             <div key={proto}>
               <h3 className="mb-1 text-sm font-medium text-muted-foreground">
-                {PROTOCOL_LABELS[proto] ?? proto}
+                {protocolLabel(t, proto)}
               </h3>
               <div className="space-y-1">
                 {groups[proto].map((p) =>
@@ -232,20 +277,20 @@ export function CockpitPositionsPanel({ address }: { address: string }) {
                           <span className="font-medium">{p.label}</span>
                           {p.legs.map((leg) => (
                             <span key={`${leg.token}-${leg.isDebt ? 'debt' : 'supply'}`} className="ml-2 text-muted-foreground">
-                              {formatAmount(leg.amount, leg.decimals)}{' '}
+                              {formatAmount(fmt, leg.amount, leg.decimals)}{' '}
                               {leg.symbol}
-                              {leg.isDebt ? ' (debt)' : ''}
+                              {leg.isDebt ? ` ${t('positions.debtSuffix')}` : ''}
                             </span>
                           ))}
                         </div>
-                        {formatMetrics(p) && (
+                        {formatMetrics(t, fmt, p) && (
                           <div className="text-xs text-muted-foreground">
-                            {formatMetrics(p)}
+                            {formatMetrics(t, fmt, p)}
                           </div>
                         )}
-                        {lpRangeLine(p) && (
+                        {lpRangeLine(t, fmt, p) && (
                           <div className="text-xs text-muted-foreground">
-                            {lpRangeLine(p)}
+                            {lpRangeLine(t, fmt, p)}
                           </div>
                         )}
                       </div>
@@ -254,7 +299,7 @@ export function CockpitPositionsPanel({ address }: { address: string }) {
                           (p.valueUsd ?? 0) < 0 ? 'text-destructive' : ''
                         }
                       >
-                        {p.kind === 'summary' ? '' : formatUsd(p.valueUsd)}
+                        {p.kind === 'summary' ? '' : formatUsd(fmt, p.valueUsd)}
                       </span>
                     </div>
                   ),

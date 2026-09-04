@@ -3,6 +3,7 @@ import { useWriteContract } from 'wagmi';
 import { keccak256, encodePacked, type Address, type Log } from 'viem';
 import { StrategyBuilderVaultFactoryAbi } from '@/lib/abis';
 import { apiFetch } from '@/lib/api';
+import type { TxErrorCode } from '@/lib/tx-error';
 import { waitForReceipt } from '@/lib/wait-for-receipt';
 
 const FACTORY_ADDRESS = import.meta.env
@@ -76,6 +77,7 @@ export function useCreateVault() {
     'idle' | 'simulating' | 'confirming' | 'waiting' | 'registering' | 'done' | 'error'
   >('idle');
   const [error, setError] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState<TxErrorCode | null>(null);
   const [result, setResult] = useState<CreateVaultResult | null>(null);
 
   const { writeContractAsync } = useWriteContract();
@@ -83,13 +85,14 @@ export function useCreateVault() {
   const createVault = useCallback(
     async (params: CreateVaultParams, userAddress: Address) => {
       if (!FACTORY_ADDRESS) {
-        setError('Factory address not configured');
+        setErrorCode('factory-missing');
         setStep('error');
         return null;
       }
 
       setStep('simulating');
       setError(null);
+      setErrorCode(null);
 
       try {
         const salt = generateSalt();
@@ -107,14 +110,14 @@ export function useCreateVault() {
 
         const receipt = await waitForReceipt(txHash);
         if (!receipt) {
-          setError('Transaction failed');
+          setErrorCode('transaction-failed');
           setStep('error');
           return null;
         }
 
         const vaultAddress = parseVaultCreatedEvent(receipt.logs);
         if (!vaultAddress) {
-          setError('Could not parse vault address from transaction');
+          setErrorCode('vault-address-unparsable');
           setStep('error');
           return null;
         }
@@ -134,8 +137,8 @@ export function useCreateVault() {
         setStep('done');
         return createResult;
       } catch (e) {
-        const msg = e instanceof Error ? e.message : 'Transaction failed';
-        setError(msg);
+        if (e instanceof Error) setError(e.message);
+        else setErrorCode('transaction-failed');
         setStep('error');
         return null;
       }
@@ -146,8 +149,9 @@ export function useCreateVault() {
   const reset = useCallback(() => {
     setStep('idle');
     setError(null);
+    setErrorCode(null);
     setResult(null);
   }, []);
 
-  return { createVault, step, error, result, reset };
+  return { createVault, step, error, errorCode, result, reset };
 }

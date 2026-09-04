@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { apiFetch } from '@/lib/api';
 
@@ -26,8 +27,8 @@ interface ContextViewProps {
  * human-readable string based on the slot's declared type. Falls back to the
  * raw hex when the value can't be interpreted.
  */
-function decodeValue(hex: string, type: string): string {
-  if (!hex || hex === '0x') return '∅ empty';
+function decodeValue(hex: string, type: string, emptyLabel: string): string {
+  if (!hex || hex === '0x') return emptyLabel;
   try {
     if (type === 'address') return '0x' + hex.slice(-40);
     if (type === 'bool') return BigInt(hex) === 0n ? 'false' : 'true';
@@ -46,19 +47,20 @@ function truncateHex(hex: string): string {
 }
 
 export function ContextView({ vaultAddress }: ContextViewProps) {
+  const { t } = useTranslation();
   const [data, setData] = useState<ContextSlotsResponse | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
 
   const fetchContext = useCallback(async () => {
     setLoading(true);
-    setError(null);
+    setFailed(false);
     try {
       const res = await apiFetch(`/vaults/${vaultAddress}/context-slots`);
       if (!res.ok) throw new Error('Failed to load context');
       setData(await res.json());
     } catch {
-      setError('Failed to load context');
+      setFailed(true);
     } finally {
       setLoading(false);
     }
@@ -77,56 +79,64 @@ export function ContextView({ vaultAddress }: ContextViewProps) {
   return (
     <div>
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-base font-semibold tracking-tight">Context</h2>
+        <h2 className="text-base font-semibold tracking-tight">
+          {t('context.heading')}
+        </h2>
         <Button
           variant="ghost"
           size="sm"
           disabled={loading}
           onClick={fetchContext}
         >
-          {loading ? 'Refreshing…' : 'Refresh'}
+          {loading ? t('common.refreshing') : t('common.refresh')}
         </Button>
       </div>
 
       {data?.syncWarning && (
         <div className="mb-3 rounded-md border border-warning-border bg-warning-surface px-3 py-2 text-xs text-warning">
-          Out of sync: the on-chain context has {data.contextLength} slot
-          {data.contextLength === 1 ? '' : 's'}, but {data.dbSlotCount}{' '}
-          {data.dbSlotCount === 1 ? 'is' : 'are'} defined in the editor.
+          {t('context.outOfSync', {
+            onChain: data.contextLength,
+            inEditor: data.dbSlotCount,
+          })}
         </div>
       )}
 
       {loading && !data ? (
-        <p className="text-sm text-muted-foreground">Loading context…</p>
-      ) : error ? (
+        <p className="text-sm text-muted-foreground">{t('context.loading')}</p>
+      ) : failed ? (
         <div className="py-8 text-center">
-          <p className="text-sm text-destructive">{error}</p>
+          <p className="text-sm text-destructive">{t('context.loadFailed')}</p>
           <Button
             variant="outline"
             size="sm"
             className="mt-3"
             onClick={fetchContext}
           >
-            Retry
+            {t('common.retry')}
           </Button>
         </div>
       ) : slots.length === 0 ? (
         <div className="rounded-md border border-dashed p-8 text-center text-muted-foreground">
-          <p className="text-sm">This vault has no context slots.</p>
-          <p className="mt-1 text-xs">
-            Context slots are defined by automations that read or write shared
-            variables.
-          </p>
+          <p className="text-sm">{t('context.emptyTitle')}</p>
+          <p className="mt-1 text-xs">{t('context.emptyBody')}</p>
         </div>
       ) : (
         <div className="overflow-hidden rounded-md border border-border">
           <table className="w-full text-sm">
             <thead className="border-b border-border bg-muted/50">
               <tr>
-                <th className="px-4 py-2 text-left font-medium text-secondary-foreground">Slot</th>
-                <th className="px-4 py-2 text-left font-medium text-secondary-foreground">Name</th>
-                <th className="px-4 py-2 text-left font-medium text-secondary-foreground">Type</th>
-                <th className="px-4 py-2 text-left font-medium text-secondary-foreground">On-chain value</th>
+                <th className="px-4 py-2 text-left font-medium text-secondary-foreground">
+                  {t('context.table.slot')}
+                </th>
+                <th className="px-4 py-2 text-left font-medium text-secondary-foreground">
+                  {t('context.table.name')}
+                </th>
+                <th className="px-4 py-2 text-left font-medium text-secondary-foreground">
+                  {t('context.table.type')}
+                </th>
+                <th className="px-4 py-2 text-left font-medium text-secondary-foreground">
+                  {t('context.table.value')}
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -135,7 +145,11 @@ export function ContextView({ vaultAddress }: ContextViewProps) {
                   <td className="px-4 py-3 font-mono text-muted-foreground">{index}</td>
                   <td className="px-4 py-3">
                     <div className="font-medium text-foreground">
-                      {slot.name || <span className="text-muted-foreground">unnamed</span>}
+                      {slot.name || (
+                        <span className="text-muted-foreground">
+                          {t('context.unnamed')}
+                        </span>
+                      )}
                     </div>
                     {slot.description && (
                       <div className="mt-0.5 text-xs text-muted-foreground">
@@ -146,7 +160,11 @@ export function ContextView({ vaultAddress }: ContextViewProps) {
                   <td className="px-4 py-3 text-secondary-foreground">{slot.type}</td>
                   <td className="px-4 py-3">
                     <div className="font-mono text-foreground">
-                      {decodeValue(slot.currentOnChainValue, slot.type)}
+                      {decodeValue(
+                        slot.currentOnChainValue,
+                        slot.type,
+                        t('context.emptyValue'),
+                      )}
                     </div>
                     {slot.currentOnChainValue &&
                       slot.currentOnChainValue !== '0x' && (
