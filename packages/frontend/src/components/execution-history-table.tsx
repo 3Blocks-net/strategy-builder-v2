@@ -244,7 +244,7 @@ export function ExecutionHistoryTable({ vaultAddress, chainId }: Props) {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-3">
-          <h3 className="text-lg font-semibold">Execution History</h3>
+          <h3 className="text-base font-semibold tracking-tight">Execution History</h3>
           <FreshnessIndicator
             connected={connected}
             lastProcessedBlockTimestamp={indexerStatus?.lastProcessedBlockTimestamp ?? null}
@@ -278,7 +278,7 @@ export function ExecutionHistoryTable({ vaultAddress, chainId }: Props) {
       )}
 
       {error && (
-        <div className="rounded-md border border-destructive/50 p-4 text-center">
+        <div className="py-8 text-center">
           <p className="text-sm text-destructive">{error}</p>
           <Button variant="outline" size="sm" className="mt-2" onClick={fetchHistory}>
             Retry

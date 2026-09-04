@@ -15,6 +15,12 @@ vi.mock('@/providers/auth-context', () => ({
 
 vi.mock('react-router', () => ({
   useNavigate: () => mockNavigate,
+  NavLink: ({ children, to }: { children: React.ReactNode; to: string }) => (
+    <a href={to}>{typeof children === 'function' ? null : children}</a>
+  ),
+  Link: ({ children, to }: { children: React.ReactNode; to: string }) => (
+    <a href={to}>{children}</a>
+  ),
 }));
 
 vi.mock('@/lib/api', () => ({
@@ -35,7 +41,7 @@ describe('DashboardPage', () => {
     } as Response);
 
     render(<DashboardPage />);
-    expect(screen.getByText('0xf39F...2266')).toBeInTheDocument();
+    expect(screen.getByText('0xf39F…2266')).toBeInTheDocument();
   });
 
   it('has a disconnect button', async () => {
@@ -85,7 +91,8 @@ describe('DashboardPage', () => {
     render(<DashboardPage />);
     await waitFor(() => {
       expect(screen.getByText('My Vault')).toBeInTheDocument();
-      expect(screen.getByText('$1,234.56')).toBeInTheDocument();
+      // Appears twice: aggregated portfolio value in the band + the vault row.
+      expect(screen.getAllByText('$1,234.56')).toHaveLength(2);
     });
   });
 

@@ -4,6 +4,7 @@ import { WalletProvider } from '@/providers/wallet-provider';
 import { AuthProvider } from '@/providers/auth-context';
 import { ProtectedRoute } from '@/components/protected-route';
 import { ConnectPage } from '@/pages/connect';
+import { DiscoveryPage } from '@/pages/discovery';
 import { DashboardPage } from '@/pages/dashboard';
 import { CreateVaultPage } from '@/pages/vault/create';
 import { VaultDetailPage } from '@/pages/vault/detail';
@@ -15,6 +16,7 @@ export function App() {
       <BrowserRouter>
         <AuthProvider>
           <Routes>
+            <Route path="/" element={<DiscoveryPage />} />
             <Route path="/connect" element={<ConnectPage />} />
             <Route
               path="/dashboard"
@@ -56,7 +58,7 @@ export function App() {
                 </ProtectedRoute>
               }
             />
-            <Route path="*" element={<Navigate to="/connect" replace />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </AuthProvider>
       </BrowserRouter>

@@ -84,7 +84,7 @@ export function DepositForm({ vaultAddress, fees, onSuccess }: DepositFormProps)
   const isLoading = ['checking', 'approving', 'depositing'].includes(deposit.step);
 
   return (
-    <div className="space-y-4 rounded-md border p-4">
+    <div className="space-y-4 rounded-md border border-border p-4">
       <h3 className="font-semibold">Deposit</h3>
 
       <div>

@@ -118,55 +118,55 @@ export function GasDepositCard({ vaultAddress }: GasDepositCardProps) {
   return (
     <div>
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Gas Reserve</h2>
+        <h2 className="text-base font-semibold tracking-tight">Gas Reserve</h2>
         <Button variant="ghost" size="sm" disabled={loading} onClick={fetchData}>
           {loading ? 'Refreshing…' : 'Refresh'}
         </Button>
       </div>
 
       {loading && !data ? (
-        <p className="text-sm text-gray-500">Loading gas reserve…</p>
+        <p className="text-sm text-muted-foreground">Loading gas reserve…</p>
       ) : error ? (
-        <div className="rounded-md border border-destructive/50 p-6 text-center">
+        <div className="py-8 text-center">
           <p className="text-sm text-destructive">{error}</p>
           <Button variant="outline" size="sm" className="mt-3" onClick={fetchData}>
             Retry
           </Button>
         </div>
       ) : data && !data.enabled ? (
-        <div className="rounded-md border border-dashed p-6 text-center text-gray-500">
+        <div className="rounded-md border border-dashed border-border p-6 text-center text-muted-foreground">
           <p className="text-sm">Gas-Kompensation für diesen Vault deaktiviert (kein Deposit-Token).</p>
         </div>
       ) : data && data.token ? (
         <div className="space-y-3">
           {warn && (
-            <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+            <div className="rounded-md border border-warning-border bg-warning-surface px-3 py-2 text-sm text-warning">
               Zu geringe Gas-Reserve hinterlegt — externe Executor werden nicht
               kompensiert und führen deine public Automations daher voraussichtlich
               nicht aus.
             </div>
           )}
 
-          <div className="rounded-md border border-gray-200 p-4">
+          <div className="rounded-md border border-border p-4">
             <div className="flex items-baseline justify-between">
-              <span className="text-sm text-gray-500">Hinterlegte Reserve</span>
-              <span className="font-mono font-medium text-gray-900">
+              <span className="text-sm text-muted-foreground">Hinterlegte Reserve</span>
+              <span className="font-mono font-medium text-foreground">
                 {format(data.deposited, data.token.decimals)} {data.token.symbol}
               </span>
             </div>
             <div className="mt-1 flex items-baseline justify-between">
-              <span className="text-xs text-gray-400">Ziel (minFeeDeposit)</span>
-              <span className="font-mono text-xs text-gray-500">
+              <span className="text-xs text-muted-foreground">Ziel (minFeeDeposit)</span>
+              <span className="font-mono text-xs text-muted-foreground">
                 {format(data.minFeeDeposit, data.token.decimals)} {data.token.symbol}
               </span>
             </div>
           </div>
 
-          <div className="rounded-md border border-gray-200 p-4">
-            <label htmlFor="gas-deposit-min" className="mb-1 block text-xs font-medium text-gray-700">
+          <div className="rounded-md border border-border p-4">
+            <label htmlFor="gas-deposit-min" className="mb-1 block text-xs font-medium text-foreground">
               Mindest-Reserve (minFeeDeposit)
             </label>
-            <p className="mb-2 text-xs text-gray-400">
+            <p className="mb-2 text-xs text-muted-foreground">
               Auffüllziel der FeeDepositAction. Bei 0 füllt sie die Reserve nicht
               automatisch auf. Aktuell:{' '}
               <span className="font-mono">
@@ -178,7 +178,7 @@ export function GasDepositCard({ vaultAddress }: GasDepositCardProps) {
                 id="gas-deposit-min"
                 type="text"
                 inputMode="decimal"
-                className="flex-1 rounded border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="flex-1 rounded border border-input px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
                 placeholder={`${format(data.minFeeDeposit, data.token.decimals)} ${data.token.symbol}`}
                 value={minInput}
                 onChange={(e) => setMinInput(e.target.value)}
@@ -201,11 +201,11 @@ export function GasDepositCard({ vaultAddress }: GasDepositCardProps) {
             )}
           </div>
 
-          <div className="rounded-md border border-gray-200 p-4">
-            <label htmlFor="gas-deposit-amount" className="mb-1 block text-xs font-medium text-gray-700">
+          <div className="rounded-md border border-border p-4">
+            <label htmlFor="gas-deposit-amount" className="mb-1 block text-xs font-medium text-foreground">
               Fees einzahlen
             </label>
-            <p className="mb-2 text-xs text-gray-400">
+            <p className="mb-2 text-xs text-muted-foreground">
               Wird aus der Token-Balance des Vaults entnommen.
             </p>
             <div className="flex gap-2">
@@ -213,7 +213,7 @@ export function GasDepositCard({ vaultAddress }: GasDepositCardProps) {
                 id="gas-deposit-amount"
                 type="text"
                 inputMode="decimal"
-                className="flex-1 rounded border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="flex-1 rounded border border-input px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
                 placeholder={`0.0 ${data.token.symbol}`}
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}

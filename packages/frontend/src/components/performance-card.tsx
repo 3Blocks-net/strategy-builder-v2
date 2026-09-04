@@ -60,11 +60,12 @@ export function PerformanceCard({
   const up = (data?.pnlAbsUsd ?? 0) >= 0;
 
   return (
-    <div className="rounded-lg border border-border p-4">
-      <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Performance</h2>
+    <section>
+      <div className="flex flex-col gap-2 border-b border-border pb-3 sm:flex-row sm:items-center sm:justify-between">
+        <h2 className="text-base font-semibold tracking-tight">Performance</h2>
         <RangeToggle value={range} onChange={onRangeChange} />
       </div>
+      <div className="pt-4">
 
       {loading && (
         <p className="text-sm text-muted-foreground">Loading performance…</p>
@@ -76,11 +77,11 @@ export function PerformanceCard({
           <div>
             <p className="text-xs text-muted-foreground">PnL</p>
             <p
-              className={`text-xl font-bold ${up ? 'text-green-500' : 'text-destructive'}`}
+              className={`text-xl font-semibold ${up ? 'text-positive' : 'text-destructive'}`}
             >
               {formatSignedUsd(data.pnlAbsUsd)}
             </p>
-            <p className={`text-xs ${up ? 'text-green-500' : 'text-destructive'}`}>
+            <p className={`text-xs ${up ? 'text-positive' : 'text-destructive'}`}>
               {data.pnlPct == null
                 ? '—'
                 : `${(data.pnlPct * 100).toFixed(2)}%`}
@@ -104,6 +105,7 @@ export function PerformanceCard({
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </section>
   );
 }

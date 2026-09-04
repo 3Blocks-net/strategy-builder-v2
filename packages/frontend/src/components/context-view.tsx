@@ -77,7 +77,7 @@ export function ContextView({ vaultAddress }: ContextViewProps) {
   return (
     <div>
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Context</h2>
+        <h2 className="text-base font-semibold tracking-tight">Context</h2>
         <Button
           variant="ghost"
           size="sm"
@@ -89,7 +89,7 @@ export function ContextView({ vaultAddress }: ContextViewProps) {
       </div>
 
       {data?.syncWarning && (
-        <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+        <div className="mb-3 rounded-md border border-warning-border bg-warning-surface px-3 py-2 text-xs text-warning">
           Out of sync: the on-chain context has {data.contextLength} slot
           {data.contextLength === 1 ? '' : 's'}, but {data.dbSlotCount}{' '}
           {data.dbSlotCount === 1 ? 'is' : 'are'} defined in the editor.
@@ -97,9 +97,9 @@ export function ContextView({ vaultAddress }: ContextViewProps) {
       )}
 
       {loading && !data ? (
-        <p className="text-sm text-gray-500">Loading context…</p>
+        <p className="text-sm text-muted-foreground">Loading context…</p>
       ) : error ? (
-        <div className="rounded-md border border-destructive/50 p-6 text-center">
+        <div className="py-8 text-center">
           <p className="text-sm text-destructive">{error}</p>
           <Button
             variant="outline"
@@ -111,7 +111,7 @@ export function ContextView({ vaultAddress }: ContextViewProps) {
           </Button>
         </div>
       ) : slots.length === 0 ? (
-        <div className="rounded-md border border-dashed p-8 text-center text-gray-500">
+        <div className="rounded-md border border-dashed p-8 text-center text-muted-foreground">
           <p className="text-sm">This vault has no context slots.</p>
           <p className="mt-1 text-xs">
             Context slots are defined by automations that read or write shared
@@ -119,39 +119,39 @@ export function ContextView({ vaultAddress }: ContextViewProps) {
           </p>
         </div>
       ) : (
-        <div className="overflow-hidden rounded-md border border-gray-200">
+        <div className="overflow-hidden rounded-md border border-border">
           <table className="w-full text-sm">
-            <thead className="border-b border-gray-200 bg-gray-50">
+            <thead className="border-b border-border bg-muted/50">
               <tr>
-                <th className="px-4 py-2 text-left font-medium text-gray-600">Slot</th>
-                <th className="px-4 py-2 text-left font-medium text-gray-600">Name</th>
-                <th className="px-4 py-2 text-left font-medium text-gray-600">Type</th>
-                <th className="px-4 py-2 text-left font-medium text-gray-600">On-chain value</th>
+                <th className="px-4 py-2 text-left font-medium text-secondary-foreground">Slot</th>
+                <th className="px-4 py-2 text-left font-medium text-secondary-foreground">Name</th>
+                <th className="px-4 py-2 text-left font-medium text-secondary-foreground">Type</th>
+                <th className="px-4 py-2 text-left font-medium text-secondary-foreground">On-chain value</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-border">
               {slots.map(([index, slot]) => (
                 <tr key={index} className="align-top">
-                  <td className="px-4 py-3 font-mono text-gray-500">{index}</td>
+                  <td className="px-4 py-3 font-mono text-muted-foreground">{index}</td>
                   <td className="px-4 py-3">
-                    <div className="font-medium text-gray-900">
-                      {slot.name || <span className="text-gray-400">unnamed</span>}
+                    <div className="font-medium text-foreground">
+                      {slot.name || <span className="text-muted-foreground">unnamed</span>}
                     </div>
                     {slot.description && (
-                      <div className="mt-0.5 text-xs text-gray-400">
+                      <div className="mt-0.5 text-xs text-muted-foreground">
                         {slot.description}
                       </div>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-gray-600">{slot.type}</td>
+                  <td className="px-4 py-3 text-secondary-foreground">{slot.type}</td>
                   <td className="px-4 py-3">
-                    <div className="font-mono text-gray-900">
+                    <div className="font-mono text-foreground">
                       {decodeValue(slot.currentOnChainValue, slot.type)}
                     </div>
                     {slot.currentOnChainValue &&
                       slot.currentOnChainValue !== '0x' && (
                         <div
-                          className="mt-0.5 font-mono text-xs text-gray-400"
+                          className="mt-0.5 font-mono text-xs text-muted-foreground"
                           title={slot.currentOnChainValue}
                         >
                           {truncateHex(slot.currentOnChainValue)}

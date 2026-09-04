@@ -24,7 +24,7 @@ export function FreshnessIndicator({ connected, lastProcessedBlockTimestamp }: P
     <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
       <span
         className={`h-2 w-2 rounded-full ${
-          connected ? 'bg-green-500' : 'bg-amber-500'
+          connected ? 'bg-positive' : 'bg-amber-500'
         }`}
         title={connected ? 'Live' : 'Reconnecting — polling for updates'}
       />

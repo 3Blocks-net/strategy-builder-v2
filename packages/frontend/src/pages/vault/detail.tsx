@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router';
+import { useParams, useNavigate, Link } from 'react-router';
 import { type Address } from 'viem';
+import { ArrowLeft, Check, Copy } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { AppShell } from '@/components/app-shell';
 import { DepositForm } from '@/components/deposit-form';
 import { WithdrawForm } from '@/components/withdraw-form';
 import { ExecutionHistoryTable } from '@/components/execution-history-table';
@@ -153,7 +155,7 @@ export function VaultDetailPage() {
   };
 
   const truncated = address
-    ? `${address.slice(0, 6)}...${address.slice(-4)}`
+    ? `${address.slice(0, 6)}…${address.slice(-4)}`
     : '';
 
   const sortedPositions = portfolio
@@ -163,18 +165,18 @@ export function VaultDetailPage() {
     : [];
 
   return (
-    <div className="min-h-screen p-6">
-      <div className="mx-auto max-w-4xl space-y-6">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => navigate('/dashboard')}
-        >
-          &larr; Back to Dashboard
-        </Button>
+    <AppShell
+      band={
+        <div>
+          <Link
+            to="/dashboard"
+            className="inline-flex items-center gap-1.5 text-sm text-on-band-sub hover:text-on-band"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
+            Dashboard
+          </Link>
 
-        <div className="space-y-2">
-          <div className="flex items-center gap-3">
+          <div className="mt-4 flex items-center gap-3">
             {editingLabel ? (
               <div className="flex items-center gap-2">
                 <input
@@ -188,19 +190,17 @@ export function VaultDetailPage() {
                   onBlur={handleLabelSave}
                   // biome-ignore lint/a11y/noAutofocus: Click-to-edit — Fokus muss beim Umschalten in den Edit-Modus sofort im Input landen.
                   autoFocus
-                  className="rounded-md border border-input bg-background px-2 py-1 text-2xl font-bold"
+                  className="rounded-md border border-on-band-line bg-transparent px-2 py-1 text-xl font-semibold text-on-band"
                 />
                 {labelError && (
-                  <span className="text-sm text-destructive">
-                    {labelError}
-                  </span>
+                  <span className="text-sm text-on-band-sub">{labelError}</span>
                 )}
               </div>
             ) : (
-              <h1 className="text-2xl font-bold">
+              <h1 className="text-xl font-semibold">
                 <button
                   type="button"
-                  className="cursor-pointer hover:text-primary"
+                  className="cursor-pointer hover:text-on-band-sub"
                   onClick={() => {
                     setLabelInput(label);
                     setEditingLabel(true);
@@ -214,35 +214,39 @@ export function VaultDetailPage() {
             )}
           </div>
 
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <code className="rounded bg-secondary px-2 py-0.5 font-mono">
-              {truncated}
-            </code>
-            <Button variant="outline" size="sm" onClick={copyAddress}>
-              {copied ? 'Copied!' : 'Copy'}
-            </Button>
+          <div className="mt-1.5 flex items-center gap-2 text-sm text-on-band-sub">
+            <code className="font-mono text-xs">{truncated}</code>
+            <button
+              type="button"
+              onClick={copyAddress}
+              title="Copy vault address"
+              className="rounded p-0.5 hover:text-on-band"
+            >
+              {copied ? (
+                <Check className="h-3.5 w-3.5 text-on-band-positive" aria-hidden />
+              ) : (
+                <Copy className="h-3.5 w-3.5" aria-hidden />
+              )}
+            </button>
+            <span className="rounded-full border border-on-band-line px-2 py-0.5 text-xs">
+              BSC
+            </span>
           </div>
-        </div>
 
-        {portfolio && (
-          <div className="rounded-md border p-6">
-            <p className="text-sm text-muted-foreground">Total Value</p>
-            <p className="text-3xl font-bold">
-              {formatUsd(portfolio.totalValueUsd)}
+          <p className="mt-6 text-sm text-on-band-sub">Total value</p>
+          {loading ? (
+            <div className="mt-2 h-10 w-56 animate-pulse rounded-md bg-on-band-line" />
+          ) : (
+            <p className="mt-1 text-5xl font-semibold tracking-tight">
+              {error ? '—' : formatUsd(portfolio?.totalValueUsd ?? null)}
             </p>
-          </div>
-        )}
-
-        {loading && (
-          <div className="space-y-2">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="h-12 animate-pulse rounded bg-muted" />
-            ))}
-          </div>
-        )}
-
+          )}
+        </div>
+      }
+    >
+      <div className="space-y-10">
         {error && (
-          <div className="rounded-md border border-destructive/50 p-6 text-center">
+          <div className="py-8 text-center">
             <p className="text-sm text-destructive">{error}</p>
             <Button
               variant="outline"
@@ -255,17 +259,46 @@ export function VaultDetailPage() {
           </div>
         )}
 
-        {!loading && !error && sortedPositions.length === 0 && (
-          <div className="rounded-md border border-dashed p-8 text-center">
-            <p className="text-muted-foreground">
-              No token positions found in this vault.
-            </p>
-          </div>
+        {address && (
+          <ValueHistoryChart
+            address={address}
+            range={cockpitRange}
+            onRangeChange={setCockpitRange}
+          />
         )}
 
-        {!loading && !error && sortedPositions.length > 0 && (
-          <PositionsTable positions={sortedPositions} />
+        {address && (
+          <PerformanceCard
+            address={address}
+            range={cockpitRange}
+            onRangeChange={setCockpitRange}
+          />
         )}
+
+        <section>
+          <h2 className="border-b border-border pb-3 text-base font-semibold tracking-tight">
+            Token Balances
+          </h2>
+          {loading && (
+            <div>
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="border-b border-border py-4 last:border-0">
+                  <div className="h-5 w-full animate-pulse rounded bg-muted" />
+                </div>
+              ))}
+            </div>
+          )}
+          {!loading && !error && sortedPositions.length === 0 && (
+            <p className="py-8 text-center text-sm text-muted-foreground">
+              No token positions found in this vault.
+            </p>
+          )}
+          {!loading && !error && sortedPositions.length > 0 && (
+            <PositionsTable positions={sortedPositions} />
+          )}
+        </section>
+
+        {address && <CockpitPositionsPanel address={address} />}
 
         {address && (
           <div className="grid gap-6 md:grid-cols-2">
@@ -284,33 +317,15 @@ export function VaultDetailPage() {
           </div>
         )}
 
-        {address && <CockpitPositionsPanel address={address} />}
-
-        {address && (
-          <PerformanceCard
-            address={address}
-            range={cockpitRange}
-            onRangeChange={setCockpitRange}
-          />
-        )}
-
-        {address && (
-          <ValueHistoryChart
-            address={address}
-            range={cockpitRange}
-            onRangeChange={setCockpitRange}
-          />
-        )}
-
         {address && <AutomationList vaultAddress={address} />}
 
         {address && <GasDepositCard vaultAddress={address} />}
 
-        {address && <ContextView vaultAddress={address} />}
-
         {address && <ExecutionHistoryTable vaultAddress={address} />}
+
+        {address && <ContextView vaultAddress={address} />}
       </div>
-    </div>
+    </AppShell>
   );
 }
 
@@ -321,12 +336,8 @@ function PriceSourceBadge({
 }) {
   if (source === 'alchemy') return null;
   const label = source === 'defi-llama' ? 'DeFiLlama' : 'N/A';
-  const color =
-    source === 'defi-llama'
-      ? 'text-yellow-600 bg-yellow-50'
-      : 'text-gray-500 bg-gray-100';
   return (
-    <span className={`ml-1 rounded px-1 py-0.5 text-[10px] ${color}`}>
+    <span className="ml-1.5 rounded-full border border-border px-1.5 py-0.5 text-xs text-muted-foreground">
       {label}
     </span>
   );
@@ -334,37 +345,39 @@ function PriceSourceBadge({
 
 function PositionsTable({ positions }: { positions: Position[] }) {
   return (
-    <div className="overflow-hidden rounded-md border">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b bg-muted/50">
-            <th className="px-4 py-3 text-left font-medium">Token</th>
-            <th className="px-4 py-3 text-right font-medium">Balance</th>
-            <th className="px-4 py-3 text-right font-medium">Price</th>
-            <th className="px-4 py-3 text-right font-medium">Value</th>
+    <table className="w-full text-sm">
+      <thead>
+        <tr className="border-b border-border text-xs text-muted-foreground">
+          <th className="py-3 pr-4 text-left font-medium">Token</th>
+          <th className="hidden px-4 py-3 text-right font-medium sm:table-cell">
+            Balance
+          </th>
+          <th className="hidden px-4 py-3 text-right font-medium md:table-cell">
+            Price
+          </th>
+          <th className="py-3 pl-4 text-right font-medium">Value</th>
+        </tr>
+      </thead>
+      <tbody>
+        {positions.map((pos) => (
+          <tr key={pos.address} className="border-b border-border last:border-0">
+            <td className="py-4 pr-4">
+              <span className="font-medium">{pos.symbol}</span>
+              <span className="ml-2 text-muted-foreground">{pos.name}</span>
+            </td>
+            <td className="hidden px-4 py-4 text-right font-mono text-xs sm:table-cell">
+              {formatBalance(pos.balance, pos.decimals)}
+            </td>
+            <td className="hidden px-4 py-4 text-right md:table-cell">
+              {formatUsd(pos.priceUsd)}
+              <PriceSourceBadge source={pos.priceSource} />
+            </td>
+            <td className="py-4 pl-4 text-right font-semibold">
+              {formatUsd(pos.valueUsd)}
+            </td>
           </tr>
-        </thead>
-        <tbody>
-          {positions.map((pos) => (
-            <tr key={pos.address} className="border-b last:border-0">
-              <td className="px-4 py-3">
-                <span className="font-medium">{pos.symbol}</span>
-                <span className="ml-2 text-muted-foreground">{pos.name}</span>
-              </td>
-              <td className="px-4 py-3 text-right font-mono">
-                {formatBalance(pos.balance, pos.decimals)}
-              </td>
-              <td className="px-4 py-3 text-right">
-                {formatUsd(pos.priceUsd)}
-                <PriceSourceBadge source={pos.priceSource} />
-              </td>
-              <td className="px-4 py-3 text-right font-medium">
-                {formatUsd(pos.valueUsd)}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+        ))}
+      </tbody>
+    </table>
   );
 }

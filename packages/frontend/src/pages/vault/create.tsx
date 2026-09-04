@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router';
 import { useAccount, useReadContract } from 'wagmi';
 import { type Address, erc20Abi, parseUnits, formatUnits } from 'viem';
 import { Button } from '@/components/ui/button';
+import { AppShell } from '@/components/app-shell';
 import { useAuth } from '@/providers/auth-context';
 import { useCreateVault } from '@/hooks/use-create-vault';
 import { useApproveAndDeposit } from '@/hooks/use-approve-and-deposit';
@@ -116,9 +117,16 @@ export function CreateVaultPage() {
   });
 
   return (
-    <div className="flex min-h-screen items-center justify-center">
-      <div className="mx-auto w-full max-w-md space-y-6 p-6">
-        <h1 className="text-2xl font-bold">Create Vault</h1>
+    <AppShell>
+      <div className="mx-auto w-full max-w-md space-y-6">
+        <div>
+          <h1 className="text-lg font-semibold tracking-tight">Create Vault</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            A vault is a smart contract only you control. We get no admin
+            access to it, and every later allowance is confirmed by you, one
+            by one.
+          </p>
+        </div>
 
         {wizardStep === 'label' && (
           <StepLabel
@@ -180,7 +188,7 @@ export function CreateVaultPage() {
           />
         )}
       </div>
-    </div>
+    </AppShell>
   );
 }
 

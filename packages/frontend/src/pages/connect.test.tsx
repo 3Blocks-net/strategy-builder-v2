@@ -13,6 +13,11 @@ vi.mock('wagmi', () => ({
     isPending: false,
   }),
   useAccount: () => ({ isConnected: false }),
+  useSwitchChain: () => ({ switchChain: vi.fn() }),
+}));
+
+vi.mock('@/lib/wagmi', () => ({
+  config: { chains: [{ id: 56 }] },
 }));
 
 vi.mock('react-router', async () => {

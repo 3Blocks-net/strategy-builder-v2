@@ -74,7 +74,8 @@ export function ValueHistoryChart({
 
   // Map points → SVG coordinates.
   let path = '';
-  let markerDots: { t: number; x: number; color: string; title: string }[] = [];
+  let areaPath = '';
+  let markerDots: { key: string; x: number; color: string; title: string }[] = [];
   if (hasCurve) {
     const times = points.map((p) => new Date(p.t).getTime());
     const values = points.map((p) => p.valueUsd);
@@ -90,6 +91,7 @@ export function ValueHistoryChart({
     path = points
       .map((p, i) => `${i === 0 ? 'M' : 'L'}${x(times[i])},${y(p.valueUsd)}`)
       .join(' ');
+    areaPath = `${path} L${x(maxT)},${H - PAD} L${x(minT)},${H - PAD} Z`;
 
     markerDots = (data?.markers ?? [])
       .map((m, i) => {
@@ -100,7 +102,7 @@ export function ValueHistoryChart({
           // Block) — Index als Tie-Breaker gegen doppelte React-Keys.
           key: `${t}-${m.type}-${i}`,
           x: x(t),
-          color: m.type === 'DEPOSIT' ? '#22c55e' : '#ef4444',
+          color: m.type === 'DEPOSIT' ? '#1e7f4f' : '#c2402a',
           title: `${m.type} ${m.amountUsd != null ? formatUsd(m.amountUsd) : ''} @ ${formatDate(m.t)}`,
         };
       })
@@ -108,11 +110,12 @@ export function ValueHistoryChart({
   }
 
   return (
-    <div className="rounded-lg border border-border p-4">
-      <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Value history</h2>
+    <section>
+      <div className="flex flex-col gap-2 border-b border-border pb-3 sm:flex-row sm:items-center sm:justify-between">
+        <h2 className="text-base font-semibold tracking-tight">Value history</h2>
         <RangeToggle value={range} onChange={onRangeChange} />
       </div>
+      <div className="pt-4">
 
       {loading && (
         <p className="text-sm text-muted-foreground">Loading history…</p>
@@ -133,6 +136,13 @@ export function ValueHistoryChart({
             preserveAspectRatio="none"
           >
             <title>Value history chart</title>
+            <defs>
+              <linearGradient id="value-history-fill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stopColor="#4568d0" stopOpacity="0.14" />
+                <stop offset="1" stopColor="#4568d0" stopOpacity="0" />
+              </linearGradient>
+            </defs>
+            <path d={areaPath} fill="url(#value-history-fill)" />
             <path
               d={path}
               fill="none"
@@ -149,8 +159,8 @@ export function ValueHistoryChart({
                 y1={PAD}
                 y2={H - PAD}
                 stroke={d.color}
-                strokeWidth={1}
-                strokeDasharray="3 3"
+                strokeWidth={1.5}
+                strokeDasharray="4 3"
                 vectorEffect="non-scaling-stroke"
               >
                 <title>{d.title}</title>
@@ -158,9 +168,15 @@ export function ValueHistoryChart({
             ))}
           </svg>
           <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
-            <span>
-              <span className="text-green-500">●</span> deposit{' '}
-              <span className="ml-2 text-red-500">●</span> withdraw
+            <span className="flex items-center gap-3">
+              <span className="flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-full bg-positive" aria-hidden />
+                deposit
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-full bg-destructive" aria-hidden />
+                withdraw
+              </span>
             </span>
             {data?.historyStartsAt && (
               <span>History since {formatDate(data.historyStartsAt)}</span>
@@ -168,6 +184,7 @@ export function ValueHistoryChart({
           </div>
         </>
       )}
-    </div>
+      </div>
+    </section>
   );
 }

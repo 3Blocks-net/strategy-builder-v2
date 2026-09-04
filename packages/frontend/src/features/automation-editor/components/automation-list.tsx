@@ -132,7 +132,7 @@ export function AutomationList({ vaultAddress }: AutomationListProps) {
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-semibold">Automations</h2>
+        <h2 className="text-base font-semibold tracking-tight">Automations</h2>
         <Button
           size="sm"
           onClick={() => navigate(`/vault/${vaultAddress}/automation/new/edit`)}

@@ -62,3 +62,10 @@ $RECYCLE.BIN/
 *.swp
 *.swo
 *.sublime-workspace
+
+# ----- Design-Werkzeug (impeccable) -----
+# Werkzeug-Artefakte: Wegwerf-Entwürfe, Screenshots, Cache, Fragen-Log.
+# Kein Code im Repo liest sie; die dauerhafte Design-Wahrheit steht in
+# packages/frontend/docs/DESIGN.md. Biome nutzt useIgnoreFile, dieser Eintrag
+# nimmt sie damit auch aus dem Lint.
+.impeccable/

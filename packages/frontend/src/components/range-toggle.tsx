@@ -1,5 +1,3 @@
-import { Button } from '@/components/ui/button';
-
 /** The four cockpit timeframes, shared by the value chart and performance card. */
 export const COCKPIT_RANGES: { key: string; label: string }[] = [
   { key: '24h', label: '24h' },
@@ -18,14 +16,19 @@ export function RangeToggle({
   return (
     <div className="flex gap-1">
       {COCKPIT_RANGES.map((r) => (
-        <Button
+        <button
           key={r.key}
-          variant={value === r.key ? 'default' : 'outline'}
-          size="sm"
+          type="button"
+          aria-pressed={value === r.key}
           onClick={() => onChange(r.key)}
+          className={`rounded-full px-3 py-1 text-xs transition-colors ${
+            value === r.key
+              ? 'bg-muted font-semibold text-foreground'
+              : 'font-medium text-muted-foreground hover:text-foreground'
+          }`}
         >
           {r.label}
-        </Button>
+        </button>
       ))}
     </div>
   );

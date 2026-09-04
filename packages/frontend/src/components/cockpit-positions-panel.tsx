@@ -172,7 +172,7 @@ export function CockpitPositionsPanel({ address }: { address: string }) {
     <div className="rounded-lg border border-border p-4">
       <div className="mb-3 flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold">Positions</h2>
+          <h2 className="text-base font-semibold tracking-tight">Protocol Positions</h2>
           {data && (
             <p className="text-2xl font-bold">{formatUsd(data.totalValueUsd)}</p>
           )}
