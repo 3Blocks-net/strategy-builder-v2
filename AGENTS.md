@@ -7,7 +7,13 @@ Werkzeug-neutrale Anweisungen für Coding-Agenten in diesem Repo. Claude Code li
 
 Rede von Haus aus klar und verständlich, auch für Nicht-Entwickler: keine Fachbegriffe in
 Klammern erklären, keine internen Werkzeug-Namen nach außen, in Schritten sprechen.
-Gespräch auf Deutsch; Code, Kommentare, Commit-Messages und Dateinamen auf Englisch.
+Welche Sprache wo gilt, steht in `CLAUDE.md` unter „Konventionen / Sprachen".
+
+Eine Ausnahme von „klar und verständlich": **Finanzbegriffe werden nicht übersetzt.**
+Wo die Branche einen feststehenden Namen hat (Stop-Loss, DCA, Grid, Performance Fee,
+High-Water-Mark, Health Factor, TWAP), wird genau der benutzt — auch wenn eine deutsche
+Umschreibung zugänglicher klänge. Eine erfundene Übersetzung ist nicht einfacher,
+sondern falsch. Die Liste steht in `CLAUDE.md` unter „Konventionen / Finanzbegriffe".
 
 ## Arbeitsweise
 
@@ -25,6 +31,20 @@ Entscheidungs-Tickets, die einzeln aufgelöst werden, bis der Weg klar ist.
 
 Es gibt keinen Zwang, mit einem bestimmten Skill einzusteigen. Bei kleinen, klaren
 Änderungen darf direkt gebaut werden.
+
+### Parallel arbeiten
+
+Stehen mehrere Issues gleichzeitig zum Bau bereit und blockieren sie sich **nicht**
+gegenseitig, werden sie in einem Workflow orchestriert statt nacheinander abgearbeitet.
+Diese Freigabe gilt dauerhaft und muss nicht pro Fall neu erteilt werden.
+
+Blockaden sind auf GitHub als echte Issue-Abhängigkeiten hinterlegt (`blocked_by`), nicht
+als Prosa im Text. Sie sind damit die Quelle für die Frage, was parallel laufen darf:
+Ein Issue mit offenem Blocker läuft nicht mit. Die Meilenstein-Übersicht in
+`docs/roadmap.md` zeigt dieselben Kanten in lesbarer Form.
+
+Nacheinander wird gearbeitet, wenn zwei Issues dieselben Dateien anfassen — auch ohne
+formale Blockade. Das ist eine Konflikt-, keine Abhängigkeitsfrage.
 
 ## Konfiguration für die Skills
 

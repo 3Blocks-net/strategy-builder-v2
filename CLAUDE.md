@@ -14,7 +14,9 @@ stellst, sieh hier nach. Vieles ist schon einmal geklärt worden.
 
 | Ordner | Was drin steht | Wann du reinschaust |
 |---|---|---|
+| `docs/produkt.md` | Produkt-Grundlagen (Zielbild): welches Problem wir lösen, für wen, und die Nutzer-Journey der Lösung — plus die nicht verhandelbaren Leitplanken. Specs und Issues richten sich daran aus. | Vor jedem neuen Epic/Feature; wenn unklar ist, ob etwas zum Produkt passt. |
 | `docs/discovery/` | 9 Reverse-Specs (Black-Box-Contracts, rückwärts aus dem Bestandscode rekonstruiert, Stand Commit `7ca671b`): encode-boundary, execution-indexer, mcp-assistant, portfolio-cockpit, siwe-auth, step-catalog, strategy-graph-editor, vault-contracts, wick-wait-strategy. Dazu `produkt-strategie/analyse.md` (Ist-Stand, Gaps, Monetarisierung, Roadmap) und `absicherungs-paket/` (Epic + Problem Statement, fachlich abgenommen). | Du fasst einen dieser Bereiche an; du willst wissen, was ein Bereich fachlich verspricht; Produkt-/Roadmap-Fragen. |
+| `docs/roadmap.md` | Die Bau-Reihenfolge: neun Meilensteine M0–M8, jeder als GitHub-Milestone mit Epic-Issue. Enthält die Zuordnung der öffentlich zugesagten Eigenschaften und die offenen Entscheidungen, die einzelne Meilensteine blockieren. | Bevor du ein neues Vorhaben beginnst; wenn unklar ist, was als Nächstes dran ist. |
 | `docs/prd/` | `absicherungs-paket.md`: PRD mit 12 Stories, Nähten und Architektur-Entscheidungen — das nächste geplante Arbeitspaket, noch nicht gebaut. | Bevor am Absicherungs-Paket gearbeitet wird. |
 | `docs/legacy-specs/` | Eingefrorene OpenSpec-Specs des ältesten Workflows (MCP, Encode-Boundary, Step-Catalog, Wick-Wait). Referenz, keine lebende Source of Truth — Verhalten im Zweifel gegen den Code prüfen. | Historische Detailfragen zu MCP-Tools oder Step-Catalog. |
 | `docs/offene-punkte.md` | Die noch offenen Punkte aus dem früheren Tracker (Secret-Scan, Branch-Schutz, Dev-CVE-Entscheidung, Stale-Vault-Erkennung), bis sie GitHub Issues werden. | Bevor du ein "neues" Problem meldest — vielleicht ist es schon notiert. |
@@ -52,6 +54,37 @@ deployten Katalog und ist self-pruning (Redeploy hinterlässt keine Duplikate).
 Die verbindlichen Coding-Regeln stehen in `CODING_STANDARDS.md` (Tests gegen
 beobachtbares Verhalten, tiefe Module, die drei Architektur-Invarianten
 Encode-Boundary/Step-Semantik/Self-Custody). Commits: Conventional Commits.
+
+### Sprachen
+
+| Wo | Sprache |
+|---|---|
+| Code, Kommentare, Dateinamen, Commit-Messages | Englisch |
+| Datenbank: Tabellen, Spalten, Enums, Migrations-Namen | Englisch |
+| App-Oberfläche (Frontend) | Deutsch **und** Englisch |
+| Doku, GitHub-Issues, Gespräch | Deutsch |
+
+Die Zweisprachigkeit der Oberfläche ist entschieden (2026-09-04) und gilt für
+jede neue Seite ab sofort — nicht als späterer Nachrüst-Schritt.
+
+### Finanzbegriffe
+
+Fachbegriffe aus Finanzwelt und DeFi werden **englisch** geschrieben oder mit
+dem korrekten Fachbegriff benannt — nie mit einer selbst gebauten deutschen
+Übersetzung. Das gilt in Doku, Issues, Code und Oberfläche gleichermaßen.
+
+Richtig: `Stop-Loss` · `DCA` · `Grid` · `Limit Order` · `Performance Fee` ·
+`Management Fee` · `High-Water-Mark` · `Health Factor` · `Slippage` · `TWAP` ·
+`Spot` · `minOut` · `Swap` · `Deposit Fee` · `Withdraw Fee` · `Credits` ·
+`Keeper` · `Vault` · `Step` · `Recipe` · `Automation` · `Confirm-Gate` ·
+`Discount Vector`
+
+Falsch, weil erfunden: „gestreckter Kauf", „Verlust-Grenze", „Preis-Gitter",
+„Erfolgsbeteiligung", „Höchstmarke", „Grundgebühr", „Gesundheitsfaktor",
+„Ausführer", „Rabatt-Vektor", „Mindest-Ausgabe", „Tausch".
+
+Gewöhnliche deutsche Wörter bleiben deutsch. Die Regel greift für Begriffe, die
+in der Branche einen feststehenden Namen haben.
 
 ## Generierter Code
 
