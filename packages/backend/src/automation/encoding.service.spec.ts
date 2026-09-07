@@ -234,8 +234,8 @@ const mockStepTypes = [
         { name: 'amountIn', type: 'uint256' },
         { name: 'amountInFromSlot', type: 'uint32' },
         { name: 'amountOutToSlot', type: 'uint32' },
-        { name: 'amountOutMinimum', type: 'uint256' },
-        { name: 'minOutFromSlot', type: 'uint32' },
+        { name: 'slippageToleranceBps', type: 'uint16' },
+        { name: 'twapWindow', type: 'uint32' },
       ],
     },
     paramSchema: {
@@ -247,10 +247,10 @@ const mockStepTypes = [
         amountIn: { type: 'string', 'x-ui-widget': 'token-amount', 'x-ui-amount-token-field': 'tokenIn' },
         amountInFromSlot: { type: 'integer', 'x-ui-widget': 'context-slot', 'x-ui-slot-access': 'read', default: 4294967295 },
         amountOutToSlot: { type: 'integer', 'x-ui-widget': 'context-slot', 'x-ui-slot-access': 'write', default: 4294967295 },
-        amountOutMinimum: { type: 'string', 'x-ui-hidden': true, default: '0' },
-        minOutFromSlot: { type: 'integer', 'x-ui-widget': 'context-slot', 'x-ui-slot-access': 'read', 'x-ui-hidden': true, default: 4294967295 },
+        slippageToleranceBps: { type: 'integer', title: 'Max. Slippage', 'x-ui-widget': 'slippage-tolerance', minimum: 10, maximum: 1000, default: 100 },
+        twapWindow: { type: 'integer', title: 'Reference Window', 'x-ui-widget': 'twap-window', minimum: 60, maximum: 900, default: 300 },
       },
-      required: ['tokenIn', 'tokenOut', 'fee', 'amountIn'],
+      required: ['tokenIn', 'tokenOut', 'fee', 'amountIn', 'slippageToleranceBps', 'twapWindow'],
     },
   },
   {
@@ -710,7 +710,7 @@ describe('EncodingService', () => {
       ).rejects.toThrow(/Invalid step parameters/i);
     });
 
-    it('encodes a PancakeSwap swap (fee tier + amountOut slot + amountOutMinimum 0)', () => {
+    it('encodes a PancakeSwap swap (fee tier + amountOut slot + slippage protection)', () => {
       const tokenIn = '0x55d398326f99059fF775485246999027B3197955';
       const tokenOut = '0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c';
       const abiFragment = mockStepTypes.find((s) => s.id === 'st-pcs-swap')!.abiFragment;
@@ -722,20 +722,21 @@ describe('EncodingService', () => {
           amountIn: '1000000000000000000',
           amountInFromSlot: 4294967295,
           amountOutToSlot: 'swapOut',
-          amountOutMinimum: '0',
-          minOutFromSlot: 4294967295,
+          slippageToleranceBps: 100,
+          twapWindow: 300,
         },
         abiFragment as any,
         { swapOut: 2 },
       );
       const decoded = abiCoder.decode(
-        ['address', 'address', 'uint24', 'uint256', 'uint32', 'uint32', 'uint256', 'uint32'],
+        ['address', 'address', 'uint24', 'uint256', 'uint32', 'uint32', 'uint16', 'uint32'],
         result,
       );
       expect(decoded[0]).toBe(tokenIn);
       expect(decoded[2]).toBe(500n); // fee tier
       expect(decoded[5]).toBe(2n); // amountOutToSlot resolved swapOut → 2
-      expect(decoded[6]).toBe(0n); // amountOutMinimum ships at 0
+      expect(decoded[6]).toBe(100n); // slippage tolerance travels to the chain
+      expect(decoded[7]).toBe(300n); // reference window travels to the chain
     });
 
     it('rejects a swap with an invalid fee tier (raw-mode guard, HTTP 400)', async () => {
@@ -753,8 +754,8 @@ describe('EncodingService', () => {
                 amountIn: '1000000000000000000',
                 amountInFromSlot: 4294967295,
                 amountOutToSlot: 4294967295,
-                amountOutMinimum: '0',
-                minOutFromSlot: 4294967295,
+                slippageToleranceBps: 100,
+                twapWindow: 300,
               },
             },
           },
@@ -762,6 +763,43 @@ describe('EncodingService', () => {
         edges: [],
       };
       await expect(service.encode('v1', '0xvault', 's1', graph)).rejects.toThrow(/Invalid step parameters/i);
+    });
+
+    it('rejects a swap whose slippage tolerance is outside the schema bounds (raw-mode guard)', async () => {
+      const swapNode = (params: Record<string, unknown>) => ({
+        nodes: [
+          {
+            id: 's1',
+            type: 'ACTION' as const,
+            data: {
+              stepTypeId: 'st-pcs-swap',
+              params: {
+                tokenIn: '0x55d398326f99059fF775485246999027B3197955',
+                tokenOut: '0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c',
+                fee: 500,
+                amountIn: '1000000000000000000',
+                amountInFromSlot: 4294967295,
+                amountOutToSlot: 4294967295,
+                twapWindow: 300,
+                ...params,
+              },
+            },
+          },
+        ],
+        edges: [],
+      });
+
+      // An unprotected swap (tolerance 0) is what the old catalog shipped —
+      // the guard now rejects it before anything reaches the chain.
+      await expect(
+        service.encode('v1', '0xvault', 's1', swapNode({ slippageToleranceBps: 0 })),
+      ).rejects.toThrow(/Invalid step parameters/i);
+      await expect(
+        service.encode('v1', '0xvault', 's1', swapNode({ slippageToleranceBps: 5000 })),
+      ).rejects.toThrow(/Invalid step parameters/i);
+      await expect(
+        service.encode('v1', '0xvault', 's1', swapNode({ slippageToleranceBps: 100, twapWindow: 5 })),
+      ).rejects.toThrow(/Invalid step parameters/i);
     });
 
     it('encodes an LP Collect (token-id slot resolves to an index)', () => {

@@ -5,6 +5,7 @@ import type * as external from './external/index.js';
 export type { external };
 export type { IAction } from './IAction.js';
 export type { ICondition } from './ICondition.js';
+export type { ICuratedRegistry } from './ICuratedRegistry.js';
 export type { IFeeRegistry } from './IFeeRegistry.js';
 export type { IUpdatableCondition } from './IUpdatableCondition.js';
 export type { IVaultRegistry } from './IVaultRegistry.js';

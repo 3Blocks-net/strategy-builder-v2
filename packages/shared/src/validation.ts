@@ -24,6 +24,9 @@ export interface FieldSchema {
   title?: string;
   description?: string;
   default?: unknown;
+  /** JSON-Schema bounds — the single source for chain-enforced numeric limits. */
+  minimum?: number;
+  maximum?: number;
   'x-ui-widget'?: string;
   'x-ui-slot-access'?: string;
   [key: string]: unknown;
@@ -289,6 +292,58 @@ function validatePercent(
   return [];
 }
 
+/**
+ * Widgets whose value is an integer with bounds the CHAIN enforces (slippage
+ * tolerance in bps, TWAP reference window in seconds). The bounds themselves
+ * are not written here: they live in the step's `paramSchema` as `minimum` /
+ * `maximum`, mirroring the on-chain guard, and this rule reads them. That way a
+ * bound exists exactly once — editor, backend `/encode` guard and the AI
+ * assistant all reject exactly what the contract would revert on.
+ *
+ * Friendly and raw carry the same integer (the widget renders it as a percent /
+ * a duration but stores the machine value), so one rule covers both modes.
+ *
+ * The formatter only makes the message readable; it never decides a bound.
+ */
+const BOUNDED_INTEGER_WIDGETS: Record<string, (value: number) => string> = {
+  'slippage-tolerance': (v) => `${v / 100}%`,
+  'twap-window': (v) => `${v}s`,
+};
+
+function validateBoundedInteger(
+  field: string,
+  schema: FieldSchema,
+  value: unknown,
+  widget: string,
+): ParamValidationError[] {
+  const label = fieldLabel(schema, field);
+  const min = schema.minimum;
+  const max = schema.maximum;
+
+  // No bounds in the schema means the catalog entry lost them — fail loudly
+  // rather than waving the value through to an on-chain revert.
+  if (typeof min !== 'number' || typeof max !== 'number') {
+    return [
+      {
+        field,
+        message: `${label} has no configured range — the step catalog entry is incomplete`,
+      },
+    ];
+  }
+
+  const n = Number(value);
+  if (!Number.isInteger(n)) {
+    return [{ field, message: `${label} must be a whole number` }];
+  }
+  if (n < min || n > max) {
+    const format = BOUNDED_INTEGER_WIDGETS[widget] ?? String;
+    return [
+      { field, message: `${label} must be between ${format(min)} and ${format(max)}` },
+    ];
+  }
+  return [];
+}
+
 function validateDuration(
   field: string,
   schema: FieldSchema,
@@ -365,6 +420,8 @@ export function validateParams(
       errors.push(...validateTickRange(fieldSchema, value, params));
     } else if (widget === 'percent') {
       errors.push(...validatePercent(field, fieldSchema, value));
+    } else if (widget !== undefined && widget in BOUNDED_INTEGER_WIDGETS) {
+      errors.push(...validateBoundedInteger(field, fieldSchema, value, widget));
     } else if (widget === 'duration') {
       errors.push(...validateDuration(field, fieldSchema, value, options.mode));
     } else if (widget === 'token-selector') {

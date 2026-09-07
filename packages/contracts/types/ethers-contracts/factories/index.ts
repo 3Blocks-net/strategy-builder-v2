@@ -7,6 +7,7 @@ export * as interfaces from './interfaces/index.js';
 export * as libraries from './libraries/index.js';
 export * as registries from './registries/index.js';
 export * as test from './test/index.js';
+export { CuratedRegistry__factory } from './CuratedRegistry__factory.js';
 export { FeeRegistry__factory } from './FeeRegistry__factory.js';
 export { StrategyBuilderVault__factory } from './StrategyBuilderVault__factory.js';
 export { StrategyBuilderVaultFactory__factory } from './StrategyBuilderVaultFactory__factory.js';

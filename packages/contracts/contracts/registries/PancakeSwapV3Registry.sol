@@ -8,8 +8,9 @@ import "../interfaces/external/IPancakeV3Factory.sol";
  * @title PancakeSwapV3Registry
  * @notice Per-protocol address registry for the PancakeSwap V3 actions. Stores
  *         the `SwapRouter`, `NonfungiblePositionManager` and `Factory` as three
- *         direct `immutable`s. No oracle (swaps ship without on-chain
- *         minimum-out — see PRD).
+ *         direct `immutable`s. No separate price oracle: the swapping actions
+ *         take their reference price from the pool itself (`SlippageGuard`), so
+ *         the factory is all they need to find it.
  *
  *         Immutable by design — no owner, no setters. Re-targeting a chain means
  *         deploying a new registry and repointing the actions.

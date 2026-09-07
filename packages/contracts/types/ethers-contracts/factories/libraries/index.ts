@@ -2,4 +2,5 @@
 /* tslint:disable */
 /* eslint-disable */
 export { ActionLib__factory } from './ActionLib__factory.js';
+export { SlippageGuard__factory } from './SlippageGuard__factory.js';
 export { TickMath__factory } from './TickMath__factory.js';

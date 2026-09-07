@@ -35,15 +35,23 @@ contract MockPancakeV3Factory is IPancakeV3Factory {
 /**
  * @dev PancakeSwap V3 SwapRouter stand-in. `exactInputSingle` pulls `amountIn`
  *      of tokenIn and pays out `amountIn × rateNum / rateDen` of tokenOut from
- *      its own (pre-funded) balance. Test-only.
+ *      its own (pre-funded) balance. `payoutBps` shrinks what is actually
+ *      transferred below the reported `amountOut` — the fee-on-transfer output
+ *      token case, where the router's own minimum-out check passes but the
+ *      recipient receives less. Test-only.
  */
 contract MockPancakeV3SwapRouter is IPancakeV3SwapRouter {
     uint256 public rateNum = 1;
     uint256 public rateDen = 1;
+    uint16 public payoutBps = 10_000;
 
     function setRate(uint256 num, uint256 den) external {
         rateNum = num;
         rateDen = den;
+    }
+
+    function setPayoutBps(uint16 bps) external {
+        payoutBps = bps;
     }
 
     function exactInputSingle(
@@ -52,7 +60,7 @@ contract MockPancakeV3SwapRouter is IPancakeV3SwapRouter {
         IERC20(p.tokenIn).transferFrom(msg.sender, address(this), p.amountIn);
         amountOut = (p.amountIn * rateNum) / rateDen;
         require(amountOut >= p.amountOutMinimum, "TooLittleReceived");
-        IERC20(p.tokenOut).transfer(p.recipient, amountOut);
+        IERC20(p.tokenOut).transfer(p.recipient, (amountOut * payoutBps) / 10_000);
     }
 }
 

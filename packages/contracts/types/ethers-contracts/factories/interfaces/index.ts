@@ -4,6 +4,7 @@
 export * as external from './external/index.js';
 export { IAction__factory } from './IAction__factory.js';
 export { ICondition__factory } from './ICondition__factory.js';
+export { ICuratedRegistry__factory } from './ICuratedRegistry__factory.js';
 export { IFeeRegistry__factory } from './IFeeRegistry__factory.js';
 export { IUpdatableCondition__factory } from './IUpdatableCondition__factory.js';
 export { IVaultRegistry__factory } from './IVaultRegistry__factory.js';

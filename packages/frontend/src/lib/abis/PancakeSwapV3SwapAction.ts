@@ -13,12 +13,54 @@ export const PancakeSwapV3SwapActionAbi = [
   {
     "inputs": [
       {
+        "internalType": "uint256",
+        "name": "received",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "minOut",
+        "type": "uint256"
+      }
+    ],
+    "name": "InsufficientOutput",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint24",
+        "name": "fee",
+        "type": "uint24"
+      }
+    ],
+    "name": "InvalidPoolFee",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "PoolNotFound",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ReferencePriceUnavailable",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "address",
         "name": "token",
         "type": "address"
       }
     ],
     "name": "SafeERC20FailedOperation",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "SameToken",
     "type": "error"
   },
   {
@@ -30,6 +72,33 @@ export const PancakeSwapV3SwapActionAbi = [
       }
     ],
     "name": "SlotOutOfBounds",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "TickOutOfRange",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint16",
+        "name": "toleranceBps",
+        "type": "uint16"
+      }
+    ],
+    "name": "ToleranceOutOfRange",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint32",
+        "name": "twapWindow",
+        "type": "uint32"
+      }
+    ],
+    "name": "TwapWindowOutOfRange",
     "type": "error"
   },
   {
@@ -46,6 +115,55 @@ export const PancakeSwapV3SwapActionAbi = [
     "inputs": [],
     "name": "ZeroTokenOut",
     "type": "error"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "pool",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "tokenIn",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "tokenOut",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "amountIn",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "minOut",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint16",
+        "name": "effectiveToleranceBps",
+        "type": "uint16"
+      },
+      {
+        "indexed": false,
+        "internalType": "bool",
+        "name": "spotFallback",
+        "type": "bool"
+      }
+    ],
+    "name": "SwapMinOutEnforced",
+    "type": "event"
   },
   {
     "inputs": [

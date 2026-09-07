@@ -24,7 +24,10 @@ export const RECIPES: RecipeDefinition[] = [
         {
           id: 'buy',
           stepType: 'PancakeSwap V3 Swap',
-          params: { tokenIn: 'TOKEN_IN', tokenOut: 'TOKEN_OUT', fee: 'FEE_TIER', amountIn: 'BETRAG' },
+          params: {
+            tokenIn: 'TOKEN_IN', tokenOut: 'TOKEN_OUT', fee: 'FEE_TIER', amountIn: 'BETRAG',
+            slippageToleranceBps: 'MAX_SLIPPAGE_BPS', twapWindow: 'SWAP_TWAP_WINDOW',
+          },
         },
       ],
       edges: [{ source: 'trigger', target: 'buy', sourceHandle: 'out' }],
@@ -96,7 +99,10 @@ export const RECIPES: RecipeDefinition[] = [
         {
           id: 'swap',
           stepType: 'PancakeSwap V3 Swap',
-          params: { tokenIn: 'TOKEN_FROM', tokenOut: 'TOKEN_TO', fee: 'FEE_TIER', amountIn: 'BETRAG' },
+          params: {
+            tokenIn: 'TOKEN_FROM', tokenOut: 'TOKEN_TO', fee: 'FEE_TIER', amountIn: 'BETRAG',
+            slippageToleranceBps: 'MAX_SLIPPAGE_BPS', twapWindow: 'SWAP_TWAP_WINDOW',
+          },
         },
       ],
       edges: [{ source: 'trigger', target: 'swap', sourceHandle: 'out' }],
@@ -115,7 +121,10 @@ export const RECIPES: RecipeDefinition[] = [
         {
           id: 'size',
           stepType: 'PancakeSwap V3 Swap to Range Ratio',
-          params: { tokenA: 'TOKEN_A', tokenB: 'TOKEN_B', fee: 'FEE', tickDelta: 'RANGE', amountOutMinimum: '0' },
+          params: {
+            tokenA: 'TOKEN_A', tokenB: 'TOKEN_B', fee: 'FEE', tickDelta: 'RANGE',
+            slippageToleranceBps: 'MAX_SLIPPAGE_BPS', twapWindow: 'SWAP_TWAP_WINDOW',
+          },
         },
         {
           id: 'mint',
@@ -157,7 +166,10 @@ export const RECIPES: RecipeDefinition[] = [
         {
           id: 'size',
           stepType: 'PancakeSwap V3 Swap to Range Ratio',
-          params: { tokenA: 'TOKEN_A', tokenB: 'TOKEN_B', fee: 'FEE', tickDelta: 'RANGE', amountOutMinimum: '0' },
+          params: {
+            tokenA: 'TOKEN_A', tokenB: 'TOKEN_B', fee: 'FEE', tickDelta: 'RANGE',
+            slippageToleranceBps: 'MAX_SLIPPAGE_BPS', twapWindow: 'SWAP_TWAP_WINDOW',
+          },
         },
         {
           id: 'mint',

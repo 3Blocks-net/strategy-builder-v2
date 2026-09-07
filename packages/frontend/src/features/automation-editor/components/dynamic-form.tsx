@@ -19,6 +19,11 @@ interface FieldSchema {
   title?: string;
   description?: string;
   default?: unknown;
+  // JSON-Schema bounds. For the chain-enforced numeric widgets (slippage
+  // tolerance, TWAP window) these ARE the limits — the widget reads them from
+  // the schema instead of carrying its own copy.
+  minimum?: number;
+  maximum?: number;
   'x-ui-widget'?: string;
   'x-ui-slot-access'?: string;
   'x-ui-hidden'?: boolean;
@@ -269,6 +274,30 @@ function FormField({
   if (widget === 'range-percent') {
     return (
       <RangePercentField
+        fieldName={fieldName}
+        schema={schema}
+        value={value}
+        onChange={onChange}
+        nodeId={nodeId}
+      />
+    );
+  }
+
+  if (widget === 'slippage-tolerance') {
+    return (
+      <SlippageToleranceField
+        fieldName={fieldName}
+        schema={schema}
+        value={value}
+        onChange={onChange}
+        nodeId={nodeId}
+      />
+    );
+  }
+
+  if (widget === 'twap-window') {
+    return (
+      <TwapWindowField
         fieldName={fieldName}
         schema={schema}
         value={value}
@@ -925,6 +954,180 @@ function FeeTierField({
           </option>
         ))}
       </select>
+      <FieldError message={error} />
+    </div>
+  );
+}
+
+/** Percent presets offered for the slippage tolerance; bps = percent × 100. */
+const SLIPPAGE_PERCENT_PRESETS = [0.5, 1, 3];
+
+/**
+ * Slippage tolerance picker → emits basis points (uint16), the value the action
+ * struct carries. The user thinks in percent; the allowed range comes from the
+ * schema (`minimum`/`maximum`), which mirrors the on-chain guard — the widget
+ * never states a limit of its own, so a preset outside the allowed range simply
+ * disappears rather than offering a value the chain would reject.
+ */
+function SlippageToleranceField({
+  fieldName,
+  schema,
+  value,
+  onChange,
+  nodeId,
+}: {
+  fieldName: string;
+  schema: FieldSchema;
+  value: unknown;
+  onChange: (name: string, value: unknown) => void;
+  nodeId: string;
+}) {
+  const error = useFieldError(nodeId, fieldName);
+  const min = schema.minimum;
+  const max = schema.maximum;
+  // See TwapWindowField: an unset parameter shows no selection, so the widget
+  // never claims a value the validator is about to reject as missing.
+  const current = value === undefined || value === null ? Number.NaN : Number(value);
+  const [custom, setCustom] = useState('');
+
+  const presets = SLIPPAGE_PERCENT_PRESETS.map((pct) => ({ pct, bps: Math.round(pct * 100) }))
+    .filter((p) => (min === undefined || p.bps >= min) && (max === undefined || p.bps <= max));
+
+  return (
+    <div>
+      <FieldLabel schema={schema} />
+      <div className="flex gap-2 items-center">
+        {presets.map((p) => (
+          <button
+            type="button"
+            key={p.bps}
+            className={`nodrag px-2 py-1 text-sm rounded border ${
+              current === p.bps
+                ? 'bg-blue-500 text-white border-blue-500'
+                : 'border-gray-300'
+            }`}
+            onClick={() => {
+              setCustom('');
+              onChange(fieldName, p.bps);
+            }}
+          >
+            {p.pct}%
+          </button>
+        ))}
+        <input
+          type="number"
+          step="0.05"
+          min={min !== undefined ? min / 100 : undefined}
+          max={max !== undefined ? max / 100 : undefined}
+          className="nodrag w-24 border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+          placeholder="% …"
+          value={custom}
+          onChange={(e) => {
+            setCustom(e.target.value);
+            const pct = Number(e.target.value);
+            if (e.target.value.trim() !== '' && Number.isFinite(pct)) {
+              onChange(fieldName, Math.round(pct * 100));
+            }
+          }}
+        />
+      </div>
+      <p className="text-xs text-gray-500 mt-1">
+        {Number.isFinite(current)
+          ? `The swap reverts if it would land more than ${current / 100}% below the pool’s reference price.`
+          : 'Pick how far below the reference price the swap may still execute.'}
+        {min !== undefined && max !== undefined
+          ? ` Allowed: ${min / 100}%–${max / 100}%.`
+          : ''}
+      </p>
+      <FieldError message={error} />
+    </div>
+  );
+}
+
+/** Minute presets offered for the reference window; the stored value is seconds. */
+const TWAP_WINDOW_MINUTE_PRESETS = [3, 5, 10];
+
+/**
+ * Reference-window picker → emits seconds (uint32). Same contract as the
+ * tolerance widget: the allowed range comes from the schema, never from here.
+ */
+function TwapWindowField({
+  fieldName,
+  schema,
+  value,
+  onChange,
+  nodeId,
+}: {
+  fieldName: string;
+  schema: FieldSchema;
+  value: unknown;
+  onChange: (name: string, value: unknown) => void;
+  nodeId: string;
+}) {
+  const error = useFieldError(nodeId, fieldName);
+  const min = schema.minimum;
+  const max = schema.maximum;
+  // Only a value that is actually set counts as a selection. Highlighting the
+  // schema default while the parameter is missing would contradict the
+  // "is required" error the validator raises on the very same field.
+  const current = value === undefined || value === null ? Number.NaN : Number(value);
+  const [custom, setCustom] = useState('');
+
+  const presets = TWAP_WINDOW_MINUTE_PRESETS.map((minutes) => ({
+    minutes,
+    seconds: minutes * 60,
+  })).filter(
+    (p) => (min === undefined || p.seconds >= min) && (max === undefined || p.seconds <= max),
+  );
+
+  return (
+    <div>
+      <FieldLabel schema={schema} />
+      <div className="flex gap-2 items-center">
+        {presets.map((p) => (
+          <button
+            type="button"
+            key={p.seconds}
+            className={`nodrag px-2 py-1 text-sm rounded border ${
+              current === p.seconds
+                ? 'bg-blue-500 text-white border-blue-500'
+                : 'border-gray-300'
+            }`}
+            onClick={() => {
+              setCustom('');
+              onChange(fieldName, p.seconds);
+            }}
+          >
+            {p.minutes} min
+          </button>
+        ))}
+        {/* The presets are convenience, not the range. Without a free field the
+            schema's own edges (60 s, 900 s) would be unreachable, and a range
+            that ever excludes all presets would leave a required field with no
+            control at all. */}
+        <input
+          type="number"
+          step="30"
+          min={min}
+          max={max}
+          className="nodrag w-24 border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+          placeholder="sec …"
+          value={custom}
+          onChange={(e) => {
+            setCustom(e.target.value);
+            const seconds = Number(e.target.value);
+            if (e.target.value.trim() !== '' && Number.isFinite(seconds)) {
+              onChange(fieldName, Math.round(seconds));
+            }
+          }}
+        />
+      </div>
+      <p className="text-xs text-gray-500 mt-1">
+        {Number.isFinite(current)
+          ? `The reference price is averaged over ${current} seconds, so a single-block spike cannot set the bar.`
+          : 'Pick how long the reference price is averaged over.'}
+        {min !== undefined && max !== undefined ? ` Allowed: ${min}–${max} s.` : ''}
+      </p>
       <FieldError message={error} />
     </div>
   );

@@ -35,10 +35,20 @@ function encodeMintParams(
   );
 }
 
+// The swap here only generates pool fees for the position under test, so it runs
+// at the widest tolerance SlippageGuard allows — this test is about collecting.
+// The swap step now runs SlippageGuard (observe + tick math) on top of the swap,
+// which pushes this automation past what the fork's gas estimation reliably
+// predicts across back-to-back live-pool calls. Same fixed limit as the two other
+// swap fork suites.
+const GAS_LIMIT = 5_000_000;
+const FEE_GENERATING_TOLERANCE_BPS = 1_000;
+const TWAP_WINDOW = 300;
+
 function encodeSwapParams(tokenIn: string, tokenOut: string, fee: number, amountIn: bigint): string {
   return abiCoder.encode(
-    ["address", "address", "uint24", "uint256", "uint32", "uint32", "uint256", "uint32"],
-    [tokenIn, tokenOut, fee, amountIn, NO_SLOT, NO_SLOT, 0n, NO_SLOT],
+    ["address", "address", "uint24", "uint256", "uint32", "uint32", "uint16", "uint32"],
+    [tokenIn, tokenOut, fee, amountIn, NO_SLOT, NO_SLOT, FEE_GENERATING_TOLERANCE_BPS, TWAP_WINDOW],
   );
 }
 
@@ -119,14 +129,14 @@ forkDescribe("PancakeSwapV3CollectAction (fork)", function () {
         USDT, WBNB, fee, 0, tickLower, tickUpper, 0, ethers.parseEther("200"), ethers.parseEther("0.3"), 0,
       )),
     ]);
-    await vault.executeAutomation(0);
+    await vault.executeAutomation(0, { gasLimit: GAS_LIMIT });
 
     // Generate fees: a large USDT→WBNB swap through the same fee tier (fee paid
     // in USDT accrues pro-rata to in-range liquidity, incl. our position).
     await vault.createOwnerAutomation([
       actionStep(await swap.getAddress(), encodeSwapParams(USDT, WBNB, fee, ethers.parseEther("5000"))),
     ]);
-    await vault.executeAutomation(1);
+    await vault.executeAutomation(1, { gasLimit: GAS_LIMIT });
 
     const usdt = new ethers.Contract(USDT, ERC20_ABI, ethers.provider);
     const usdtBefore = (await usdt.balanceOf(await vault.getAddress())) as bigint;
@@ -135,7 +145,7 @@ forkDescribe("PancakeSwapV3CollectAction (fork)", function () {
     await vault.createOwnerAutomation([
       actionStep(await collect.getAddress(), encodeCollectParams(0)),
     ]);
-    await vault.executeAutomation(2);
+    await vault.executeAutomation(2, { gasLimit: GAS_LIMIT });
 
     const usdtAfter = (await usdt.balanceOf(await vault.getAddress())) as bigint;
     expect(usdtAfter).to.be.greaterThan(usdtBefore); // accrued USDT fees harvested

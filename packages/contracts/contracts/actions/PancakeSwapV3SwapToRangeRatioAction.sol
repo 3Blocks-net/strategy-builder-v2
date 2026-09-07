@@ -2,12 +2,11 @@
 pragma solidity ^0.8.28;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "../interfaces/IAction.sol";
-import "../interfaces/external/IPancakeV3SwapRouter.sol";
 import "../interfaces/external/IPancakeV3Factory.sol";
 import "../interfaces/external/IPancakeV3Pool.sol";
 import "../registries/PancakeSwapV3Registry.sol";
+import "../libraries/SlippageGuard.sol";
 import "../libraries/TickMath.sol";
 
 /**
@@ -24,20 +23,23 @@ import "../libraries/TickMath.sol";
  * holds only the deposit token) and rebalance (both tokens after Collect) alike.
  *
  * Single-pass: the target ratio is computed from the pre-swap price and ignores the
- * swap's own price impact — the leftover is dust. No `minOut` in v1 (consistent with
- * `SwapAction`; sandwich protection is a tracked follow-up). Delegatecall — runs in
- * the vault's storage/balance context; no state variables (`registry` is immutable).
+ * swap's own price impact — the leftover is dust. Delegatecall — runs in the vault's
+ * storage/balance context; no state variables (`registry` is immutable).
+ *
+ * Price protection: the swap leg runs through `SlippageGuard`, the same shared
+ * implementation `PancakeSwapV3SwapAction` uses — one minimum-out rule, no second
+ * copy to drift. The tolerance is validated up front, so a bad parameter is rejected
+ * even when the holding is already balanced and nothing would be swapped.
  *
  * Params (ABI):
- *   address tokenA            – one pool token (typically the deposit token)
- *   address tokenB            – the other pool token
- *   uint24  fee               – pool fee tier
- *   int24   tickDelta         – preset half-width (must match the following Mint)
- *   uint256 amountOutMinimum  – forward-compat; 0 by design in v1
+ *   address tokenA               – one pool token (typically the deposit token)
+ *   address tokenB               – the other pool token
+ *   uint24  fee                  – pool fee tier
+ *   int24   tickDelta            – preset half-width (must match the following Mint)
+ *   uint16  slippageToleranceBps – mandatory, SlippageGuard bounds
+ *   uint32  twapWindow           – reference window in seconds
  */
 contract PancakeSwapV3SwapToRangeRatioAction is IAction {
-    using SafeERC20 for IERC20;
-
     PancakeSwapV3Registry public immutable registry;
 
     struct Params {
@@ -45,7 +47,8 @@ contract PancakeSwapV3SwapToRangeRatioAction is IAction {
         address tokenB;
         uint24 fee;
         int24 tickDelta;
-        uint256 amountOutMinimum;
+        uint16 slippageToleranceBps;
+        uint32 twapWindow;
     }
 
     error ZeroToken();
@@ -67,6 +70,7 @@ contract PancakeSwapV3SwapToRangeRatioAction is IAction {
         Params memory p = abi.decode(params, (Params));
         if (p.tokenA == address(0) || p.tokenB == address(0)) revert ZeroToken();
         if (p.tokenA == p.tokenB) revert SameToken();
+        SlippageGuard.requireValidBounds(p.slippageToleranceBps, p.twapWindow);
 
         (address token0, address token1) = p.tokenA < p.tokenB
             ? (p.tokenA, p.tokenB)
@@ -114,41 +118,38 @@ contract PancakeSwapV3SwapToRangeRatioAction is IAction {
             uint256 excess1 = value0 - targetValue0;
             uint256 amountIn = _divSpMulQ96(_divSpMulQ96(excess1, sp), sp); // excess1 / price
             if (amountIn > bal0) amountIn = bal0;
-            _swap(token0, token1, p.fee, amountIn, p.amountOutMinimum);
+            _swap(token0, token1, p, amountIn);
         } else if (targetValue0 > value0) {
             // Too little token0 → swap token1 (token1 units == token1 amount) into token0.
             uint256 amountIn = targetValue0 - value0;
             if (amountIn > bal1) amountIn = bal1;
-            _swap(token1, token0, p.fee, amountIn, p.amountOutMinimum);
+            _swap(token1, token0, p, amountIn);
         }
         // else already balanced → no-op.
 
         return (new uint32[](0), new bytes[](0));
     }
 
+    /// The one swap leg — routed through the shared guard, never inlined here.
     function _swap(
         address tokenIn,
         address tokenOut,
-        uint24 fee,
-        uint256 amountIn,
-        uint256 minOut
+        Params memory p,
+        uint256 amountIn
     ) private {
         if (amountIn == 0) return;
-        IPancakeV3SwapRouter router = registry.swapRouter();
-        IERC20(tokenIn).forceApprove(address(router), amountIn);
-        router.exactInputSingle(
-            IPancakeV3SwapRouter.ExactInputSingleParams({
+        SlippageGuard.swapExactInput(
+            SlippageGuard.SwapRequest({
+                router: registry.swapRouter(),
+                factory: registry.factory(),
                 tokenIn: tokenIn,
                 tokenOut: tokenOut,
-                fee: fee,
-                recipient: address(this),
-                deadline: block.timestamp,
+                fee: p.fee,
                 amountIn: amountIn,
-                amountOutMinimum: minOut,
-                sqrtPriceLimitX96: 0
+                toleranceBps: p.slippageToleranceBps,
+                twapWindow: p.twapWindow
             })
         );
-        IERC20(tokenIn).forceApprove(address(router), 0);
     }
 
     /// x · sp / Q96 — one stage of multiplying by the sqrt price.

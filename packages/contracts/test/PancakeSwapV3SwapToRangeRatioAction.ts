@@ -9,11 +9,22 @@ const FEE = 500;
 const SPACING = 10;
 const TICK_DELTA = 1000; // symmetric range ⇒ target ≈ 50/50 by value
 const E = (n: string) => ethers.parseEther(n);
+// The reference pool sits at tick 0 and the mock router pays 1:1, so the shared
+// guard's minimum-out is cleared throughout — these tests are about the ratio
+// sizing. The guard's own edge cases live in SlippageGuard.ts.
+const TOLERANCE_BPS = 100;
+const TWAP_WINDOW = 300;
 
-function encodeParams(tokenA: string, tokenB: string, tickDelta: number): string {
+function encodeParams(
+  tokenA: string,
+  tokenB: string,
+  tickDelta: number,
+  slippageToleranceBps = TOLERANCE_BPS,
+  twapWindow = TWAP_WINDOW,
+): string {
   return abiCoder.encode(
-    ["address", "address", "uint24", "int24", "uint256"],
-    [tokenA, tokenB, FEE, tickDelta, 0n],
+    ["address", "address", "uint24", "int24", "uint16", "uint32"],
+    [tokenA, tokenB, FEE, tickDelta, slippageToleranceBps, twapWindow],
   );
 }
 

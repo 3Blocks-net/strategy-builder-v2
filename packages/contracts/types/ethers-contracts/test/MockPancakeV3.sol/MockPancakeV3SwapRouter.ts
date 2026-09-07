@@ -13,18 +13,22 @@ export declare namespace IPancakeV3SwapRouter {
     }
 
   export interface MockPancakeV3SwapRouterInterface extends Interface {
-    getFunction(nameOrSignature: "exactInputSingle" | "rateDen" | "rateNum" | "setRate"): FunctionFragment;
+    getFunction(nameOrSignature: "exactInputSingle" | "payoutBps" | "rateDen" | "rateNum" | "setPayoutBps" | "setRate"): FunctionFragment;
 
     
 
     encodeFunctionData(functionFragment: 'exactInputSingle', values: [IPancakeV3SwapRouter.ExactInputSingleParamsStruct]): string;
+encodeFunctionData(functionFragment: 'payoutBps', values?: undefined): string;
 encodeFunctionData(functionFragment: 'rateDen', values?: undefined): string;
 encodeFunctionData(functionFragment: 'rateNum', values?: undefined): string;
+encodeFunctionData(functionFragment: 'setPayoutBps', values: [BigNumberish]): string;
 encodeFunctionData(functionFragment: 'setRate', values: [BigNumberish, BigNumberish]): string;
 
     decodeFunctionResult(functionFragment: 'exactInputSingle', data: BytesLike): Result;
+decodeFunctionResult(functionFragment: 'payoutBps', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'rateDen', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'rateNum', data: BytesLike): Result;
+decodeFunctionResult(functionFragment: 'setPayoutBps', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'setRate', data: BytesLike): Result;
   }
 
@@ -72,6 +76,14 @@ decodeFunctionResult(functionFragment: 'setRate', data: BytesLike): Result;
     
 
     
+    payoutBps: TypedContractMethod<
+      [],
+      [bigint],
+      'view'
+    >
+    
+
+    
     rateDen: TypedContractMethod<
       [],
       [bigint],
@@ -84,6 +96,14 @@ decodeFunctionResult(functionFragment: 'setRate', data: BytesLike): Result;
       [],
       [bigint],
       'view'
+    >
+    
+
+    
+    setPayoutBps: TypedContractMethod<
+      [bps: BigNumberish, ],
+      [void],
+      'nonpayable'
     >
     
 
@@ -103,6 +123,11 @@ decodeFunctionResult(functionFragment: 'setRate', data: BytesLike): Result;
       [bigint],
       'payable'
     >;
+getFunction(nameOrSignature: 'payoutBps'): TypedContractMethod<
+      [],
+      [bigint],
+      'view'
+    >;
 getFunction(nameOrSignature: 'rateDen'): TypedContractMethod<
       [],
       [bigint],
@@ -112,6 +137,11 @@ getFunction(nameOrSignature: 'rateNum'): TypedContractMethod<
       [],
       [bigint],
       'view'
+    >;
+getFunction(nameOrSignature: 'setPayoutBps'): TypedContractMethod<
+      [bps: BigNumberish, ],
+      [void],
+      'nonpayable'
     >;
 getFunction(nameOrSignature: 'setRate'): TypedContractMethod<
       [num: BigNumberish, den: BigNumberish, ],

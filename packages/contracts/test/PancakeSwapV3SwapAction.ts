@@ -1,6 +1,6 @@
 import { expect } from "chai";
 import { network } from "hardhat";
-import { AbiCoder, id } from "ethers";
+import { AbiCoder, concat, id } from "ethers";
 
 const { ethers } = await network.connect();
 
@@ -10,6 +10,22 @@ const EXECUTE_SEL = id("execute(bytes,bytes[])").slice(0, 10);
 const DONE = 0xffffffff;
 const NO_SLOT = 0xffffffff;
 const FEE = 500;
+// Slippage defaults for the amount-routing tests below. The reference pool sits
+// at tick 0 (price 1) while the mock router pays 1:2, so the guard's minimum-out
+// is always cleared — these tests are about amount routing, not the guard. The
+// guard's own edge cases live in SlippageGuard.ts.
+const TOLERANCE_BPS = 100;
+const TWAP_WINDOW = 300;
+
+// The mock SwapRouter refuses a payout below `amountOutMinimum` with
+// `require(..., "TooLittleReceived")` — an Error(string) revert. The vault
+// carries that reason inside `ActionExecutionFailed(stepIndex, reason)`, so a
+// test can name the real cause instead of settling for the generic wrapper
+// (which would stay green if the step had failed for any other reason).
+const ROUTER_MIN_OUT_REJECTION = concat([
+  id("Error(string)").slice(0, 10),
+  abiCoder.encode(["string"], ["TooLittleReceived"]),
+]);
 
 function encodeSwapParams(
   tokenIn: string,
@@ -18,12 +34,12 @@ function encodeSwapParams(
   amountIn: bigint,
   amountInFromSlot = NO_SLOT,
   amountOutToSlot = NO_SLOT,
-  amountOutMinimum: bigint = 0n,
-  minOutFromSlot = NO_SLOT,
+  slippageToleranceBps = TOLERANCE_BPS,
+  twapWindow = TWAP_WINDOW,
 ): string {
   return abiCoder.encode(
-    ["address", "address", "uint24", "uint256", "uint32", "uint32", "uint256", "uint32"],
-    [tokenIn, tokenOut, fee, amountIn, amountInFromSlot, amountOutToSlot, amountOutMinimum, minOutFromSlot],
+    ["address", "address", "uint24", "uint256", "uint32", "uint32", "uint16", "uint32"],
+    [tokenIn, tokenOut, fee, amountIn, amountInFromSlot, amountOutToSlot, slippageToleranceBps, twapWindow],
   );
 }
 
@@ -45,9 +61,15 @@ describe("PancakeSwapV3SwapAction", function () {
     const MockToken = await ethers.getContractFactory("MockERC20");
     const tokenIn = await MockToken.deploy("In", "IN", ethers.parseEther("1000000"));
     const tokenOut = await MockToken.deploy("Out", "OUT", ethers.parseEther("1000000"));
+    const inAddr = await tokenIn.getAddress();
+    const outAddr = await tokenOut.getAddress();
+    const [t0, t1] = inAddr.toLowerCase() < outAddr.toLowerCase() ? [inAddr, outAddr] : [outAddr, inAddr];
 
+    // Reference pool at tick 0 ⇒ price 1 in both directions.
+    const pool = await ethers.deployContract("MockPancakeV3Pool", [t0, t1, 10, 0]);
     const router = await ethers.deployContract("MockPancakeV3SwapRouter");
     const pcsFactory = await ethers.deployContract("MockPancakeV3Factory");
+    await pcsFactory.setPool(t0, t1, FEE, await pool.getAddress());
     const registry = await ethers.deployContract("PancakeSwapV3Registry", [
       await router.getAddress(),
       "0x0000000000000000000000000000000000000001", // NPM placeholder
@@ -61,7 +83,7 @@ describe("PancakeSwapV3SwapAction", function () {
     // Fund the vault with IN.
     await tokenIn.transfer(await vault.getAddress(), ethers.parseEther("100"));
 
-    return { owner, vault, tokenIn, tokenOut, router, action };
+    return { owner, vault, tokenIn, tokenOut, pool, router, action };
   }
 
   it("reverts construction with a zero registry", async function () {
@@ -86,16 +108,22 @@ describe("PancakeSwapV3SwapAction", function () {
     expect(await tokenIn.allowance(await vault.getAddress(), await router.getAddress())).to.equal(0n);
   });
 
-  it("executes with amountOutMinimum = 0 (no slippage protection by design)", async function () {
-    const { vault, tokenIn, tokenOut, action } = await fixture();
+  it("enforces a minimum output derived from the pool price", async function () {
+    const { vault, tokenIn, tokenOut, router, action } = await fixture();
+    // Router pays a tenth of the pool price — far below any allowed tolerance.
+    await router.setRate(1, 10);
     await vault.createOwnerAutomation([
       actionStep(
         await action.getAddress(),
         encodeSwapParams(await tokenIn.getAddress(), await tokenOut.getAddress(), FEE, ethers.parseEther("5")),
       ),
     ]);
-    await vault.executeAutomation(0); // does not revert
-    expect(await tokenOut.balanceOf(await vault.getAddress())).to.equal(ethers.parseEther("10"));
+    // Refused for the minimum-out the guard handed the router — the inner
+    // reason, not just the wrapper. That is what makes this test evidence.
+    await expect(vault.executeAutomation(0))
+      .to.be.revertedWithCustomError(vault, "ActionExecutionFailed")
+      .withArgs(0, ROUTER_MIN_OUT_REJECTION);
+    expect(await tokenOut.balanceOf(await vault.getAddress())).to.equal(0n);
   });
 
   it("writes the output amount to a context slot", async function () {
@@ -146,6 +174,34 @@ describe("PancakeSwapV3SwapAction", function () {
         encodeSwapParams(ethers.ZeroAddress, await tokenOut.getAddress(), FEE, 1n),
       ),
     ]);
-    await expect(vault.executeAutomation(0)).to.be.revertedWithCustomError(vault, "ActionExecutionFailed");
+    await expect(vault.executeAutomation(0))
+      .to.be.revertedWithCustomError(vault, "ActionExecutionFailed")
+      .withArgs(0, action.interface.encodeErrorResult("ZeroTokenIn", []));
+
+    await vault.createOwnerAutomation([
+      actionStep(
+        await action.getAddress(),
+        encodeSwapParams(await tokenIn.getAddress(), ethers.ZeroAddress, FEE, 1n),
+      ),
+    ]);
+    await expect(vault.executeAutomation(1))
+      .to.be.revertedWithCustomError(vault, "ActionExecutionFailed")
+      .withArgs(0, action.interface.encodeErrorResult("ZeroTokenOut", []));
+  });
+
+  it("reverts when the pair has no pool to price against", async function () {
+    const { vault, tokenIn, tokenOut, action } = await fixture();
+    await vault.createOwnerAutomation([
+      actionStep(
+        await action.getAddress(),
+        // Fee tier 2500 has no registered pool in the mock factory.
+        encodeSwapParams(await tokenIn.getAddress(), await tokenOut.getAddress(), 2500, ethers.parseEther("1")),
+      ),
+    ]);
+    // Named reason: no pool to price against, not an incidental failure.
+    const guard = await ethers.getContractAt("SlippageGuard", await vault.getAddress());
+    await expect(vault.executeAutomation(0))
+      .to.be.revertedWithCustomError(vault, "ActionExecutionFailed")
+      .withArgs(0, guard.interface.encodeErrorResult("PoolNotFound", []));
   });
 });

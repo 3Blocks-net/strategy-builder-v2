@@ -1,12 +1,17 @@
 import { StepCategory } from '@prisma/client';
-import { EXECUTE_SELECTOR, type StepTypeDef } from './_shared';
+import {
+  EXECUTE_SELECTOR,
+  SLIPPAGE_TOLERANCE_FIELD,
+  TWAP_WINDOW_FIELD,
+  type StepTypeDef,
+} from './_shared';
 
 // `satisfies` preserves the concrete JSON literal types Prisma / recipe-validation need.
 export const PANCAKESWAP_STEP_TYPES = [
     {
       name: 'PancakeSwap V3 Swap',
       description:
-        'Swaps one token for another via PancakeSwap V3 (single-hop). Ships without on-chain minimum-out (amountOutMinimum = 0) — the step executes rather than reverting on price movement. The output amount is written to a context slot.',
+        'Swaps one token for another via PancakeSwap V3 (single-hop). The swap is protected on-chain: at execution time the vault derives a minimum output from the pool’s time-weighted average price over the reference window and reverts the whole automation if the swap would land below it, so a sandwich attack or a price move while the transaction is pending can cost at most the configured tolerance instead of the position. Tolerance and reference window are mandatory; an unprotected swap cannot be expressed. If the pool’s oracle cannot cover the window, the spot price with half the tolerance is used instead. The output amount is written to a context slot.',
       category: StepCategory.ACTION,
       contractKey: 'PancakeSwapV3SwapAction',
       selector: EXECUTE_SELECTOR,
@@ -20,8 +25,8 @@ export const PANCAKESWAP_STEP_TYPES = [
           { name: 'amountIn', type: 'uint256' },
           { name: 'amountInFromSlot', type: 'uint32' },
           { name: 'amountOutToSlot', type: 'uint32' },
-          { name: 'amountOutMinimum', type: 'uint256' },
-          { name: 'minOutFromSlot', type: 'uint32' },
+          { name: 'slippageToleranceBps', type: 'uint16' },
+          { name: 'twapWindow', type: 'uint32' },
         ],
       },
       paramSchema: {
@@ -75,25 +80,17 @@ export const PANCAKESWAP_STEP_TYPES = [
             'x-ui-slot-access': 'write',
             default: 4294967295,
           },
-          amountOutMinimum: {
-            type: 'string',
-            title: 'Minimum Output',
-            description:
-              'Forward-compat: minimum acceptable output (base units). Hidden — ships at 0 (no slippage protection).',
-            'x-ui-hidden': true,
-            default: '0',
-          },
-          minOutFromSlot: {
-            type: 'integer',
-            title: 'Minimum Output from Context Slot',
-            description: 'Forward-compat: read the minimum output from a slot. Max uint32 = unset.',
-            'x-ui-widget': 'context-slot',
-            'x-ui-slot-access': 'read',
-            'x-ui-hidden': true,
-            default: 4294967295,
-          },
+          slippageToleranceBps: SLIPPAGE_TOLERANCE_FIELD,
+          twapWindow: TWAP_WINDOW_FIELD,
         },
-        required: ['tokenIn', 'tokenOut', 'fee', 'amountIn'],
+        required: [
+          'tokenIn',
+          'tokenOut',
+          'fee',
+          'amountIn',
+          'slippageToleranceBps',
+          'twapWindow',
+        ],
       },
     },
     {
@@ -337,7 +334,7 @@ export const PANCAKESWAP_STEP_TYPES = [
     {
       name: 'PancakeSwap V3 Swap to Range Ratio',
       description:
-        'Sizes a concentrated-liquidity entry at execution time: reads the live pool price, works out the target token0/token1 ratio for the range (tick ± width) and swaps the over-represented token toward it. Pair it before a Mint(full balance). Computed on-chain so it stays correct whenever the automation fires.',
+        'Sizes a concentrated-liquidity entry at execution time: reads the live pool price, works out the target token0/token1 ratio for the range (tick ± width) and swaps the over-represented token toward it. Pair it before a Mint(full balance). Computed on-chain so it stays correct whenever the automation fires. The balancing swap runs through the same on-chain protection as the plain swap step: the minimum output comes from the pool’s time-weighted average price over the reference window, and the step reverts below it (spot price with half the tolerance when the oracle cannot cover the window). Tolerance and reference window are mandatory.',
       category: StepCategory.ACTION,
       contractKey: 'PancakeSwapV3SwapToRangeRatioAction',
       selector: EXECUTE_SELECTOR,
@@ -349,7 +346,8 @@ export const PANCAKESWAP_STEP_TYPES = [
           { name: 'tokenB', type: 'address' },
           { name: 'fee', type: 'uint24' },
           { name: 'tickDelta', type: 'int24' },
-          { name: 'amountOutMinimum', type: 'uint256' },
+          { name: 'slippageToleranceBps', type: 'uint16' },
+          { name: 'twapWindow', type: 'uint32' },
         ],
       },
       paramSchema: {
@@ -384,15 +382,17 @@ export const PANCAKESWAP_STEP_TYPES = [
             'x-ui-widget': 'range-percent',
             default: 1000,
           },
-          amountOutMinimum: {
-            type: 'string',
-            title: 'Min Out',
-            description: 'Minimum swap output (slippage guard). 0 in v1.',
-            'x-ui-hidden': true,
-            default: '0',
-          },
+          slippageToleranceBps: SLIPPAGE_TOLERANCE_FIELD,
+          twapWindow: TWAP_WINDOW_FIELD,
         },
-        required: ['tokenA', 'tokenB', 'fee', 'tickDelta'],
+        required: [
+          'tokenA',
+          'tokenB',
+          'fee',
+          'tickDelta',
+          'slippageToleranceBps',
+          'twapWindow',
+        ],
       },
     },
 ] satisfies StepTypeDef[];

@@ -457,3 +457,135 @@ describe('validateParams — percent guard', () => {
     expect(validateParams(schema, { percent: 12.5 }, { mode: 'raw' })).toHaveLength(1);
   });
 });
+
+describe('validateParams — chain-enforced bounds (slippage tolerance / TWAP window)', () => {
+  // Mirrors the catalog shape: the bounds live in the schema, not in the rule.
+  const MIN_BPS = 10;
+  const MAX_BPS = 1000;
+  const MIN_WINDOW = 60;
+  const MAX_WINDOW = 900;
+
+  const schema: ParamSchema = {
+    type: 'object',
+    properties: {
+      slippageToleranceBps: {
+        type: 'integer',
+        title: 'Max. Slippage',
+        'x-ui-widget': 'slippage-tolerance',
+        minimum: MIN_BPS,
+        maximum: MAX_BPS,
+        default: 100,
+      },
+      twapWindow: {
+        type: 'integer',
+        title: 'Reference Window',
+        'x-ui-widget': 'twap-window',
+        minimum: MIN_WINDOW,
+        maximum: MAX_WINDOW,
+        default: 300,
+      },
+    },
+    required: ['slippageToleranceBps', 'twapWindow'],
+  };
+
+  const inRange = { slippageToleranceBps: 100, twapWindow: 300 };
+
+  for (const mode of ['friendly', 'raw'] as const) {
+    describe(`${mode} mode`, () => {
+      it('accepts a value inside the bounds', () => {
+        expect(validateParams(schema, inRange, { mode })).toEqual([]);
+      });
+
+      it('accepts both edges', () => {
+        expect(
+          validateParams(
+            schema,
+            { slippageToleranceBps: MIN_BPS, twapWindow: MIN_WINDOW },
+            { mode },
+          ),
+        ).toEqual([]);
+        expect(
+          validateParams(
+            schema,
+            { slippageToleranceBps: MAX_BPS, twapWindow: MAX_WINDOW },
+            { mode },
+          ),
+        ).toEqual([]);
+      });
+
+      it('rejects a tolerance below the minimum — no unprotected swap', () => {
+        const errors = validateParams(
+          schema,
+          { ...inRange, slippageToleranceBps: MIN_BPS - 1 },
+          { mode },
+        );
+        expect(errors).toEqual([
+          { field: 'slippageToleranceBps', message: 'Max. Slippage must be between 0.1% and 10%' },
+        ]);
+      });
+
+      it('rejects a tolerance above the maximum', () => {
+        expect(
+          validateParams(schema, { ...inRange, slippageToleranceBps: MAX_BPS + 1 }, { mode }),
+        ).toHaveLength(1);
+      });
+
+      it('rejects zero tolerance', () => {
+        expect(
+          validateParams(schema, { ...inRange, slippageToleranceBps: 0 }, { mode }),
+        ).toHaveLength(1);
+      });
+
+      it('rejects a window outside the bounds', () => {
+        const tooShort = validateParams(schema, { ...inRange, twapWindow: MIN_WINDOW - 1 }, { mode });
+        expect(tooShort).toEqual([
+          { field: 'twapWindow', message: 'Reference Window must be between 60s and 900s' },
+        ]);
+        expect(
+          validateParams(schema, { ...inRange, twapWindow: MAX_WINDOW + 1 }, { mode }),
+        ).toHaveLength(1);
+      });
+
+      it('rejects a non-integer value', () => {
+        expect(
+          validateParams(schema, { ...inRange, slippageToleranceBps: 12.5 }, { mode }),
+        ).toHaveLength(1);
+        expect(
+          validateParams(schema, { ...inRange, slippageToleranceBps: 'a lot' }, { mode }),
+        ).toHaveLength(1);
+      });
+
+      it('reports a missing mandatory value instead of silently defaulting', () => {
+        expect(validateParams(schema, { twapWindow: 300 }, { mode })).toEqual([
+          { field: 'slippageToleranceBps', message: 'Max. Slippage is required' },
+        ]);
+      });
+
+      it('accepts the raw string form the encoder receives', () => {
+        expect(
+          validateParams(schema, { slippageToleranceBps: '100', twapWindow: '300' }, { mode }),
+        ).toEqual([]);
+      });
+    });
+  }
+
+  it('rejects the value when the catalog entry lost its bounds', () => {
+    const boundless: ParamSchema = {
+      type: 'object',
+      properties: {
+        slippageToleranceBps: {
+          type: 'integer',
+          title: 'Max. Slippage',
+          'x-ui-widget': 'slippage-tolerance',
+        },
+      },
+      required: ['slippageToleranceBps'],
+    };
+    expect(validateParams(boundless, { slippageToleranceBps: 100 }, { mode: 'raw' })).toEqual([
+      {
+        field: 'slippageToleranceBps',
+        message: 'Max. Slippage has no configured range — the step catalog entry is incomplete',
+      },
+    ]);
+  });
+});
