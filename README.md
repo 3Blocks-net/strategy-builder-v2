@@ -10,7 +10,7 @@ Full-stack monorepo: Solidity smart contracts, NestJS backend, React frontend.
 
 ### Prerequisites
 
-- **Node.js** 22+
+- **Node.js** 22.22.0 or newer (`engines` enforces it; 22.20 makes pnpm warn on every command)
 - **pnpm** 9+
 - **Docker** (for PostgreSQL)
 - **MetaMask** browser extension (for frontend)
@@ -91,10 +91,25 @@ This single command:
 - Starts the backend (http://localhost:3001)
 - Starts the frontend (http://localhost:5173)
 
+### 5. Seed the Step Catalog
+
+`pnpm dev` migrates but does **not** seed. The step types and curated recipes
+live in the database, so without this the graph editor opens with no building
+blocks at all:
+
+```bash
+pnpm db:seed
+```
+
+The seed reads the addresses from `packages/contracts/deployments/fork-latest.json`
+and validates every recipe against the catalog it actually finds there. Re-run it
+after every fork redeploy — a step whose contract moved is dropped rather than
+pointed at a dead address.
+
 > Start the services **after** the deploy so they pick up the contract addresses.
 > If you change the `.env` files later, restart `pnpm dev`.
 
-### 5. Connect MetaMask
+### 6. Connect MetaMask
 
 Add a custom network in MetaMask:
 - **RPC URL**: `http://localhost:8545`
