@@ -5,6 +5,9 @@ import {
   VaultCodeService,
   VaultNotOnChainError,
 } from './vault-code.service';
+import { DeploymentService } from '../deployment/deployment.service';
+
+const FEE_REGISTRY_ADDRESS = '0x1234567890123456789012345678901234567890';
 
 const mockProvider = {
   getLogs: jest.fn(),
@@ -67,11 +70,16 @@ describe('FeeService', () => {
             get: jest.fn((key: string) => {
               const env: Record<string, string> = {
                 RPC_URL: 'http://localhost:8545',
-                FEE_REGISTRY_ADDRESS:
-                  '0x1234567890123456789012345678901234567890',
               };
               return env[key];
             }),
+          },
+        },
+        {
+          provide: DeploymentService,
+          useValue: {
+            getAddress: () => FEE_REGISTRY_ADDRESS,
+            tryGetAddress: () => FEE_REGISTRY_ADDRESS,
           },
         },
       ],

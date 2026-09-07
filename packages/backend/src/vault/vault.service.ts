@@ -7,6 +7,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { Contract, JsonRpcProvider, getAddress, isAddress } from 'ethers';
 import { PrismaService } from '../database/prisma.service';
+import { DeploymentService } from '../deployment/deployment.service';
 import { Vault } from '@prisma/client';
 
 const FACTORY_ABI = [
@@ -22,6 +23,7 @@ export class VaultService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
+    private readonly deployment: DeploymentService,
   ) {}
 
   async createVault(
@@ -106,13 +108,15 @@ export class VaultService {
     expectedOwner: string,
   ): Promise<void> {
     const rpcUrl = this.configService.get<string>('RPC_URL');
-    const factoryAddress = this.configService.get<string>('FACTORY_ADDRESS');
-
-    if (!rpcUrl || !factoryAddress) {
+    if (!rpcUrl) {
       throw new BadRequestException(
         'ON_CHAIN_VALIDATION_NOT_CONFIGURED',
       );
     }
+    // Throws with the file and the command to run when the address is unknown —
+    // a vague "not configured" would leave the operator guessing which of the
+    // two settings is missing.
+    const factoryAddress = this.deployment.getAddress('factory');
 
     const provider = new JsonRpcProvider(rpcUrl);
     const factory = new Contract(factoryAddress, FACTORY_ABI, provider);

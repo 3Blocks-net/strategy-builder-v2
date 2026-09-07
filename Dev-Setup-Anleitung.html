@@ -108,15 +108,15 @@ scripts/deploy-defi-actions.ts</code> deployt nur die Registries + Actions und <
 <code>fork-latest.json</code> (Factory/Vaults bleiben unberührt). Danach neu seeden.
 </div>
 
-<h2 class="pagebreak">5 · Adressen in die Service-Env-Dateien übertragen</h2>
-<p>Aus der Deploy-Ausgabe (bzw. <code>fork-latest.json</code>) die Adressen kopieren:</p>
+<h2 class="pagebreak">5 · Env-Dateien einrichten</h2>
+<p><strong>Contract-Adressen werden nicht mehr abgetippt.</strong> Backend und Frontend lesen sie zur Laufzeit:
+das Backend aus <code>fork-latest.json</code>, das Frontend fragt das Backend (<code>GET /config</code>). Nach einem
+Redeploy genügt ein Neuladen der Seite — kein Editieren, kein Neustart.</p>
 <div class="step">packages/backend/.env</div>
 <div class="stepbody">
 <pre><code>NODE_ENV=development            <span class="c"># Pflicht: Balance-Reads über lokales RPC</span>
 DATABASE_URL=postgresql://pecunity:pecunity@localhost:5432/pecunity
 RPC_URL=http://localhost:8545
-FACTORY_ADDRESS=0x...           <span class="c"># StrategyBuilderVaultFactory</span>
-FEE_REGISTRY_ADDRESS=0x...      <span class="c"># FeeRegistry</span>
 INDEXER_CONFIRMATIONS=0         <span class="c"># Pflicht am Fork (idle fork mined keine Confirmations)</span>
 JWT_SECRET=&lt;zufälliger-hex-wert&gt;
 FRONTEND_URL=http://localhost:5173
@@ -124,17 +124,23 @@ PORT=3001</code></pre>
 </div>
 <div class="step">packages/frontend/.env</div>
 <div class="stepbody">
-<pre><code>VITE_API_URL=http://localhost:3001
-VITE_FACTORY_ADDRESS=0x...      <span class="c"># gleiche Factory-Adresse</span></code></pre>
+<pre><code>VITE_API_URL=http://localhost:3001</code></pre>
 </div>
+<div class="warn"><strong>FACTORY_ADDRESS / FEE_REGISTRY_ADDRESS leer lassen.</strong> Eine gesetzte Variable
+gewinnt gegen die Deploy-Ausgabe — eine alte Adresse aus einem früheren Fork lässt das Backend gegen tote
+Contracts arbeiten. <code>pnpm dev:doctor</code> meldet diesen Widerspruch, und <code>pnpm dev</code> bricht danach ab.
+In Produktion ist es umgekehrt: dort werden die Adressen <em>nur</em> aus den Variablen gelesen.</div>
 <div class="warn"><strong>INDEXER_CONFIRMATIONS=0</strong> nicht vergessen: Sonst erscheinen am Fork frische
 Deposits/Executions nie in der History (ein idle Fork mined die Confirmation-Blöcke nicht).</div>
 
 <h2>6 · Datenbank, Migration &amp; Services starten <span class="term">Terminal 3</span></h2>
 <pre><code>pnpm dev</code></pre>
-<p>Ein Befehl erledigt: Backend-<code>.env</code> aus Vorlage anlegen (falls fehlt) · PostgreSQL via Docker hochfahren ·
-auf DB warten · <code>prisma migrate dev</code> · <code>shared</code> bauen · Backend (<code>:3001</code>) + Frontend
-(<code>:5173</code>) im Watch-Mode starten.</p>
+<p>Ein Befehl erledigt: Backend-<code>.env</code> aus Vorlage anlegen (falls fehlt) · Contracts deployen, wenn der
+Fork keine mehr trägt · PostgreSQL via Docker hochfahren · auf DB warten · <code>prisma migrate dev</code> ·
+Katalog seeden · <code>shared</code> bauen · Backend (<code>:3001</code>) + Frontend (<code>:5173</code>) im
+Watch-Mode starten · zum Schluss prüfen, ob das Backend antwortet und der Katalog gefüllt ist.</p>
+<p>Geht etwas schief: <code>pnpm dev:doctor</code> prüft die Maschine (Node, Docker, Port 5432, Env-Dateien,
+Archive-RPC, Fork, gepinnte Adressen) und ändert nichts.</p>
 
 <h2>7 · StepType-Katalog seeden <span class="term">einmalig, nach dem Deploy</span></h2>
 <p>Der Seed liest die Adressen aus <code>fork-latest.json</code> — deshalb <strong>nach</strong> Deploy &amp; mit

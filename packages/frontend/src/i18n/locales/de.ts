@@ -247,6 +247,18 @@ export const de: PartialTranslation<Translation> = {
       value: 'Wert',
     },
   },
+  deploymentConfig: {
+    loading: {
+      heading: 'Wird vorbereitet',
+      body: 'Pecunity fragt beim Backend nach, mit welchen Contracts es arbeitet. Einen Moment.',
+    },
+    unavailable: {
+      heading: 'Backend nicht erreichbar',
+      body: 'Pecunity fragt beim Backend nach, mit welchen Contracts es arbeitet. Ohne diese Antwort kann es keinen Vault anlegen und hört deshalb hier auf, statt zu raten. Es wurde nichts gesendet und nichts verändert.',
+      detail: 'Details: {{reason}}',
+      backToDashboard: 'Zurück zum Dashboard',
+    },
+  },
   txError: {
     'factory-missing':
       'Die Adresse der Vault-Factory ist für dieses Netzwerk nicht konfiguriert.',

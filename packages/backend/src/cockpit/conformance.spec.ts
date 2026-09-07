@@ -9,6 +9,7 @@ import { ValuedPosition } from './protocol-adapter';
 import { LogSubscription } from '../indexer/protocol-flow';
 import { AaveV3Adapter } from './aave/aave-v3.adapter';
 import { PancakeV3Adapter } from './pancakeswap/pancake-v3.adapter';
+import { PANCAKESWAP_V3_FACTORY_BSC } from '../deployment/deployment-addresses';
 import {
   AaveReserveRead,
   buildAavePositions,
@@ -125,9 +126,11 @@ describe('claimedTokens conformance', () => {
   });
 
   it('PancakeSwap: real (RPC-free) method claims the NPM address', async () => {
-    const pcs = new PancakeV3Adapter({ get: () => undefined } as any, {
-      getPrices: async () => new Map(),
-    } as any);
+    const pcs = new PancakeV3Adapter(
+      { get: () => undefined } as any,
+      { getPrices: async () => new Map() } as any,
+      { getAddress: () => PANCAKESWAP_V3_FACTORY_BSC } as any,
+    );
     expect(validateClaimedTokens(await pcs.claimedTokens())).toEqual([]);
   });
 });

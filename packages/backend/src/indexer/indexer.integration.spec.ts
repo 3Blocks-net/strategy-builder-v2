@@ -184,6 +184,9 @@ function makeProvider(logs: FakeLog[], headRef: { head: number }): IndexerProvid
 
 const priceServiceStub = { getPrices: jest.fn(async () => new Map()) } as any;
 const configStub = { get: jest.fn(() => undefined) } as any;
+// Without a fee registry address the indexer stays dormant on that join —
+// same as an unconfigured deployment (DeploymentService.tryGetAddress).
+const deploymentStub = { tryGetAddress: () => null, getAddress: () => '' } as any;
 
 function buildService(prisma: any, provider: IndexerProvider) {
   const cursor = new IndexerCursorStore(prisma);
@@ -194,6 +197,7 @@ function buildService(prisma: any, provider: IndexerProvider) {
     cursor,
     new NoopExecutionEvents(),
     provider,
+    deploymentStub,
   );
   return { svc, cursor };
 }

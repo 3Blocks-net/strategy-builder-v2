@@ -4,6 +4,7 @@ import { JsonRpcProvider } from 'ethers';
 import { PortfolioModule } from '../portfolio/portfolio.module';
 import { BlockchainModule } from '../blockchain/blockchain.module';
 import { VaultModule } from '../vault/vault.module';
+import { DeploymentModule } from '../deployment/deployment.module';
 import { ValuationService } from './valuation.service';
 import { CockpitController } from './cockpit.controller';
 import { PROTOCOL_ADAPTERS, ProtocolAdapter } from './protocol-adapter';
@@ -26,7 +27,7 @@ import { PerformanceService } from './performance.service';
  * - #04: SnapshotService loop + VaultValueSnapshot read model behind /positions
  */
 @Module({
-  imports: [PortfolioModule, BlockchainModule, VaultModule],
+  imports: [PortfolioModule, BlockchainModule, VaultModule, DeploymentModule],
   controllers: [CockpitController],
   providers: [
     ValuationService,

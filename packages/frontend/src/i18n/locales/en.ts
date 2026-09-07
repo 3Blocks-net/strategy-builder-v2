@@ -237,6 +237,18 @@ export const en = {
       value: 'Value',
     },
   },
+  deploymentConfig: {
+    loading: {
+      heading: 'Getting ready',
+      body: 'Pecunity is asking the backend which contracts it works with. One moment.',
+    },
+    unavailable: {
+      heading: 'Backend not reachable',
+      body: 'Pecunity asks the backend which contracts it works with. Without that answer it cannot create a Vault, so it stops here rather than guessing. Nothing was sent and nothing changed.',
+      detail: 'Details: {{reason}}',
+      backToDashboard: 'Back to the dashboard',
+    },
+  },
   txError: {
     'factory-missing':
       'The vault factory address is not configured for this network.',

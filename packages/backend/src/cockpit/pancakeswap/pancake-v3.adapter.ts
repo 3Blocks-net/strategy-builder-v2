@@ -4,6 +4,7 @@ import { Contract, JsonRpcProvider, getAddress } from 'ethers';
 import { PriceService } from '../../portfolio/price.service';
 import { ProtocolAdapter, ValuedPosition } from '../protocol-adapter';
 import { buildLpPosition, LpRawRead } from './lp-position';
+import { DeploymentService } from '../../deployment/deployment.service';
 
 const NPM_ABI = [
   'function balanceOf(address) view returns (uint256)',
@@ -23,7 +24,6 @@ const ERC20_META_ABI = [
 ];
 
 const DEFAULT_NPM = '0x46A15B0b27311cedF172AB29E4f4766fbE7F4364';
-const DEFAULT_FACTORY = '0x0BFbCF9fa4f9C56B0F40a671Ad40E0805A091865';
 const MAX_U128 = 2n ** 128n - 1n;
 
 /**
@@ -47,6 +47,7 @@ export class PancakeV3Adapter implements ProtocolAdapter {
   constructor(
     private readonly config: ConfigService,
     private readonly priceService: PriceService,
+    private readonly deployment: DeploymentService,
   ) {}
 
   async claimedTokens(): Promise<string[]> {
@@ -177,6 +178,6 @@ export class PancakeV3Adapter implements ProtocolAdapter {
   }
 
   private factoryAddress(): string {
-    return this.config.get<string>('PCS_FACTORY_ADDRESS') ?? DEFAULT_FACTORY;
+    return this.deployment.getAddress('pancakeFactory');
   }
 }

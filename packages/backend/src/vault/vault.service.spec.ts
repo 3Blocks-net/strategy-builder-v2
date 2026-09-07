@@ -1,8 +1,13 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
-import { ConflictException, BadRequestException } from '@nestjs/common';
+import {
+  ConflictException,
+  BadRequestException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { VaultService } from './vault.service';
 import { PrismaService } from '../database/prisma.service';
+import { DeploymentService } from '../deployment/deployment.service';
 import { getAddress } from 'ethers';
 
 const OWNER_ADDRESS = getAddress(
@@ -14,6 +19,17 @@ const VAULT_ADDRESS = getAddress(
 const DEPOSIT_TOKEN = getAddress(
   '0xe9e7CEA3DedcA5984780Bafc599bD69ADd087D56',
 );
+const FACTORY_ADDRESS = '0x1234567890123456789012345678901234567890';
+
+/** Stands in for the resolver: the factory address is known unless said otherwise. */
+function deploymentStub(
+  resolve: () => string = () => FACTORY_ADDRESS,
+): DeploymentService {
+  return {
+    getAddress: resolve,
+    tryGetAddress: resolve,
+  } as unknown as DeploymentService;
+}
 
 function mockPrisma() {
   const vaults: any[] = [];
@@ -83,12 +99,12 @@ describe('VaultService', () => {
             get: jest.fn((key: string) => {
               const env: Record<string, string> = {
                 RPC_URL: 'http://localhost:8545',
-                FACTORY_ADDRESS: '0x1234567890123456789012345678901234567890',
               };
               return env[key];
             }),
           },
         },
+        { provide: DeploymentService, useValue: deploymentStub() },
       ],
     }).compile();
 
@@ -243,6 +259,38 @@ describe('VaultService', () => {
           createdAtBlock: 100,
         }),
       ).rejects.toThrow(BadRequestException);
+    });
+
+    it('passes the resolver problem through when the factory address is unknown', async () => {
+      const module: TestingModule = await Test.createTestingModule({
+        providers: [
+          VaultService,
+          { provide: PrismaService, useValue: prisma },
+          {
+            provide: ConfigService,
+            useValue: { get: jest.fn(() => 'http://localhost:8545') },
+          },
+          {
+            provide: DeploymentService,
+            useValue: deploymentStub(() => {
+              throw new ServiceUnavailableException(
+                'FACTORY_ADDRESS is not set ... Run `pnpm contracts:deploy:fork`',
+              );
+            }),
+          },
+        ],
+      }).compile();
+      const unconfigured = module.get<VaultService>(VaultService);
+
+      await expect(
+        unconfigured.createVault(OWNER_ADDRESS, {
+          address: VAULT_ADDRESS,
+          chainId: 56,
+          depositToken: DEPOSIT_TOKEN,
+          txHash: '0xabc',
+          createdAtBlock: 100,
+        }),
+      ).rejects.toThrow(/pnpm contracts:deploy:fork/);
     });
   });
 

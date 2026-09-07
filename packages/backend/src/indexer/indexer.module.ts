@@ -18,6 +18,7 @@ import { INDEXER_PROVIDER } from './indexer-provider';
 import { EXECUTION_EVENTS_PORT } from './execution-events.port';
 import { PROTOCOL_FLOW_SOURCES, ProtocolFlowSource } from './protocol-flow';
 import { CockpitModule } from '../cockpit/cockpit.module';
+import { DeploymentModule } from '../deployment/deployment.module';
 import {
   PROTOCOL_ADAPTERS,
   ProtocolAdapter,
@@ -40,6 +41,7 @@ import {
     BlockchainModule,
     AuthModule,
     CockpitModule,
+    DeploymentModule,
   ],
   controllers: [ExecutionController, IndexerStatusController, FailureIngestController],
   providers: [

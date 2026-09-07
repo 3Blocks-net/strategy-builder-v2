@@ -69,3 +69,7 @@ $RECYCLE.BIN/
 # packages/frontend/docs/DESIGN.md. Biome nutzt useIgnoreFile, dieser Eintrag
 # nimmt sie damit auch aus dem Lint.
 .impeccable/
+
+# ----- Playwright -----
+test-results/
+playwright-report/

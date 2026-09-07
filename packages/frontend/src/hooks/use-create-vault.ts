@@ -3,11 +3,9 @@ import { useWriteContract } from 'wagmi';
 import { keccak256, encodePacked, type Address, type Log } from 'viem';
 import { StrategyBuilderVaultFactoryAbi } from '@/lib/abis';
 import { apiFetch } from '@/lib/api';
+import { useDeploymentConfig } from '@/providers/deployment-config';
 import type { TxErrorCode } from '@/lib/tx-error';
 import { waitForReceipt } from '@/lib/wait-for-receipt';
-
-const FACTORY_ADDRESS = import.meta.env
-  .VITE_FACTORY_ADDRESS as Address | undefined;
 
 interface CreateVaultParams {
   label?: string;
@@ -81,10 +79,16 @@ export function useCreateVault() {
   const [result, setResult] = useState<CreateVaultResult | null>(null);
 
   const { writeContractAsync } = useWriteContract();
+  // The factory the backend is deployed against, asked for at start-up rather
+  // than baked into the bundle (#31) — a redeploy needs only a page reload.
+  const { config } = useDeploymentConfig();
+  const factoryAddress = config?.factoryAddress as Address | undefined;
 
   const createVault = useCallback(
     async (params: CreateVaultParams, userAddress: Address) => {
-      if (!FACTORY_ADDRESS) {
+      // Reached only if a caller skips the gate that normally stands in front
+      // of this flow: without an address there is nothing to send.
+      if (!factoryAddress) {
         setErrorCode('factory-missing');
         setStep('error');
         return null;
@@ -99,7 +103,7 @@ export function useCreateVault() {
 
         setStep('confirming');
         const txHash = await writeContractAsync({
-          address: FACTORY_ADDRESS,
+          address: factoryAddress,
           abi: StrategyBuilderVaultFactoryAbi,
           functionName: 'createVault',
           args: [userAddress, params.depositToken, salt],
@@ -143,7 +147,7 @@ export function useCreateVault() {
         return null;
       }
     },
-    [writeContractAsync],
+    [writeContractAsync, factoryAddress],
   );
 
   const reset = useCallback(() => {

@@ -15,20 +15,30 @@ Full-stack monorepo: Solidity smart contracts, NestJS backend, React frontend.
 - **Docker** (for PostgreSQL)
 - **MetaMask** browser extension (for frontend)
 
-### 1. Install Dependencies
+### 1. Install dependencies
 
 ```bash
 pnpm install
 ```
 
-> **Order matters.** The on-chain deployment produces the contract addresses that
-> the backend and frontend read from their `.env` files. So the flow is:
-> **fork → deploy → fill in the `.env`s → start the services.** Starting the
-> services before the addresses exist leaves them misconfigured.
+### 2. Point the fork at an archive RPC
 
-### 2. Start the BSC Fork
+Forking BSC needs an **archive-capable** endpoint. Public RPCs like
+`bsc-dataseed.binance.org` answer ordinary calls happily and then fail the fork
+with "missing trie node". Use BlastAPI, Alchemy or QuickNode:
 
-On-chain features run against a local BSC mainnet fork. In a dedicated terminal:
+```bash
+cp packages/contracts/.env.example packages/contracts/.env
+# then set BSC_MAINNET_RPC_URL
+```
+
+Not sure whether this machine is ready? `pnpm dev:doctor` checks it and changes nothing
+(see [Checking the setup](#checking-the-setup)).
+
+### 3. Start the BSC fork
+
+The fork is a long-lived process of its own, so it lives in its own terminal and
+no script starts or stops it:
 
 ```bash
 pnpm contracts:fork:bsc
@@ -37,79 +47,56 @@ pnpm contracts:fork:bsc
 This runs a Hardhat node forked from BSC mainnet on `http://localhost:8545`
 (Chain ID 31337). Leave it running.
 
-> The fork requires an archive-capable RPC (BlastAPI, Alchemy, QuickNode) set as
-> `BSC_MAINNET_RPC_URL` in `packages/contracts/.env`. Public RPCs like
-> `bsc-dataseed.binance.org` fail with "missing trie node".
+### 4. `pnpm dev`
 
-### 3. Deploy Contracts to the Fork
-
-Once the fork node is up, deploy the full system:
-
-```bash
-pnpm contracts:deploy:fork
-```
-
-This deploys the FeeRegistry, vault factory + implementation, a MockPriceOracle,
-the example conditions/actions, **and the two DeFi registries + ten DeFi action
-contracts + the Wick-&-Wait TWAP condition** (Aave V3 + PancakeSwap V3, incl. the
-on-chain Swap-to-Range-Ratio sizing action); configures fees and gas compensation; and
-seeds the test wallet. It prints every address and also saves them to
-`packages/contracts/deployments/fork-latest.json`.
-
-> The full `deploy-fork.ts` now deploys the complete DeFi set (incl. `SwapToRangeRatio`
-> and the `WickWaitRebalanceCondition`). Already have the base system deployed and only
-> need to add/refresh the DeFi contracts? Run
-> `npx hardhat run --network localhost scripts/deploy-defi-actions.ts` — it deploys just
-> the registries + the DeFi actions + the Wick-&-Wait condition and **merges** their
-> addresses into `fork-latest.json` (leaving the factory and existing vaults untouched),
-> then re-seed with `pnpm --filter backend prisma:seed`.
-
-Copy the printed addresses into your env files **before** starting the services:
-
-```bash
-# packages/backend/.env
-RPC_URL=http://localhost:8545
-FACTORY_ADDRESS=0x...        # from deploy output
-FEE_REGISTRY_ADDRESS=0x...   # from deploy output
-
-# packages/frontend/.env
-VITE_API_URL=http://localhost:3001
-VITE_FACTORY_ADDRESS=0x...   # from deploy output
-```
-
-### 4. Start the Services
-
-With the `.env` files filled in, start DB + backend + frontend:
+One command, six phases — each needs the one before it:
 
 ```bash
 pnpm dev
 ```
 
-This single command:
-- Starts PostgreSQL via Docker Compose
-- Runs Prisma migrations
-- Starts the backend (http://localhost:3001)
-- Starts the frontend (http://localhost:5173)
+| Phase | What happens |
+|---|---|
+| Preflight | Node version, `.env` files (created from `.env.example` when missing), Docker, fork reachable |
+| Contracts | Reads the factory address from `deployments/fork-latest.json` and asks the chain for its code — **no code, no contracts**, so it deploys; code there, it skips and starts fast |
+| Database | PostgreSQL up, wait for readiness, Prisma migrations |
+| Catalog | Seeds the step types and curated recipes |
+| Services | shared watch + backend (:3001) + frontend (:5173) |
+| Final check | Backend answering? Step catalog filled? |
 
-### 5. Seed the Step Catalog
+Running it again is harmless: the deployment is skipped while the contracts are
+alive, migrations and seed are idempotent (the seed is self-pruning).
 
-`pnpm dev` migrates but does **not** seed. The step types and curated recipes
-live in the database, so without this the graph editor opens with no building
-blocks at all:
+Two switches for the contracts phase:
 
 ```bash
-pnpm db:seed
+pnpm dev --fresh       # deploy even though the contracts are still there
+pnpm dev --no-deploy   # never deploy, whatever the chain says
 ```
 
-The seed reads the addresses from `packages/contracts/deployments/fork-latest.json`
-and validates every recipe against the catalog it actually finds there. Re-run it
-after every fork redeploy — a step whose contract moved is dropped rather than
-pointed at a dead address.
+The contract addresses are **not** copied anywhere by hand: the backend reads
+them from the deploy output, the frontend asks the backend for them at start-up.
+A redeploy needs a page reload, not an edited file.
 
-> Start the services **after** the deploy so they pick up the contract addresses.
-> If you change the `.env` files later, restart `pnpm dev`.
+> Already have the base system deployed and only need to add or refresh the DeFi
+> contracts? `npx hardhat run --network localhost scripts/deploy-defi-actions.ts`
+> deploys just the registries + the DeFi actions + the Wick-&-Wait condition and
+> **merges** their addresses into `fork-latest.json` (leaving the factory and
+> existing vaults untouched). Then `pnpm db:seed`.
 
-### 6. Connect MetaMask
+### Checking the setup
+
+```bash
+pnpm dev:doctor
+```
+
+Reads only — it starts nothing and writes nothing. It answers the questions that
+actually cost time: is port 5432 taken (**and by which container**), is Node old
+enough, is `BSC_MAINNET_RPC_URL` set and archive-capable, is Docker running, are
+the `.env` files there, does the fork answer. Every finding names the next step.
+Exit code 1 when something blocks the start.
+
+### 5. Connect MetaMask
 
 Add a custom network in MetaMask:
 - **RPC URL**: `http://localhost:8545`
@@ -138,7 +125,7 @@ strategy-builder-v2/
 │   ├── shared/        # Framework-free helpers (encode-boundary, validation, step-roles)
 │   └── mcp/           # MCP server (stdio) — control your vaults via an AI assistant
 ├── docker-compose.yml # PostgreSQL
-└── scripts/dev.mjs    # Unified dev startup
+└── scripts/            # dev.mjs (one-command startup) + doctor.mjs (environment check)
 ```
 
 | Package | Port | Tech |
@@ -157,11 +144,14 @@ strategy-builder-v2/
 
 ```bash
 # Development
-pnpm dev                        # Start DB + backend + frontend
+pnpm dev                        # Deploy if needed + DB + migrations + seed + services + final check
+pnpm dev --fresh                # ... and deploy the contracts even if they are still there
+pnpm dev --no-deploy            # ... and never deploy, whatever the chain says
+pnpm dev:doctor                     # Check this machine (reads only, changes nothing)
 pnpm db:up                      # Start PostgreSQL only
 pnpm db:down                    # Stop PostgreSQL
 pnpm db:migrate                 # Run Prisma migrations
-pnpm --filter backend prisma:seed  # (Re)seed StepTypes from fork-latest.json
+pnpm db:seed                    # (Re)seed StepTypes from fork-latest.json
 
 # Contracts
 pnpm contracts:compile          # Compile contracts + extract ABIs to frontend
@@ -260,7 +250,9 @@ ALCHEMY_API_KEY=
 
 ```bash
 VITE_API_URL=http://localhost:3001
-VITE_FACTORY_ADDRESS=
+
+# Contract addresses come from the backend (GET /config), not from here.
+
 # Optional — PancakeSwap V3 factory for the Swap node's pool-existence check.
 # Defaults to the live BSC factory; only override for a non-BSC fork.
 VITE_PCS_FACTORY_ADDRESS=
@@ -295,22 +287,23 @@ KEEPER_INGEST_SECRET=
 
 ### Full-stack with BSC Fork
 
-Run in order — the services need the addresses produced by the deploy:
+Two terminals:
 
 ```bash
-# Terminal 1: BSC Fork
+# Terminal 1: BSC fork (long-lived, started and stopped by you)
 pnpm contracts:fork:bsc
 
-# Terminal 2: Deploy contracts (once the fork is up)
-pnpm contracts:deploy:fork
-# → Copy addresses into packages/backend/.env and packages/frontend/.env
-
-# Terminal 3: Database + Backend + Frontend (after the .env files are filled)
+# Terminal 2: everything else
 pnpm dev
 ```
 
-> If the fork is already running and you only changed env vars, restart `pnpm dev`
-> so the backend/frontend re-read them.
+`pnpm dev` deploys the contracts when the chain has none, brings the database up,
+migrates, seeds the catalog, starts the services and then checks that the result
+is actually usable. After a fork restart just run it again — it notices that the
+contracts are gone and redeploys.
+
+> If you changed env vars, restart `pnpm dev` so backend and frontend re-read them.
+> If something about the machine itself looks wrong, run `pnpm dev:doctor`.
 
 ### Backend-only (no chain)
 
@@ -474,6 +467,9 @@ pnpm contracts:test && pnpm backend:test && pnpm frontend:test
 pnpm contracts:test                    # Hardhat/Mocha (Solidity)
 pnpm backend:test                      # Jest (NestJS)
 pnpm frontend:test                     # Vitest (React)
+pnpm --filter shared test              # Vitest (pure helpers)
+pnpm --filter mcp test                 # Vitest (MCP server)
+pnpm scripts:test                      # node --test (workspace scripts: dev startup + doctor)
 ```
 
 ---
@@ -518,6 +514,9 @@ It also **reports failures** (PEC-219): a reverting `executeAutomation` or a rev
 
 ### Troubleshooting
 
+- **`pnpm dev` cannot start PostgreSQL / "port is already allocated"**: another project's database container holds port 5432. `pnpm dev:doctor` names the container; stop it (`docker stop <name>`) and run `pnpm dev` again.
+- **The graph editor opens without a single building block**: the step catalog is empty. `pnpm dev` says so in its final check; the fix is `pnpm db:seed` (and a deploy first, if the contracts are missing).
+- **`pnpm dev` stops with "Cannot tell whether the contracts are still deployed"**: the chain did not answer the code check. That is deliberately not treated as "the contracts are gone" — a redeploy on a hiccup would orphan every vault in the database. Make sure `pnpm contracts:fork:bsc` is running and start again.
 - **Editor shows only some action nodes**: the new DeFi actions aren't deployed, so their `StepType` rows collapsed onto the `address(0)` placeholder. Deploy them (`scripts/deploy-defi-actions.ts` or a full `deploy-fork.ts`) and re-seed.
 - **Editor shows duplicate step types after a redeploy**: fixed — the seed now self-prunes (deletes any `StepType` not part of the current deploy). Just `pnpm --filter backend prisma:seed` again and reload the editor; no manual table clearing needed.
 - **Keeper skips an automation with `[id] skip: trigger not met` even though it should fire**: the automation's on-chain steps were encoded against a **previous deploy's condition/action addresses** (the `StepType` table drifted from `fork-latest.json` and wasn't re-seeded). The stale condition's `check()` reverts → `isTriggerMet` is false. **Fix:** re-seed `StepType`s, then **re-deploy the automation** in the editor (re-seeding alone can't fix the addresses already baked into the deployed steps). To avoid the drift, prefer the incremental `deploy-defi-actions.ts` over a full re-deploy on an existing setup.

@@ -2,6 +2,7 @@ import { Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Contract, JsonRpcProvider, Interface, ZeroAddress } from "ethers";
 import { VaultCodeService, VaultNotOnChainError } from "./vault-code.service";
+import { DeploymentService } from "../deployment/deployment.service";
 
 const FEE_REGISTRY_ABI = [
   "function depositFeeBps() external view returns (uint16)",
@@ -56,6 +57,7 @@ export class FeeService {
   constructor(
     private readonly configService: ConfigService,
     private readonly vaultCode: VaultCodeService,
+    private readonly deployment: DeploymentService,
   ) {}
 
   async getFees(): Promise<FeeRates> {
@@ -85,9 +87,7 @@ export class FeeService {
     }
 
     const { provider, feeRegistry } = this.getContracts();
-    const feeRegistryAddress = this.configService.get<string>(
-      "FEE_REGISTRY_ADDRESS",
-    )!;
+    const feeRegistryAddress = this.deployment.getAddress("feeRegistry");
     const iface = new Interface(FEE_REGISTRY_ABI);
 
     const currentBlock = await provider.getBlockNumber();
@@ -156,9 +156,7 @@ export class FeeService {
     }
 
     const rpcUrl = this.configService.get<string>("RPC_URL")!;
-    const feeRegistryAddress = this.configService.get<string>(
-      "FEE_REGISTRY_ADDRESS",
-    )!;
+    const feeRegistryAddress = this.deployment.getAddress("feeRegistry");
     const provider = new JsonRpcProvider(rpcUrl);
     try {
       const vault = new Contract(vaultAddress, VAULT_GAS_DEPOSIT_ABI, provider);
@@ -199,9 +197,7 @@ export class FeeService {
 
   private getContracts() {
     const rpcUrl = this.configService.get<string>("RPC_URL")!;
-    const feeRegistryAddress = this.configService.get<string>(
-      "FEE_REGISTRY_ADDRESS",
-    )!;
+    const feeRegistryAddress = this.deployment.getAddress("feeRegistry");
 
     const provider = new JsonRpcProvider(rpcUrl);
     const feeRegistry = new Contract(

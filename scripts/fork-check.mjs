@@ -1,76 +1,34 @@
 // Small, dependency-free check: is a chain node (the local Hardhat/BSC fork)
-// reachable under RPC_URL? Used by scripts/dev.mjs (TASK-8): a non-blocking
-// hint when the fork isn't running, instead of the indexer's misleading
-// per-tick "failed to detect network" log.
+// reachable under RPC_URL? Used by scripts/dev.mjs and scripts/doctor.mjs.
+//
+// The fork is deliberately a long-lived process of its own — no script starts
+// it. So both entry points need the same answer to the same question, in the
+// same words: which URL was checked, did anything answer, and what to run when
+// nothing did.
 
-import { existsSync, readFileSync } from 'node:fs';
+import { readEnvValue } from './lib/env-file.mjs';
+import { isForkReachable } from './lib/chain.mjs';
+
+export { isForkReachable };
 
 export const DEFAULT_RPC_URL = 'http://localhost:8545';
-const DEFAULT_TIMEOUT_MS = 2000;
 
 /**
  * Resolves the RPC URL to check: `env.RPC_URL` wins (lets callers/tests
  * override without touching the file), then the `RPC_URL=` line from the
- * backend .env file, then the hardcoded default. Simple line parsing on
- * purpose — no dotenv dependency for reading a single value.
+ * backend .env file, then the hardcoded default.
  */
 export function resolveRpcUrl(envFilePath, env = process.env) {
-  if (env.RPC_URL) return env.RPC_URL;
-
-  if (envFilePath && existsSync(envFilePath)) {
-    const contents = readFileSync(envFilePath, 'utf8');
-    for (const rawLine of contents.split('\n')) {
-      const line = rawLine.trim();
-      if (!line || line.startsWith('#')) continue;
-      const separatorIndex = line.indexOf('=');
-      if (separatorIndex === -1) continue;
-      const key = line.slice(0, separatorIndex).trim();
-      if (key !== 'RPC_URL') continue;
-      let value = line.slice(separatorIndex + 1).trim();
-      // Inline-Kommentare und umschließende Quotes tolerieren (RPC_URL="…" # foo)
-      const hashIndex = value.indexOf(' #');
-      if (hashIndex !== -1) value = value.slice(0, hashIndex).trim();
-      value = value.replace(/^["']|["']$/g, '');
-      if (value) return value;
-    }
-  }
-
-  return DEFAULT_RPC_URL;
-}
-
-/**
- * Probes rpcUrl with a minimal eth_chainId JSON-RPC POST. Resolves to
- * true/false, never throws — unreachable host, timeout, and non-JSON-RPC
- * responses all count as "not reachable".
- */
-export async function isForkReachable(rpcUrl, { timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const response = await fetch(rpcUrl, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_chainId', params: [] }),
-      signal: controller.signal,
-    });
-    if (!response.ok) return false;
-    const body = await response.json();
-    return typeof body?.result === 'string';
-  } catch {
-    return false;
-  } finally {
-    clearTimeout(timer);
-  }
+  return readEnvValue(envFilePath, 'RPC_URL', env) ?? DEFAULT_RPC_URL;
 }
 
 /** The visible hint printed when no node answers under rpcUrl. */
 export function buildForkHint(rpcUrl) {
   return [
     `No chain node responding at ${rpcUrl}.`,
-    'On-chain features (indexer, contract reads) need the local fork running:',
-    '  1. pnpm contracts:fork:bsc',
-    '  2. pnpm contracts:deploy:fork',
-    '  3. pnpm db:seed',
+    'The local BSC fork is a separate, long-lived process. Start it in its own terminal:',
+    '  pnpm contracts:fork:bsc',
+    'Then run `pnpm dev` again — it deploys, seeds and starts everything else itself.',
   ].join('\n');
 }
 

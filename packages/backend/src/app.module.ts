@@ -12,12 +12,14 @@ import { TokensModule } from './tokens/tokens.module';
 import { IndexerModule } from './indexer/indexer.module';
 import { CockpitModule } from './cockpit/cockpit.module';
 import { RecipeModule } from './recipe/recipe.module';
+import { DeploymentModule } from './deployment/deployment.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     DatabaseModule,
     HealthModule,
+    DeploymentModule,
     AuthModule,
     VaultModule,
     BlockchainModule,

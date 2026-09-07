@@ -22,6 +22,7 @@ import {
   VaultEventRowData,
 } from './event-mapper';
 import { IndexerCursorStore } from './indexer-cursor.store';
+import { DeploymentService } from '../deployment/deployment.service';
 import {
   EXECUTION_EVENTS_PORT,
   ExecutionEventsPort,
@@ -74,6 +75,7 @@ export class IndexerService implements OnModuleInit, OnModuleDestroy {
     private readonly events: ExecutionEventsPort,
     @Inject(INDEXER_PROVIDER)
     private readonly provider: IndexerProvider | null,
+    private readonly deployment: DeploymentService,
     @Optional()
     @Inject(PROTOCOL_FLOW_SOURCES)
     private readonly flowSources: ProtocolFlowSource[] = [],
@@ -89,7 +91,9 @@ export class IndexerService implements OnModuleInit, OnModuleDestroy {
     this.pollIntervalMs = Number(this.config.get('INDEXER_POLL_INTERVAL_MS', 6000));
     const startEnv = this.config.get<string>('INDEXER_START_BLOCK');
     this.startBlockOverride = startEnv ? Number(startEnv) : null;
-    this.feeRegistryAddress = this.config.get<string>('FEE_REGISTRY_ADDRESS') ?? null;
+    // The indexer stays dormant rather than crashing when the address is
+    // unknown, so `tryGetAddress` instead of `getAddress`.
+    this.feeRegistryAddress = this.deployment.tryGetAddress('feeRegistry');
 
     if (!this.provider) {
       this.logger.warn('RPC provider unavailable (RPC_URL not set) — indexer disabled');

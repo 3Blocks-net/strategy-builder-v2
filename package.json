@@ -8,6 +8,8 @@
   },
   "scripts": {
     "lint": "biome check . && node scripts/check-shipcraft-remnants.mjs",
+    "dev:doctor": "node scripts/doctor.mjs",
+    "scripts:test": "node --test --test-reporter=spec scripts/lib/*.test.mjs",
     "shared:build": "pnpm --filter shared build",
     "shared:build:watch": "pnpm --filter shared build:watch",
     "contracts:compile": "pnpm --filter contracts compile",

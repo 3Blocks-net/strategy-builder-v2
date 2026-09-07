@@ -346,12 +346,6 @@ FACTORY_ADDRESS=${factoryAddr}
 FEE_REGISTRY_ADDRESS=${feeRegistryAddr}
 
 ${"═".repeat(55)}
- Frontend .env  (packages/frontend/.env)
-${"═".repeat(55)}
-
-VITE_FACTORY_ADDRESS=${factoryAddr}
-
-${"═".repeat(55)}
  Saved to: ${outPath}
 ${"═".repeat(55)}
 `);

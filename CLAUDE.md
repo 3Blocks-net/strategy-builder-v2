@@ -38,11 +38,20 @@ On-chain-Reads über viem; Keystore-Decrypt über ethers.
 
 ## Kommandos
 
-- Tests: `pnpm --filter shared test` · `pnpm backend:test` (braucht DB via `pnpm db:up`) · `pnpm frontend:test` · `pnpm --filter mcp test` · `pnpm contracts:test` (Fork-Tests brauchen laufenden Fork `pnpm contracts:fork:bsc`)
+- Tests: `pnpm --filter shared test` · `pnpm backend:test` (braucht DB via `pnpm db:up`) · `pnpm frontend:test` · `pnpm --filter mcp test` · `pnpm contracts:test` (Fork-Tests brauchen laufenden Fork `pnpm contracts:fork:bsc`) · `pnpm scripts:test` (Start- und Doctor-Skripte, `node --test`)
 - E2E: `pnpm frontend:test:e2e` (Playwright) · `pnpm backend:test:e2e`
 - Lint: `pnpm lint` (Biome `check` + Remnants-Guard, CI-tauglich)
 - Typecheck über die Builds: `pnpm shared:build && pnpm --filter mcp build && pnpm frontend:build && pnpm backend:build`
-- Dev: `pnpm dev` (Orchestrator `scripts/dev.mjs`) — backend :3001, frontend :5173, Hardhat-Fork :8545; DB `pnpm db:up`, Migration `pnpm db:migrate`, Seed `pnpm db:seed`
+- Dev: `pnpm dev` (Orchestrator `scripts/dev.mjs`) — prüft die Umgebung, deployt die Contracts, wenn der Fork
+  keine mehr trägt, fährt DB hoch, migriert, seedet und startet backend :3001 + frontend :5173; der Hardhat-Fork
+  :8545 läuft bewusst daneben (`pnpm contracts:fork:bsc`). Flags: `--fresh` (immer deployen), `--no-deploy`.
+  Einzeln: DB `pnpm db:up`, Migration `pnpm db:migrate`, Seed `pnpm db:seed`
+- Diagnose: `pnpm dev:doctor` (`scripts/doctor.mjs`) — prüft Node, Docker, Port 5432, Env-Dateien, Archive-RPC, Fork
+  und gepinnte Contract-Adressen; ändert nichts, Exit 1 nur bei blockierenden Befunden
+- Contract-Adressen: nicht in `.env` eintragen. Backend liest sie aus `packages/contracts/deployments/fork-latest.json`,
+  Frontend fragt das Backend (`GET /config`). Eine gesetzte `FACTORY_ADDRESS`/`FEE_REGISTRY_ADDRESS` gewinnt — und
+  wird von `pnpm dev:doctor`/`pnpm dev` gemeldet, wenn sie der Deploy-Ausgabe widerspricht. In Produktion sind die
+  Variablen Pflicht, die Datei wird dort nie gelesen
 - Contracts: `pnpm contracts:deploy:fork` (voller DeFi-Satz inkl. `SwapToRangeRatio` + `WickWaitRebalanceCondition`); Testnet/Mainnet-Deploys nur bewusst manuell
 
 `backend:dev` läuft im Watch-Mode: reine Seed-Änderungen brauchen nur `pnpm db:seed`,
