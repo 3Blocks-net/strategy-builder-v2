@@ -1,6 +1,10 @@
 import { expect } from "chai";
 import { network } from "hardhat";
 import { AbiCoder, id } from "ethers";
+import {
+  curateActions,
+  deployCuratedVaultImpl,
+} from "./helpers/curated-vault.js";
 
 const { ethers } = await network.connect();
 
@@ -45,7 +49,7 @@ describe("AaveV3SupplyAction", function () {
   async function fixture() {
     const [owner] = await ethers.getSigners();
 
-    const vaultImpl = await ethers.deployContract("StrategyBuilderVault");
+    const { curatedRegistry, vaultImpl } = await deployCuratedVaultImpl(ethers);
     const factory = await ethers.deployContract("StrategyBuilderVaultFactory");
     await factory.setVaultImplementation(await vaultImpl.getAddress());
     await factory.createVault(owner.address, ethers.ZeroAddress, ethers.ZeroHash);
@@ -75,7 +79,10 @@ describe("AaveV3SupplyAction", function () {
     // Fund the vault with the asset.
     await asset.transfer(await vault.getAddress(), ethers.parseEther("100"));
 
-    return { owner, vault, asset, aToken, pool, action };
+    // The vault refuses uncurated targets in standard mode.
+    await curateActions(curatedRegistry, action);
+
+    return { owner, vault, asset, aToken, pool, action, curatedRegistry };
   }
 
   it("reverts construction with a zero registry", async function () {

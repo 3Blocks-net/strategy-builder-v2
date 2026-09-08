@@ -1,6 +1,12 @@
 export const StrategyBuilderVaultAbi = [
   {
-    "inputs": [],
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "curatedRegistry_",
+        "type": "address"
+      }
+    ],
     "stateMutability": "nonpayable",
     "type": "constructor"
   },
@@ -65,6 +71,17 @@ export const StrategyBuilderVaultAbi = [
       }
     ],
     "name": "ContextSlotOutOfBounds",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "curatedRegistry",
+        "type": "address"
+      }
+    ],
+    "name": "CuratedRegistryNotAContract",
     "type": "error"
   },
   {
@@ -147,8 +164,34 @@ export const StrategyBuilderVaultAbi = [
     "type": "error"
   },
   {
+    "inputs": [
+      {
+        "internalType": "uint32",
+        "name": "stepIndex",
+        "type": "uint32"
+      },
+      {
+        "internalType": "address",
+        "name": "target",
+        "type": "address"
+      },
+      {
+        "internalType": "enum ICuratedRegistry.TargetKind",
+        "name": "kind",
+        "type": "uint8"
+      }
+    ],
+    "name": "StepTargetNotCurated",
+    "type": "error"
+  },
+  {
     "inputs": [],
     "name": "TriggerNotMet",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ZeroCuratedRegistry",
     "type": "error"
   },
   {
@@ -284,6 +327,19 @@ export const StrategyBuilderVaultAbi = [
       }
     ],
     "name": "Deposited",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "bool",
+        "name": "enabled",
+        "type": "bool"
+      }
+    ],
+    "name": "ExpertModeChanged",
     "type": "event"
   },
   {
@@ -535,6 +591,19 @@ export const StrategyBuilderVaultAbi = [
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "curatedRegistry",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "internalType": "bytes",
@@ -618,6 +687,19 @@ export const StrategyBuilderVaultAbi = [
     "name": "executeAutomation",
     "outputs": [],
     "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "expertMode",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -861,6 +943,19 @@ export const StrategyBuilderVaultAbi = [
       }
     ],
     "name": "setContextSlot",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bool",
+        "name": "enabled",
+        "type": "bool"
+      }
+    ],
+    "name": "setExpertMode",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"

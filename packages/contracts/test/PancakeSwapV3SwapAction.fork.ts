@@ -1,6 +1,10 @@
 import { expect } from "chai";
 import { network } from "hardhat";
 import { AbiCoder, concat, id } from "ethers";
+import {
+  curateActions,
+  deployCuratedVaultImpl,
+} from "./helpers/curated-vault.js";
 
 // ─── Forked-mainnet test (core deliverable) ──────────────────────────────────
 // Proves the slippage guard (issue #19, PRD S4 + S5) against live PancakeSwap V3
@@ -95,7 +99,7 @@ forkDescribe("PancakeSwapV3SwapAction (fork)", function () {
     const { ethers } = await network.connect("bscFork");
     const [owner] = await ethers.getSigners();
 
-    const vaultImpl = await ethers.deployContract("StrategyBuilderVault");
+    const { curatedRegistry, vaultImpl } = await deployCuratedVaultImpl(ethers);
     const factory = await ethers.deployContract("StrategyBuilderVaultFactory");
     await factory.setVaultImplementation(await vaultImpl.getAddress());
     await factory.createVault(owner.address, ethers.ZeroAddress, ethers.ZeroHash);
@@ -110,7 +114,10 @@ forkDescribe("PancakeSwapV3SwapAction (fork)", function () {
     // The guard is a library: under delegatecall the VAULT emits its events.
     const guard = await ethers.getContractAt("SlippageGuard", await vault.getAddress());
 
-    return { ethers, vault, registry, action, guard };
+    // The vault refuses uncurated targets in standard mode.
+    await curateActions(curatedRegistry, action);
+
+    return { ethers, vault, registry, action, guard, curatedRegistry };
   }
 
   async function fundUsdt(ethers: any, to: string, amount: bigint) {

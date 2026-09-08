@@ -10,6 +10,7 @@ import "./interfaces/ICondition.sol";
 import "./interfaces/IUpdatableCondition.sol";
 import "./interfaces/IAction.sol";
 import "./interfaces/IFeeRegistry.sol";
+import {ICuratedRegistry} from "./interfaces/ICuratedRegistry.sol";
 
 /**
  * @title StrategyBuilderVault
@@ -37,6 +38,33 @@ import "./interfaces/IFeeRegistry.sol";
  * Fees are charged at the vault boundary (deposit/withdraw), not per-action.
  * Gas compensation for executors is deducted from a pre-funded deposit in
  * FeeRegistry and transferred directly to the executor.
+ *
+ * Curation gate
+ * ─────────────
+ * An action runs via `delegatecall` — in THIS vault's storage, with the owner
+ * slot in reach. A condition runs via `staticcall` and can write nothing. So
+ * before an automation is stored, every step target is checked against the
+ * CuratedRegistry list **of its own kind**: a step of type CONDITION against
+ * the condition list, a step of type ACTION against the action list. Checking
+ * both against one list would make every reviewed condition a legal
+ * `delegatecall` target, which is exactly the corruption the registry exists to
+ * prevent.
+ *
+ * The gate sits on the deploy path (`createAutomation`, `createOwnerAutomation`,
+ * `updateAutomationSteps`), never on the execution path: an automation that was
+ * legal when it was stored keeps running even if its target is later removed
+ * from the list. Removing a target therefore stops new deploys, not live vaults.
+ *
+ * The registry address is `immutable` — part of the implementation's bytecode,
+ * not of the proxy's storage. A vault cannot be pointed at a different list
+ * after the fact, and there is no configuration in which the gate is silently
+ * off: the constructor refuses a zero address. Swapping the registry means
+ * deploying a new implementation and letting the factory hand it to new vaults;
+ * existing vaults keep the list they were reviewed against.
+ *
+ * Expert mode is the one deliberate way out, per vault and owner-only: with the
+ * flag on, the gate does not run and any target may be used. It is stored, not
+ * immutable, and readable on-chain so a UI can show which vaults are protected.
  */
 contract StrategyBuilderVault is
     Initializable,
@@ -88,6 +116,19 @@ contract StrategyBuilderVault is
     /// @dev Minimum fee deposit (in token units) that should be maintained in FeeRegistry.
     uint256 private _minFeeDeposit;
 
+    /// @dev Expert mode: the owner has waived the curation gate for THIS vault.
+    ///      Appended after every pre-existing variable on purpose — the vault
+    ///      lives behind an ERC1967 proxy, so a new field may only extend the
+    ///      layout, never shift or share a slot that is already in use.
+    bool private _expertMode;
+
+    // ─── Immutable ────────────────────────────────────────────────────────────
+
+    /// @dev The curated list this vault deploys against. Immutable, so it lives
+    ///      in the implementation's bytecode and costs the proxy no storage
+    ///      slot; a vault can never be re-pointed at a different list.
+    ICuratedRegistry private immutable _curatedRegistry;
+
     // ─── Events ───────────────────────────────────────────────────────────────
 
     event AutomationCreated(uint32 indexed automationId, uint256 stepCount);
@@ -102,6 +143,9 @@ contract StrategyBuilderVault is
     );
     event ContextSlotSet(uint32 indexed slot);
     event MinFeeDepositUpdated(uint256 newMinFeeDeposit);
+    /// @notice The owner turned the curation gate off (`enabled == true`) or
+    ///         back on (`enabled == false`) for this vault.
+    event ExpertModeChanged(bool enabled);
 
     event Deposited(address indexed token, uint256 amount);
     event Withdrawn(
@@ -135,10 +179,31 @@ contract StrategyBuilderVault is
     error ContextDiffLengthMismatch();
     error ZeroRecipient();
     error ETHTransferFailed();
+    /// @notice A step target is not on the curated list for its own kind.
+    error StepTargetNotCurated(
+        uint32 stepIndex,
+        address target,
+        ICuratedRegistry.TargetKind kind
+    );
+    /// @notice The implementation was deployed without a curated registry —
+    ///         there is no vault whose gate is off by configuration.
+    error ZeroCuratedRegistry();
+    /// @notice The address given as the curated registry holds no code, so the
+    ///         gate could never answer. Caught at deploy time, not at first use.
+    error CuratedRegistryNotAContract(address curatedRegistry);
 
     // ─── Constructor / Initializer ────────────────────────────────────────────
 
-    constructor() {
+    /**
+     * @param curatedRegistry_ The curated list every vault behind this
+     *        implementation deploys against. Required: a zero address would be
+     *        a vault whose curation gate is off without anyone saying so.
+     */
+    constructor(address curatedRegistry_) {
+        if (curatedRegistry_ == address(0)) revert ZeroCuratedRegistry();
+        if (curatedRegistry_.code.length == 0)
+            revert CuratedRegistryNotAContract(curatedRegistry_);
+        _curatedRegistry = ICuratedRegistry(curatedRegistry_);
         _disableInitializers();
     }
 
@@ -157,6 +222,28 @@ contract StrategyBuilderVault is
         __Ownable_init(initialOwner);
         _feeRegistry = IFeeRegistry(feeRegistry_);
         _depositToken = depositToken_;
+    }
+
+    // ─── Owner: expert mode ──────────────────────────────────────────────────
+
+    /**
+     * @notice Turn the curation gate off (`true`) or back on (`false`) for this
+     *         vault. Only the vault owner decides this, and only for their own
+     *         vault — the curator cannot force a vault into expert mode and
+     *         cannot take it out of one.
+     * @dev With the flag on, `createAutomation` / `createOwnerAutomation` /
+     *      `updateAutomationSteps` accept any target, including one that will be
+     *      `delegatecall`ed into this vault's storage. Turning the flag back off
+     *      gates future deploys only; automations stored while it was on keep
+     *      running, exactly as they do when a target is un-curated.
+     *
+     *      The event is emitted on every call, not only on a change: the owner's
+     *      decision is what an off-chain protection badge follows, and a
+     *      re-affirmation is part of that trail.
+     */
+    function setExpertMode(bool enabled) external onlyOwner {
+        _expertMode = enabled;
+        emit ExpertModeChanged(enabled);
     }
 
     // ─── Owner: fee deposit management ───────────────────────────────────────
@@ -424,6 +511,16 @@ contract StrategyBuilderVault is
         return _minFeeDeposit;
     }
 
+    /// @notice True when the owner has waived the curation gate for this vault.
+    function expertMode() external view returns (bool) {
+        return _expertMode;
+    }
+
+    /// @notice The curated list this vault's deploy path checks against.
+    function curatedRegistry() external view returns (address) {
+        return address(_curatedRegistry);
+    }
+
     // ─── ABI helpers ──────────────────────────────────────────────────────────
 
     function decodeContextDiff(
@@ -451,10 +548,21 @@ contract StrategyBuilderVault is
 
     // ─── Internal: step validation ────────────────────────────────────────────
 
-    function _validateSteps(Step[] calldata steps, bool ownerOnly) internal pure {
+    /**
+     * @dev Shape checks first, then the curation gate. The order is deliberate:
+     *      a malformed step keeps its own precise error (a zero target is
+     *      `ZeroTargetAddress`, not "not curated"), and the gate only ever
+     *      speaks about steps that are otherwise well-formed.
+     *
+     *      The gate is skipped entirely in expert mode; the flag is read once,
+     *      not per step.
+     */
+    function _validateSteps(Step[] calldata steps, bool ownerOnly) internal view {
         if (steps.length == 0) revert NoSteps();
         if (!ownerOnly && steps[0].stepType != StepType.CONDITION)
             revert FirstStepMustBeCondition();
+
+        bool gated = !_expertMode;
 
         uint32 len = uint32(steps.length);
         for (uint32 i = 0; i < len; ) {
@@ -473,8 +581,34 @@ contract StrategyBuilderVault is
                 if (onFalse != DONE) revert InvalidStepReference(i);
             }
 
+            if (gated) _requireCurated(i, steps[i]);
+
             unchecked { ++i; }
         }
+    }
+
+    /**
+     * @dev Each step is checked against the curated list of ITS OWN kind.
+     *
+     *      This mapping is the whole point of keeping two lists. A CONDITION is
+     *      reached by `staticcall` and cannot write; an ACTION is reached by
+     *      `delegatecall` and writes into this vault's storage. If both kinds
+     *      were checked against one list, every reviewed condition would also be
+     *      a legal `delegatecall` target — and a condition that writes its own
+     *      slots would then write the vault's, owner slot included.
+     *
+     *      Written out as a branch rather than a cast: `StepType` and
+     *      `TargetKind` happen to agree in order today, and a cast would keep
+     *      compiling — silently checking the wrong list — if either enum ever
+     *      gained a member.
+     */
+    function _requireCurated(uint32 stepIndex, Step calldata step) internal view {
+        ICuratedRegistry.TargetKind kind = step.stepType == StepType.CONDITION
+            ? ICuratedRegistry.TargetKind.Condition
+            : ICuratedRegistry.TargetKind.Action;
+
+        if (!_curatedRegistry.isCurated(step.target, kind))
+            revert StepTargetNotCurated(stepIndex, step.target, kind);
     }
 
     // ─── Internal: context load / save ────────────────────────────────────────

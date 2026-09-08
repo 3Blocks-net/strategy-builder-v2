@@ -1,6 +1,10 @@
 import { expect } from "chai";
 import { network } from "hardhat";
 import { AbiCoder, id } from "ethers";
+import {
+  curateActions,
+  deployCuratedVaultImpl,
+} from "./helpers/curated-vault.js";
 
 const { ethers } = await network.connect();
 
@@ -39,7 +43,7 @@ describe("AaveV3BorrowAction", function () {
   async function fixture() {
     const [owner] = await ethers.getSigners();
 
-    const vaultImpl = await ethers.deployContract("StrategyBuilderVault");
+    const { curatedRegistry, vaultImpl } = await deployCuratedVaultImpl(ethers);
     const factory = await ethers.deployContract("StrategyBuilderVaultFactory");
     await factory.setVaultImplementation(await vaultImpl.getAddress());
     await factory.createVault(owner.address, ethers.ZeroAddress, ethers.ZeroHash);
@@ -66,7 +70,10 @@ describe("AaveV3BorrowAction", function () {
     // Fund the pool with borrowable liquidity.
     await asset.transfer(await pool.getAddress(), LIQUIDITY);
 
-    return { owner, vault, asset, pool, action };
+    // The vault refuses uncurated targets in standard mode.
+    await curateActions(curatedRegistry, action);
+
+    return { owner, vault, asset, pool, action, curatedRegistry };
   }
 
   it("reverts construction with a zero registry", async function () {
@@ -148,7 +155,7 @@ describe("AaveV3BorrowAction", function () {
   });
 
   it("MAX_AVAILABLE borrows availableBorrows minus the haircut", async function () {
-    const { vault, asset, pool, action } = await fixture();
+    const { vault, asset, pool, curatedRegistry } = await fixture();
     const oracle = await ethers.deployContract("MockAaveOracle");
     await oracle.setPrice(await asset.getAddress(), 1n * 10n ** 8n); // $1 (8-dec)
     // availableBorrowsBase = $100 (8-dec); LT 8000.
@@ -162,6 +169,7 @@ describe("AaveV3BorrowAction", function () {
     ]);
     const registry = await ethers.deployContract("AaveV3Registry", [await provider.getAddress()]);
     const action2 = await ethers.deployContract("AaveV3BorrowAction", [await registry.getAddress()]);
+    await curateActions(curatedRegistry, action2);
 
     await vault.createOwnerAutomation([
       actionStep(await action2.getAddress(), encodeBorrowParams(await asset.getAddress(), Mode.MAX_AVAILABLE, 0n)),

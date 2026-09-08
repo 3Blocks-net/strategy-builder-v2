@@ -1,6 +1,10 @@
 import { expect } from "chai";
 import { network } from "hardhat";
 import { AbiCoder, id, MaxUint256 } from "ethers";
+import {
+  curateActions,
+  deployCuratedVaultImpl,
+} from "./helpers/curated-vault.js";
 
 // ─── Forked-mainnet test (core deliverable) ──────────────────────────────────
 // Supplies real BSC reserves to live Aave V3 (via the supply spine), then
@@ -71,7 +75,7 @@ forkDescribe("AaveV3WithdrawAction (fork)", function () {
     const { ethers } = await network.connect("bscFork");
     const [owner] = await ethers.getSigners();
 
-    const vaultImpl = await ethers.deployContract("StrategyBuilderVault");
+    const { curatedRegistry, vaultImpl } = await deployCuratedVaultImpl(ethers);
     const factory = await ethers.deployContract("StrategyBuilderVaultFactory");
     await factory.setVaultImplementation(await vaultImpl.getAddress());
     await factory.createVault(owner.address, ethers.ZeroAddress, ethers.ZeroHash);
@@ -88,7 +92,10 @@ forkDescribe("AaveV3WithdrawAction (fork)", function () {
       await registry.getAddress(),
     ]);
 
-    return { ethers, owner, vault, registry, supply, withdraw };
+    // The vault refuses uncurated targets in standard mode.
+    await curateActions(curatedRegistry, supply, withdraw);
+
+    return { ethers, owner, vault, registry, supply, withdraw, curatedRegistry };
   }
 
   async function fundVault(

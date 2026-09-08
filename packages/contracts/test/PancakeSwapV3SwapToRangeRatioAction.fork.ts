@@ -1,6 +1,10 @@
 import { expect } from "chai";
 import { network } from "hardhat";
 import { AbiCoder, id } from "ethers";
+import {
+  curateActions,
+  deployCuratedVaultImpl,
+} from "./helpers/curated-vault.js";
 
 // ─── Forked-mainnet test: the second caller of the shared guard ──────────────
 // SwapToRangeRatio must be protected by the SAME implementation as SwapAction —
@@ -61,7 +65,7 @@ forkDescribe("PancakeSwapV3SwapToRangeRatioAction (fork)", function () {
     const { ethers } = await network.connect("bscFork");
     const [owner] = await ethers.getSigners();
 
-    const vaultImpl = await ethers.deployContract("StrategyBuilderVault");
+    const { curatedRegistry, vaultImpl } = await deployCuratedVaultImpl(ethers);
     const factory = await ethers.deployContract("StrategyBuilderVaultFactory");
     await factory.setVaultImplementation(await vaultImpl.getAddress());
     await factory.createVault(owner.address, ethers.ZeroAddress, ethers.ZeroHash);
@@ -76,6 +80,8 @@ forkDescribe("PancakeSwapV3SwapToRangeRatioAction (fork)", function () {
       await registry.getAddress(),
     ]);
     const guard = await ethers.getContractAt("SlippageGuard", await vault.getAddress());
+    // The vault refuses uncurated targets in standard mode.
+    await curateActions(curatedRegistry, action);
 
     const f = new ethers.Contract(PCS_FACTORY, FACTORY_ABI, ethers.provider);
     let fee = 0;
@@ -87,7 +93,7 @@ forkDescribe("PancakeSwapV3SwapToRangeRatioAction (fork)", function () {
     }
     if (fee === 0) throw new Error("no USDT/WBNB pool found");
 
-    return { ethers, vault, action, guard, fee, pool: await f.getPool(USDT, WBNB, fee) };
+    return { ethers, vault, action, guard, fee, pool: await f.getPool(USDT, WBNB, fee), curatedRegistry };
   }
 
   async function fundUsdt(ethers: any, to: string, amount: bigint) {

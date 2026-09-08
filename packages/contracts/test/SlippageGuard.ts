@@ -1,6 +1,10 @@
 import { expect } from "chai";
 import { network } from "hardhat";
 import { AbiCoder, concat, id } from "ethers";
+import {
+  curateActions,
+  deployCuratedVaultImpl,
+} from "./helpers/curated-vault.js";
 
 const { ethers } = await network.connect();
 
@@ -93,7 +97,7 @@ describe("SlippageGuard (shared minimum-out rule)", function () {
   async function swapFixture() {
     const [owner] = await ethers.getSigners();
 
-    const vaultImpl = await ethers.deployContract("StrategyBuilderVault");
+    const { curatedRegistry, vaultImpl } = await deployCuratedVaultImpl(ethers);
     const vaultFactory = await ethers.deployContract("StrategyBuilderVaultFactory");
     await vaultFactory.setVaultImplementation(await vaultImpl.getAddress());
     await vaultFactory.createVault(owner.address, ethers.ZeroAddress, ethers.ZeroHash);
@@ -120,6 +124,8 @@ describe("SlippageGuard (shared minimum-out rule)", function () {
       await pcsFactory.getAddress(),
     ]);
     const action = await ethers.deployContract("PancakeSwapV3SwapAction", [await registry.getAddress()]);
+    // The vault refuses uncurated targets in standard mode.
+    await curateActions(curatedRegistry, action);
 
     await tokenOut.transfer(await router.getAddress(), ethers.parseEther("500000"));
     await tokenIn.transfer(vaultAddr, AMOUNT_IN);
@@ -141,7 +147,7 @@ describe("SlippageGuard (shared minimum-out rule)", function () {
     /** Make the router pay exactly `amount` for AMOUNT_IN. */
     const payExactly = (amount: bigint) => router.setRate(amount, AMOUNT_IN);
 
-    return { vault, vaultAddr, tokenIn, tokenOut, inIsToken0, pool, poolAddr, router, action, guard, runSwap, payExactly };
+    return { vault, vaultAddr, tokenIn, tokenOut, inIsToken0, pool, poolAddr, router, action, guard, runSwap, payExactly, curatedRegistry };
   }
 
   /** SwapToRangeRatio calls the same guard; it is exercised directly (no vault). */

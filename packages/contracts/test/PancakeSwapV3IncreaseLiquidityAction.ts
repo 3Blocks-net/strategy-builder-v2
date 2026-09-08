@@ -1,6 +1,10 @@
 import { expect } from "chai";
 import { network } from "hardhat";
 import { AbiCoder, id } from "ethers";
+import {
+  curateActions,
+  deployCuratedVaultImpl,
+} from "./helpers/curated-vault.js";
 
 const { ethers } = await network.connect();
 
@@ -39,7 +43,7 @@ function actionStep(target: string, data: string) {
 describe("PancakeSwapV3IncreaseLiquidityAction", function () {
   async function fixture() {
     const [owner] = await ethers.getSigners();
-    const vaultImpl = await ethers.deployContract("StrategyBuilderVault");
+    const { curatedRegistry, vaultImpl } = await deployCuratedVaultImpl(ethers);
     const factory = await ethers.deployContract("StrategyBuilderVaultFactory");
     await factory.setVaultImplementation(await vaultImpl.getAddress());
     await factory.createVault(owner.address, ethers.ZeroAddress, ethers.ZeroHash);
@@ -62,7 +66,10 @@ describe("PancakeSwapV3IncreaseLiquidityAction", function () {
     const mint = await ethers.deployContract("PancakeSwapV3MintAction", [await registry.getAddress()]);
     const increase = await ethers.deployContract("PancakeSwapV3IncreaseLiquidityAction", [await registry.getAddress()]);
 
-    return { owner, vault, tokenA, tokenB, npm, registry, mint, increase };
+    // The vault refuses uncurated targets in standard mode.
+    await curateActions(curatedRegistry, mint, increase);
+
+    return { owner, vault, tokenA, tokenB, npm, registry, mint, increase, curatedRegistry };
   }
 
   async function fund(vault: any, tokenA: any, tokenB: any, amt: string) {

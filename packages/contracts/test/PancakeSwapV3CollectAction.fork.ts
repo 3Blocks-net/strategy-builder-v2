@@ -1,6 +1,10 @@
 import { expect } from "chai";
 import { network } from "hardhat";
 import { AbiCoder, id } from "ethers";
+import {
+  curateActions,
+  deployCuratedVaultImpl,
+} from "./helpers/curated-vault.js";
 
 // ─── Forked-mainnet test (core deliverable) ──────────────────────────────────
 // Mints a real PancakeSwap V3 position, generates trading fees with a large swap
@@ -77,7 +81,7 @@ forkDescribe("PancakeSwapV3CollectAction (fork)", function () {
   async function deploy() {
     const { ethers } = await network.connect("bscFork");
     const [owner] = await ethers.getSigners();
-    const vaultImpl = await ethers.deployContract("StrategyBuilderVault");
+    const { curatedRegistry, vaultImpl } = await deployCuratedVaultImpl(ethers);
     const factory = await ethers.deployContract("StrategyBuilderVaultFactory");
     await factory.setVaultImplementation(await vaultImpl.getAddress());
     await factory.createVault(owner.address, ethers.ZeroAddress, ethers.ZeroHash);
@@ -86,7 +90,9 @@ forkDescribe("PancakeSwapV3CollectAction (fork)", function () {
     const mint = await ethers.deployContract("PancakeSwapV3MintAction", [await registry.getAddress()]);
     const swap = await ethers.deployContract("PancakeSwapV3SwapAction", [await registry.getAddress()]);
     const collect = await ethers.deployContract("PancakeSwapV3CollectAction", [await registry.getAddress()]);
-    return { ethers, owner, vault, mint, swap, collect };
+    // The vault refuses uncurated targets in standard mode.
+    await curateActions(curatedRegistry, mint, swap, collect);
+    return { ethers, owner, vault, mint, swap, collect, curatedRegistry };
   }
 
   async function fundUsdt(ethers: any, to: string, amount: bigint) {

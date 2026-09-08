@@ -1,6 +1,10 @@
 import { expect } from "chai";
 import { network } from "hardhat";
 import { AbiCoder, id, MaxUint256 } from "ethers";
+import {
+  curateActions,
+  deployCuratedVaultImpl,
+} from "./helpers/curated-vault.js";
 
 // ─── Forked-mainnet test (core deliverable) ──────────────────────────────────
 // Supplies WBNB collateral, borrows real BSC reserves, then repays them via the
@@ -57,7 +61,7 @@ forkDescribe("AaveV3RepayAction (fork)", function () {
     const { ethers } = await network.connect("bscFork");
     const [owner] = await ethers.getSigners();
 
-    const vaultImpl = await ethers.deployContract("StrategyBuilderVault");
+    const { curatedRegistry, vaultImpl } = await deployCuratedVaultImpl(ethers);
     const factory = await ethers.deployContract("StrategyBuilderVaultFactory");
     await factory.setVaultImplementation(await vaultImpl.getAddress());
     await factory.createVault(owner.address, ethers.ZeroAddress, ethers.ZeroHash);
@@ -71,7 +75,10 @@ forkDescribe("AaveV3RepayAction (fork)", function () {
     const borrow = await ethers.deployContract("AaveV3BorrowAction", [await registry.getAddress()]);
     const repay = await ethers.deployContract("AaveV3RepayAction", [await registry.getAddress()]);
 
-    return { ethers, owner, vault, registry, supply, borrow, repay };
+    // The vault refuses uncurated targets in standard mode.
+    await curateActions(curatedRegistry, supply, borrow, repay);
+
+    return { ethers, owner, vault, registry, supply, borrow, repay, curatedRegistry };
   }
 
   async function fund(ethers: any, owner: any, to: string, reserve: any, amount: bigint) {

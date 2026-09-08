@@ -1,6 +1,11 @@
 import { expect } from "chai";
 import { network } from "hardhat";
 import { AbiCoder, id, Interface } from "ethers";
+import {
+  curateActions,
+  curateConditions,
+  deployCuratedVaultImpl,
+} from "./helpers/curated-vault.js";
 
 const { ethers } = await network.connect();
 
@@ -26,7 +31,7 @@ function conditionStep(target: string, data: string) {
 describe("StrategyBuilderVault — revert reason passthrough (PEC-219 #02)", function () {
   async function fixture() {
     const [owner] = await ethers.getSigners();
-    const vaultImpl = await ethers.deployContract("StrategyBuilderVault");
+    const { curatedRegistry, vaultImpl } = await deployCuratedVaultImpl(ethers);
     const factory = await ethers.deployContract("StrategyBuilderVaultFactory");
     await factory.setVaultImplementation(await vaultImpl.getAddress());
     await factory.createVault(owner.address, ethers.ZeroAddress, ethers.ZeroHash);
@@ -35,7 +40,12 @@ describe("StrategyBuilderVault — revert reason passthrough (PEC-219 #02)", fun
       await factory.getVault(0),
     );
     const reverting = await ethers.deployContract("MockRevertingAction");
-    return { owner, vault, reverting };
+    // This mock is used both ways in these tests — once delegatecalled as an
+    // action, once staticcalled as a condition — so it has to be curated on
+    // both lists. Curating one kind never covers the other.
+    await curateActions(curatedRegistry, reverting);
+    await curateConditions(curatedRegistry, reverting);
+    return { owner, vault, reverting, curatedRegistry };
   }
 
   it("ActionExecutionFailed carries the original inner revert bytes", async function () {

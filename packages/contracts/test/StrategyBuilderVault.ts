@@ -1,6 +1,11 @@
 import { expect } from "chai";
 import { network } from "hardhat";
 import { AbiCoder, id } from "ethers";
+import {
+  curateActions,
+  curateConditions,
+  deployCuratedVaultImpl,
+} from "./helpers/curated-vault.js";
 
 const { ethers } = await network.connect();
 
@@ -108,7 +113,7 @@ describe("StrategyBuilderVault", function () {
   async function deployVaultFixture() {
     const [owner, executor, recipient, other] = await ethers.getSigners();
 
-    const vaultImpl = await ethers.deployContract("StrategyBuilderVault");
+    const { curatedRegistry, vaultImpl } = await deployCuratedVaultImpl(ethers);
     const factory = await ethers.deployContract("StrategyBuilderVaultFactory");
     await factory.setVaultImplementation(await vaultImpl.getAddress());
     await factory.createVault(
@@ -136,9 +141,15 @@ describe("StrategyBuilderVault", function () {
       ethers.parseEther("1000000"),
     );
 
+    // The vault refuses uncurated targets in standard mode. Curated per kind:
+    // the condition is only ever staticcalled, the action only delegatecalled.
+    await curateConditions(curatedRegistry, condition);
+    await curateActions(curatedRegistry, action);
+
     return {
       vault,
       factory,
+      curatedRegistry,
       condition,
       action,
       tokenA,
@@ -647,7 +658,7 @@ describe("StrategyBuilderVault", function () {
       await feeRegistry.setDepositFeeBps(100); // 1%
       await feeRegistry.setWithdrawFeeBps(50);  // 0.5%
 
-      const vaultImpl = await ethers.deployContract("StrategyBuilderVault");
+      const { curatedRegistry, vaultImpl } = await deployCuratedVaultImpl(ethers);
       const factory   = await ethers.deployContract("StrategyBuilderVaultFactory");
       await factory.setVaultImplementation(await vaultImpl.getAddress());
       await factory.setFeeRegistry(await feeRegistry.getAddress());
@@ -655,7 +666,7 @@ describe("StrategyBuilderVault", function () {
       await factory.createVault(owner.address, await tokenA.getAddress(), ethers.ZeroHash);
       const vault = await ethers.getContractAt("StrategyBuilderVault", await factory.getVault(0));
 
-      return { vault, factory, feeRegistry, tokenA, owner, executor, recipient, other };
+      return { vault, factory, feeRegistry, tokenA, owner, executor, recipient, other, curatedRegistry };
     }
 
     it("deposit pulls tokens and deducts fee to FeeRegistry", async function () {
@@ -834,7 +845,7 @@ describe("StrategyBuilderVault", function () {
       await feeRegistry.addAcceptedToken(await tokenA.getAddress(), 18);
       await feeRegistry.setWithdrawFeeBps(100); // 1%
 
-      const vaultImpl = await ethers.deployContract("StrategyBuilderVault");
+      const { curatedRegistry, vaultImpl } = await deployCuratedVaultImpl(ethers);
       const factory   = await ethers.deployContract("StrategyBuilderVaultFactory");
       await factory.setVaultImplementation(await vaultImpl.getAddress());
       await factory.setFeeRegistry(await feeRegistry.getAddress());
@@ -845,7 +856,11 @@ describe("StrategyBuilderVault", function () {
       const condition = await ethers.deployContract("TokenBalanceCondition");
       const action    = await ethers.deployContract("ERC20TransferAction");
 
-      return { vault, factory, feeRegistry, tokenA, condition, action, owner, executor, recipient };
+      // The vault refuses uncurated targets in standard mode.
+      await curateConditions(curatedRegistry, condition);
+      await curateActions(curatedRegistry, action);
+
+      return { vault, factory, feeRegistry, tokenA, condition, action, owner, executor, recipient, curatedRegistry };
     }
 
     it("deducts withdraw fee from transfer amount in automation", async function () {
@@ -948,15 +963,17 @@ describe("StrategyBuilderVault", function () {
     async function deployIntervalFixture() {
       const [owner, executor] = await ethers.getSigners();
 
-      const vaultImpl = await ethers.deployContract("StrategyBuilderVault");
+      const { curatedRegistry, vaultImpl } = await deployCuratedVaultImpl(ethers);
       const factory   = await ethers.deployContract("StrategyBuilderVaultFactory");
       await factory.setVaultImplementation(await vaultImpl.getAddress());
       await factory.createVault(owner.address, ethers.ZeroAddress, ethers.ZeroHash);
       const vault = await ethers.getContractAt("StrategyBuilderVault", await factory.getVault(0));
 
       const condition = await ethers.deployContract("IntervalCondition");
+      // The vault refuses uncurated targets in standard mode.
+      await curateConditions(curatedRegistry, condition);
 
-      return { vault, condition, owner, executor };
+      return { vault, condition, owner, executor, curatedRegistry };
     }
 
     it("check returns false when context slot is empty", async function () {
@@ -1037,8 +1054,10 @@ describe("StrategyBuilderVault", function () {
     });
 
     it("non-updatable trigger condition: context unchanged after execution", async function () {
-      const { vault, owner, executor } = await deployIntervalFixture();
+      const { vault, owner, executor, curatedRegistry } = await deployIntervalFixture();
       const condition = await ethers.deployContract("TokenBalanceCondition");
+      // Deployed here rather than in the fixture, so it needs curating here.
+      await curateConditions(curatedRegistry, condition);
       const MockToken = await ethers.getContractFactory("MockERC20");
       const token = await MockToken.deploy("T", "T", ethers.parseEther("1000"));
       const vaultAddress = await vault.getAddress();
@@ -1083,14 +1102,16 @@ describe("StrategyBuilderVault", function () {
     async function deployTimerFixture() {
       const [owner, executor] = await ethers.getSigners();
 
-      const vaultImpl = await ethers.deployContract("StrategyBuilderVault");
+      const { curatedRegistry, vaultImpl } = await deployCuratedVaultImpl(ethers);
       const factory   = await ethers.deployContract("StrategyBuilderVaultFactory");
       await factory.setVaultImplementation(await vaultImpl.getAddress());
       await factory.createVault(owner.address, ethers.ZeroAddress, ethers.ZeroHash);
       const vault = await ethers.getContractAt("StrategyBuilderVault", await factory.getVault(0));
       const condition = await ethers.deployContract("TimerCondition");
+      // The vault refuses uncurated targets in standard mode.
+      await curateConditions(curatedRegistry, condition);
 
-      return { vault, condition, owner, executor };
+      return { vault, condition, owner, executor, curatedRegistry };
     }
 
     it("check returns false when slot is empty", async function () {
@@ -1256,7 +1277,7 @@ describe("StrategyBuilderVault", function () {
       const feeRegistry = await ethers.deployContract("FeeRegistry");
       await feeRegistry.addAcceptedToken(await feeToken.getAddress(), 18);
 
-      const vaultImpl = await ethers.deployContract("StrategyBuilderVault");
+      const { curatedRegistry, vaultImpl } = await deployCuratedVaultImpl(ethers);
       const factory   = await ethers.deployContract("StrategyBuilderVaultFactory");
       await factory.setVaultImplementation(await vaultImpl.getAddress());
       await factory.setFeeRegistry(await feeRegistry.getAddress());
@@ -1266,7 +1287,11 @@ describe("StrategyBuilderVault", function () {
       const condition       = await ethers.deployContract("TokenBalanceCondition");
       const feeDepositAction = await ethers.deployContract("FeeDepositAction");
 
-      return { vault, feeRegistry, feeToken, condition, feeDepositAction, owner, executor };
+      // The vault refuses uncurated targets in standard mode.
+      await curateConditions(curatedRegistry, condition);
+      await curateActions(curatedRegistry, feeDepositAction);
+
+      return { vault, feeRegistry, feeToken, condition, feeDepositAction, owner, executor, curatedRegistry };
     }
 
     it("tops up vault deposit when below minimum", async function () {
@@ -1353,7 +1378,7 @@ describe("StrategyBuilderVault", function () {
         0,       // no gas price cap
       );
 
-      const vaultImpl = await ethers.deployContract("StrategyBuilderVault");
+      const { curatedRegistry, vaultImpl } = await deployCuratedVaultImpl(ethers);
       const factory   = await ethers.deployContract("StrategyBuilderVaultFactory");
       await factory.setVaultImplementation(await vaultImpl.getAddress());
       await factory.setFeeRegistry(await feeRegistry.getAddress());
@@ -1368,7 +1393,11 @@ describe("StrategyBuilderVault", function () {
       const condition = await ethers.deployContract("TokenBalanceCondition");
       const action    = await ethers.deployContract("ERC20TransferAction");
 
-      return { vault, feeRegistry, feeToken, tokenA, oracle, condition, action, owner, executor };
+      // The vault refuses uncurated targets in standard mode.
+      await curateConditions(curatedRegistry, condition);
+      await curateActions(curatedRegistry, action);
+
+      return { vault, feeRegistry, feeToken, tokenA, oracle, condition, action, owner, executor, curatedRegistry };
     }
 
     it("executor receives gas compensation from vault deposit", async function () {
@@ -1452,7 +1481,7 @@ describe("StrategyBuilderVault", function () {
       const MockToken = await ethers.getContractFactory("MockERC20");
       const tokenA = await MockToken.deploy("TokenA", "TKA", ethers.parseEther("1000000"));
 
-      const vaultImpl = await ethers.deployContract("StrategyBuilderVault");
+      const { curatedRegistry, vaultImpl } = await deployCuratedVaultImpl(ethers);
       const factory   = await ethers.deployContract("StrategyBuilderVaultFactory");
       await factory.setVaultImplementation(await vaultImpl.getAddress());
 
@@ -1461,7 +1490,10 @@ describe("StrategyBuilderVault", function () {
 
       const action = await ethers.deployContract("ERC20TransferAction");
 
-      return { vault, tokenA, action, owner, other };
+      // The vault refuses uncurated targets in standard mode.
+      await curateActions(curatedRegistry, action);
+
+      return { vault, tokenA, action, owner, other, curatedRegistry };
     }
 
     it("createOwnerAutomation accepts step 0 as ACTION", async function () {

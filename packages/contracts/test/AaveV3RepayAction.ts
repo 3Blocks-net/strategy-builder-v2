@@ -1,6 +1,10 @@
 import { expect } from "chai";
 import { network } from "hardhat";
 import { AbiCoder, id, MaxUint256 } from "ethers";
+import {
+  curateActions,
+  deployCuratedVaultImpl,
+} from "./helpers/curated-vault.js";
 
 const { ethers } = await network.connect();
 
@@ -37,7 +41,7 @@ describe("AaveV3RepayAction", function () {
   async function fixture(debt: bigint, vaultBalance: bigint) {
     const [owner] = await ethers.getSigners();
 
-    const vaultImpl = await ethers.deployContract("StrategyBuilderVault");
+    const { curatedRegistry, vaultImpl } = await deployCuratedVaultImpl(ethers);
     const factory = await ethers.deployContract("StrategyBuilderVaultFactory");
     await factory.setVaultImplementation(await vaultImpl.getAddress());
     await factory.createVault(owner.address, ethers.ZeroAddress, ethers.ZeroHash);
@@ -69,7 +73,10 @@ describe("AaveV3RepayAction", function () {
       await asset.transfer(await vault.getAddress(), vaultBalance);
     }
 
-    return { owner, vault, asset, debtToken, pool, action };
+    // The vault refuses uncurated targets in standard mode.
+    await curateActions(curatedRegistry, action);
+
+    return { owner, vault, asset, debtToken, pool, action, curatedRegistry };
   }
 
   const vaultAddr = async (v: any) => await v.getAddress();

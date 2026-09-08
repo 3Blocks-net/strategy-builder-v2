@@ -13,20 +13,22 @@ export declare namespace StrategyBuilderVault {
     }
 
   export interface StrategyBuilderVaultInterface extends Interface {
-    getFunction(nameOrSignature: "DONE" | "MAX_STEPS" | "automationCount" | "createAutomation" | "createOwnerAutomation" | "decodeContextDiff" | "deposit" | "depositFees" | "depositToken" | "executeAutomation" | "feeRegistry" | "getAutomation" | "getContext" | "initialize" | "isTriggerMet" | "minFeeDeposit" | "onERC721Received" | "owner" | "renounceOwnership" | "setAutomationActive" | "setContext" | "setContextSlot" | "setMinFeeDeposit" | "transferOwnership" | "updateAutomationSteps" | "withdraw" | "withdrawETH"): FunctionFragment;
+    getFunction(nameOrSignature: "DONE" | "MAX_STEPS" | "automationCount" | "createAutomation" | "createOwnerAutomation" | "curatedRegistry" | "decodeContextDiff" | "deposit" | "depositFees" | "depositToken" | "executeAutomation" | "expertMode" | "feeRegistry" | "getAutomation" | "getContext" | "initialize" | "isTriggerMet" | "minFeeDeposit" | "onERC721Received" | "owner" | "renounceOwnership" | "setAutomationActive" | "setContext" | "setContextSlot" | "setExpertMode" | "setMinFeeDeposit" | "transferOwnership" | "updateAutomationSteps" | "withdraw" | "withdrawETH"): FunctionFragment;
 
-    getEvent(nameOrSignatureOrTopic: "AutomationActiveChanged" | "AutomationCreated" | "AutomationExecuted" | "AutomationStepsUpdated" | "ContextSlotSet" | "Deposited" | "GasCompSettled" | "Initialized" | "MinFeeDepositUpdated" | "OwnershipTransferred" | "Withdrawn"): EventFragment;
+    getEvent(nameOrSignatureOrTopic: "AutomationActiveChanged" | "AutomationCreated" | "AutomationExecuted" | "AutomationStepsUpdated" | "ContextSlotSet" | "Deposited" | "ExpertModeChanged" | "GasCompSettled" | "Initialized" | "MinFeeDepositUpdated" | "OwnershipTransferred" | "Withdrawn"): EventFragment;
 
     encodeFunctionData(functionFragment: 'DONE', values?: undefined): string;
 encodeFunctionData(functionFragment: 'MAX_STEPS', values?: undefined): string;
 encodeFunctionData(functionFragment: 'automationCount', values?: undefined): string;
 encodeFunctionData(functionFragment: 'createAutomation', values: [StrategyBuilderVault.StepStruct[]]): string;
 encodeFunctionData(functionFragment: 'createOwnerAutomation', values: [StrategyBuilderVault.StepStruct[]]): string;
+encodeFunctionData(functionFragment: 'curatedRegistry', values?: undefined): string;
 encodeFunctionData(functionFragment: 'decodeContextDiff', values: [BytesLike]): string;
 encodeFunctionData(functionFragment: 'deposit', values: [AddressLike, BigNumberish]): string;
 encodeFunctionData(functionFragment: 'depositFees', values: [AddressLike, BigNumberish]): string;
 encodeFunctionData(functionFragment: 'depositToken', values?: undefined): string;
 encodeFunctionData(functionFragment: 'executeAutomation', values: [BigNumberish]): string;
+encodeFunctionData(functionFragment: 'expertMode', values?: undefined): string;
 encodeFunctionData(functionFragment: 'feeRegistry', values?: undefined): string;
 encodeFunctionData(functionFragment: 'getAutomation', values: [BigNumberish]): string;
 encodeFunctionData(functionFragment: 'getContext', values?: undefined): string;
@@ -39,6 +41,7 @@ encodeFunctionData(functionFragment: 'renounceOwnership', values?: undefined): s
 encodeFunctionData(functionFragment: 'setAutomationActive', values: [BigNumberish, boolean]): string;
 encodeFunctionData(functionFragment: 'setContext', values: [BytesLike[]]): string;
 encodeFunctionData(functionFragment: 'setContextSlot', values: [BigNumberish, BytesLike]): string;
+encodeFunctionData(functionFragment: 'setExpertMode', values: [boolean]): string;
 encodeFunctionData(functionFragment: 'setMinFeeDeposit', values: [BigNumberish]): string;
 encodeFunctionData(functionFragment: 'transferOwnership', values: [AddressLike]): string;
 encodeFunctionData(functionFragment: 'updateAutomationSteps', values: [BigNumberish, StrategyBuilderVault.StepStruct[]]): string;
@@ -50,11 +53,13 @@ decodeFunctionResult(functionFragment: 'MAX_STEPS', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'automationCount', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'createAutomation', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'createOwnerAutomation', data: BytesLike): Result;
+decodeFunctionResult(functionFragment: 'curatedRegistry', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'decodeContextDiff', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'deposit', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'depositFees', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'depositToken', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'executeAutomation', data: BytesLike): Result;
+decodeFunctionResult(functionFragment: 'expertMode', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'feeRegistry', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'getAutomation', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'getContext', data: BytesLike): Result;
@@ -67,6 +72,7 @@ decodeFunctionResult(functionFragment: 'renounceOwnership', data: BytesLike): Re
 decodeFunctionResult(functionFragment: 'setAutomationActive', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'setContext', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'setContextSlot', data: BytesLike): Result;
+decodeFunctionResult(functionFragment: 'setExpertMode', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'setMinFeeDeposit', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'transferOwnership', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'updateAutomationSteps', data: BytesLike): Result;
@@ -139,6 +145,18 @@ decodeFunctionResult(functionFragment: 'withdrawETH', data: BytesLike): Result;
       export type InputTuple = [token: AddressLike, amount: BigNumberish];
       export type OutputTuple = [token: string, amount: bigint];
       export interface OutputObject {token: string, amount: bigint };
+      export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>
+      export type Filter = TypedDeferredTopicFilter<Event>
+      export type Log = TypedEventLog<Event>
+      export type LogDescription = TypedLogDescription<Event>
+    }
+
+  
+
+    export namespace ExpertModeChangedEvent {
+      export type InputTuple = [enabled: boolean];
+      export type OutputTuple = [enabled: boolean];
+      export interface OutputObject {enabled: boolean };
       export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>
       export type Filter = TypedDeferredTopicFilter<Event>
       export type Log = TypedEventLog<Event>
@@ -281,6 +299,14 @@ decodeFunctionResult(functionFragment: 'withdrawETH', data: BytesLike): Result;
     
 
     
+    curatedRegistry: TypedContractMethod<
+      [],
+      [string],
+      'view'
+    >
+    
+
+    
     decodeContextDiff: TypedContractMethod<
       [data: BytesLike, ],
       [[bigint[], string[]] & {slots: bigint[], values: string[] }],
@@ -317,6 +343,14 @@ decodeFunctionResult(functionFragment: 'withdrawETH', data: BytesLike): Result;
       [automationId: BigNumberish, ],
       [void],
       'nonpayable'
+    >
+    
+
+    
+    expertMode: TypedContractMethod<
+      [],
+      [boolean],
+      'view'
     >
     
 
@@ -417,6 +451,14 @@ decodeFunctionResult(functionFragment: 'withdrawETH', data: BytesLike): Result;
     
 
     
+    setExpertMode: TypedContractMethod<
+      [enabled: boolean, ],
+      [void],
+      'nonpayable'
+    >
+    
+
+    
     setMinFeeDeposit: TypedContractMethod<
       [minAmount: BigNumberish, ],
       [void],
@@ -484,6 +526,11 @@ getFunction(nameOrSignature: 'createOwnerAutomation'): TypedContractMethod<
       [bigint],
       'nonpayable'
     >;
+getFunction(nameOrSignature: 'curatedRegistry'): TypedContractMethod<
+      [],
+      [string],
+      'view'
+    >;
 getFunction(nameOrSignature: 'decodeContextDiff'): TypedContractMethod<
       [data: BytesLike, ],
       [[bigint[], string[]] & {slots: bigint[], values: string[] }],
@@ -508,6 +555,11 @@ getFunction(nameOrSignature: 'executeAutomation'): TypedContractMethod<
       [automationId: BigNumberish, ],
       [void],
       'nonpayable'
+    >;
+getFunction(nameOrSignature: 'expertMode'): TypedContractMethod<
+      [],
+      [boolean],
+      'view'
     >;
 getFunction(nameOrSignature: 'feeRegistry'): TypedContractMethod<
       [],
@@ -569,6 +621,11 @@ getFunction(nameOrSignature: 'setContextSlot'): TypedContractMethod<
       [void],
       'nonpayable'
     >;
+getFunction(nameOrSignature: 'setExpertMode'): TypedContractMethod<
+      [enabled: boolean, ],
+      [void],
+      'nonpayable'
+    >;
 getFunction(nameOrSignature: 'setMinFeeDeposit'): TypedContractMethod<
       [minAmount: BigNumberish, ],
       [void],
@@ -601,6 +658,7 @@ getEvent(key: 'AutomationExecuted'): TypedContractEvent<AutomationExecutedEvent.
 getEvent(key: 'AutomationStepsUpdated'): TypedContractEvent<AutomationStepsUpdatedEvent.InputTuple, AutomationStepsUpdatedEvent.OutputTuple, AutomationStepsUpdatedEvent.OutputObject>;
 getEvent(key: 'ContextSlotSet'): TypedContractEvent<ContextSlotSetEvent.InputTuple, ContextSlotSetEvent.OutputTuple, ContextSlotSetEvent.OutputObject>;
 getEvent(key: 'Deposited'): TypedContractEvent<DepositedEvent.InputTuple, DepositedEvent.OutputTuple, DepositedEvent.OutputObject>;
+getEvent(key: 'ExpertModeChanged'): TypedContractEvent<ExpertModeChangedEvent.InputTuple, ExpertModeChangedEvent.OutputTuple, ExpertModeChangedEvent.OutputObject>;
 getEvent(key: 'GasCompSettled'): TypedContractEvent<GasCompSettledEvent.InputTuple, GasCompSettledEvent.OutputTuple, GasCompSettledEvent.OutputObject>;
 getEvent(key: 'Initialized'): TypedContractEvent<InitializedEvent.InputTuple, InitializedEvent.OutputTuple, InitializedEvent.OutputObject>;
 getEvent(key: 'MinFeeDepositUpdated'): TypedContractEvent<MinFeeDepositUpdatedEvent.InputTuple, MinFeeDepositUpdatedEvent.OutputTuple, MinFeeDepositUpdatedEvent.OutputObject>;
@@ -631,6 +689,10 @@ getEvent(key: 'Withdrawn'): TypedContractEvent<WithdrawnEvent.InputTuple, Withdr
 
       'Deposited(address,uint256)': TypedContractEvent<DepositedEvent.InputTuple, DepositedEvent.OutputTuple, DepositedEvent.OutputObject>;
       Deposited: TypedContractEvent<DepositedEvent.InputTuple, DepositedEvent.OutputTuple, DepositedEvent.OutputObject>;
+    
+
+      'ExpertModeChanged(bool)': TypedContractEvent<ExpertModeChangedEvent.InputTuple, ExpertModeChangedEvent.OutputTuple, ExpertModeChangedEvent.OutputObject>;
+      ExpertModeChanged: TypedContractEvent<ExpertModeChangedEvent.InputTuple, ExpertModeChangedEvent.OutputTuple, ExpertModeChangedEvent.OutputObject>;
     
 
       'GasCompSettled(uint32,address,address,uint256)': TypedContractEvent<GasCompSettledEvent.InputTuple, GasCompSettledEvent.OutputTuple, GasCompSettledEvent.OutputObject>;

@@ -1,6 +1,10 @@
 import { expect } from "chai";
 import { network } from "hardhat";
 import { AbiCoder, id } from "ethers";
+import {
+  curateActions,
+  deployCuratedVaultImpl,
+} from "./helpers/curated-vault.js";
 
 // ─── Forked-mainnet tests for the HF/oracle engine (slice #5) ────────────────
 // Exercises MAX_AVAILABLE (oracle-bound) and TARGET_HF against live BSC Aave:
@@ -50,7 +54,7 @@ forkDescribe("Aave HF/oracle modes (fork)", function () {
     const { ethers } = await network.connect("bscFork");
     const [owner] = await ethers.getSigners();
 
-    const vaultImpl = await ethers.deployContract("StrategyBuilderVault");
+    const { curatedRegistry, vaultImpl } = await deployCuratedVaultImpl(ethers);
     const factory = await ethers.deployContract("StrategyBuilderVaultFactory");
     await factory.setVaultImplementation(await vaultImpl.getAddress());
     await factory.createVault(owner.address, ethers.ZeroAddress, ethers.ZeroHash);
@@ -60,6 +64,8 @@ forkDescribe("Aave HF/oracle modes (fork)", function () {
     const supply = await ethers.deployContract("AaveV3SupplyAction", [await registry.getAddress()]);
     const borrow = await ethers.deployContract("AaveV3BorrowAction", [await registry.getAddress()]);
     const withdraw = await ethers.deployContract("AaveV3WithdrawAction", [await registry.getAddress()]);
+    // The vault refuses uncurated targets in standard mode.
+    await curateActions(curatedRegistry, supply, borrow, withdraw);
 
     // Supply 5 WBNB collateral (automation 0).
     const collateral = ethers.parseEther("5");
@@ -71,7 +77,7 @@ forkDescribe("Aave HF/oracle modes (fork)", function () {
     ]);
     await vault.executeAutomation(0);
 
-    return { ethers, owner, vault, registry, supply, borrow, withdraw };
+    return { ethers, owner, vault, registry, supply, borrow, withdraw, curatedRegistry };
   }
 
   async function hf(ethers: any, registry: any, vault: string): Promise<bigint> {

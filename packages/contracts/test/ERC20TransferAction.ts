@@ -1,6 +1,10 @@
 import { expect } from "chai";
 import { network } from "hardhat";
 import { AbiCoder, id } from "ethers";
+import {
+  curateActions,
+  deployCuratedVaultImpl,
+} from "./helpers/curated-vault.js";
 
 const { ethers } = await network.connect();
 
@@ -36,17 +40,19 @@ describe("ERC20TransferAction (regression)", function () {
   async function fixture() {
     const [owner, recipient] = await ethers.getSigners();
 
-    const vaultImpl = await ethers.deployContract("StrategyBuilderVault");
+    const { curatedRegistry, vaultImpl } = await deployCuratedVaultImpl(ethers);
     const factory = await ethers.deployContract("StrategyBuilderVaultFactory");
     await factory.setVaultImplementation(await vaultImpl.getAddress());
     await factory.createVault(owner.address, ethers.ZeroAddress, ethers.ZeroHash);
     const vault = await ethers.getContractAt("StrategyBuilderVault", await factory.getVault(0));
 
     const action = await ethers.deployContract("ERC20TransferAction");
+    // The vault refuses uncurated targets in standard mode.
+    await curateActions(curatedRegistry, action);
     const MockToken = await ethers.getContractFactory("MockERC20");
     const token = await MockToken.deploy("Tok", "TOK", ethers.parseEther("1000000"));
 
-    return { owner, recipient, vault, action, token };
+    return { owner, recipient, vault, action, token, curatedRegistry };
   }
 
   // US #1 — transfer a fixed amount from the vault to an address.

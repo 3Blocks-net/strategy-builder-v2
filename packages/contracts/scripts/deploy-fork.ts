@@ -89,11 +89,29 @@ async function main() {
     `  setGasConfig(oracle, WBNB native, markup ${EXECUTOR_MARKUP_BPS}bps, overhead ${GAS_OVERHEAD}, maxGasPrice ${MAX_GAS_PRICE})`,
   );
 
-  // 3. Deploy vault implementation
+  // 2c. Deploy the CuratedRegistry — the list of reviewed step targets that a
+  //     standard-mode vault deploys against. The deployer is both owner and
+  //     curator on a fork; on a real chain those are separate keys.
+  //
+  //     Nothing is curated here on purpose: filling the list with the catalog
+  //     is its own step. Until then a fork vault either has its targets curated
+  //     by whoever needs them, or its owner turns on expert mode.
+  console.log("Deploying CuratedRegistry...");
+  const curatedRegistry = await ethers.deployContract("CuratedRegistry", [
+    deployer.address,
+  ]);
+  const curatedRegistryAddr = await curatedRegistry.getAddress();
+  console.log(`  CuratedRegistry: ${curatedRegistryAddr} (curator ${deployer.address})`);
+
+  // 3. Deploy vault implementation. The registry address is immutable, so it is
+  //    baked in here and every vault the factory creates from this
+  //    implementation checks against exactly this list.
   console.log("Deploying StrategyBuilderVault (implementation)...");
-  const vaultImpl = await ethers.deployContract("StrategyBuilderVault");
+  const vaultImpl = await ethers.deployContract("StrategyBuilderVault", [
+    curatedRegistryAddr,
+  ]);
   const vaultImplAddr = await vaultImpl.getAddress();
-  console.log(`  StrategyBuilderVault: ${vaultImplAddr}`);
+  console.log(`  StrategyBuilderVault: ${vaultImplAddr} (curated registry ${curatedRegistryAddr})`);
 
   // 4. Deploy factory
   console.log("Deploying StrategyBuilderVaultFactory...");
@@ -269,6 +287,7 @@ async function main() {
   const addresses = {
     FeeRegistry: feeRegistryAddr,
     PriceOracle: priceOracleAddr,
+    CuratedRegistry: curatedRegistryAddr,
     StrategyBuilderVault: vaultImplAddr,
     StrategyBuilderVaultFactory: factoryAddr,
     TokenBalanceCondition: tokenBalanceConditionAddr,
@@ -318,6 +337,7 @@ ${"═".repeat(55)}
 
 FeeRegistry:                 ${feeRegistryAddr}
 MockPriceOracle:             ${priceOracleAddr}
+CuratedRegistry:             ${curatedRegistryAddr}
 StrategyBuilderVault (impl): ${vaultImplAddr}
 StrategyBuilderVaultFactory: ${factoryAddr}
 TokenBalanceCondition:       ${tokenBalanceConditionAddr}

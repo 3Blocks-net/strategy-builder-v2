@@ -1,6 +1,7 @@
 import { expect } from "chai";
 import { network } from "hardhat";
 import { AbiCoder } from "ethers";
+import { deployCuratedVaultImpl } from "./helpers/curated-vault.js";
 
 const { ethers } = await network.connect();
 
@@ -8,11 +9,11 @@ describe("StrategyBuilderVaultFactory", function () {
   async function deployFactoryFixture() {
     const [deployer, alice, bob, other] = await ethers.getSigners();
 
-    const vaultImpl = await ethers.deployContract("StrategyBuilderVault");
+    const { curatedRegistry, vaultImpl } = await deployCuratedVaultImpl(ethers);
     const factory   = await ethers.deployContract("StrategyBuilderVaultFactory");
     await factory.setVaultImplementation(await vaultImpl.getAddress());
 
-    return { vaultImpl, factory, deployer, alice, bob, other };
+    return { vaultImpl, factory, deployer, alice, bob, other, curatedRegistry };
   }
 
   // ── Deployment ────────────────────────────────────────────────────────────
@@ -120,7 +121,7 @@ describe("StrategyBuilderVaultFactory", function () {
     it("new vaults use the updated implementation", async function () {
       const { factory, alice, deployer } = await deployFactoryFixture();
 
-      const newVaultImpl = await ethers.deployContract("StrategyBuilderVault");
+      const { vaultImpl: newVaultImpl } = await deployCuratedVaultImpl(ethers);
       await expect(
         factory.connect(deployer).setVaultImplementation(await newVaultImpl.getAddress()),
       )
