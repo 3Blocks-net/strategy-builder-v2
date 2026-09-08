@@ -7,10 +7,15 @@
  */
 import { network } from "hardhat";
 import { writeFileSync, mkdirSync } from "fs";
-import { join, dirname } from "path";
-import { fileURLToPath } from "url";
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
+import { dirname } from "path";
+import { deploymentOutputPath } from "./deployment-file.js";
+import {
+  asCuratedRegistry,
+  curateTargets,
+  curationRecord,
+  toCatalogTarget,
+  type CatalogTarget,
+} from "./curated-catalog.js";
 
 // ─── BSC Mainnet token addresses (available on fork) ──────────────────────
 
@@ -27,6 +32,11 @@ const PCS_POSITION_MANAGER = "0x46A15B0b27311cedF172AB29E4f4766fbE7F4364";
 const PCS_FACTORY = "0x0BFbCF9fa4f9C56B0F40a671Ad40E0805A091865";
 
 const TEST_WALLET = "0xBcd4042DE499D14e55001CcbB24a551F3b954096";
+
+// The node this script talks to for the impersonation calls below. Same default
+// and same override as the `localhost` network in hardhat.config.ts, so a second
+// local chain on another port is driven end to end by one variable.
+const LOCALHOST_RPC_URL = process.env.LOCALHOST_RPC_URL ?? "http://127.0.0.1:8545";
 
 // ─── Configurable parameters ──────────────────────────────────────────────
 
@@ -91,11 +101,10 @@ async function main() {
 
   // 2c. Deploy the CuratedRegistry — the list of reviewed step targets that a
   //     standard-mode vault deploys against. The deployer is both owner and
-  //     curator on a fork; on a real chain those are separate keys.
-  //
-  //     Nothing is curated here on purpose: filling the list with the catalog
-  //     is its own step. Until then a fork vault either has its targets curated
-  //     by whoever needs them, or its owner turns on expert mode.
+  //     curator on a fork; on a real chain those are separate keys. Curator is
+  //     the deployer because this script fills the list itself in step 7d —
+  //     without that, no standard-mode vault on this chain could deploy an
+  //     automation at all.
   console.log("Deploying CuratedRegistry...");
   const curatedRegistry = await ethers.deployContract("CuratedRegistry", [
     deployer.address,
@@ -235,12 +244,40 @@ async function main() {
   const wickWaitConditionAddr = await wickWaitCondition.getAddress();
   console.log(`  WickWaitRebalanceCondition: ${wickWaitConditionAddr}`);
 
+  // 7d. Curate the deployed catalog. Every target above is a step a vault is
+  //     meant to be able to deploy, so the local chain lists them all — each
+  //     under its own kind, derived from the contract's interface rather than
+  //     restated here. Support contracts (the fee/price/protocol registries,
+  //     the factory, the vault implementation) are absent on purpose: they are
+  //     not step targets and curating them would widen the delegatecall surface
+  //     for nothing.
+  console.log("Curating the deployed catalog...");
+  const catalogTargets: CatalogTarget[] = [
+    toCatalogTarget("TokenBalanceCondition", tokenBalanceConditionAddr, tokenBalanceCondition.interface),
+    toCatalogTarget("IntervalCondition", intervalConditionAddr, intervalCondition.interface),
+    toCatalogTarget("TimerCondition", timerConditionAddr, timerCondition.interface),
+    toCatalogTarget("WickWaitRebalanceCondition", wickWaitConditionAddr, wickWaitCondition.interface),
+    toCatalogTarget("ERC20TransferAction", erc20TransferActionAddr, erc20TransferAction.interface),
+    toCatalogTarget("FeeDepositAction", feeDepositActionAddr, feeDepositAction.interface),
+    toCatalogTarget("AaveV3SupplyAction", aaveSupplyActionAddr, aaveSupplyAction.interface),
+    toCatalogTarget("AaveV3WithdrawAction", aaveWithdrawActionAddr, aaveWithdrawAction.interface),
+    toCatalogTarget("AaveV3BorrowAction", aaveBorrowActionAddr, aaveBorrowAction.interface),
+    toCatalogTarget("AaveV3RepayAction", aaveRepayActionAddr, aaveRepayAction.interface),
+    toCatalogTarget("PancakeSwapV3SwapAction", pcsSwapActionAddr, pcsSwapAction.interface),
+    toCatalogTarget("PancakeSwapV3MintAction", pcsMintActionAddr, pcsMintAction.interface),
+    toCatalogTarget("PancakeSwapV3IncreaseLiquidityAction", pcsIncreaseActionAddr, pcsIncreaseAction.interface),
+    toCatalogTarget("PancakeSwapV3DecreaseLiquidityAction", pcsDecreaseActionAddr, pcsDecreaseAction.interface),
+    toCatalogTarget("PancakeSwapV3CollectAction", pcsCollectActionAddr, pcsCollectAction.interface),
+    toCatalogTarget("PancakeSwapV3SwapToRangeRatioAction", pcsSwapToRangeRatioActionAddr, pcsSwapToRangeRatioAction.interface),
+  ];
+  await curateTargets(asCuratedRegistry(curatedRegistry), catalogTargets, deployer.address);
+
   // 8. Seed test wallet with tokens via impersonation
   //    Use a raw JsonRpcProvider to bypass Hardhat's local account signing
   console.log(`\nSeeding test wallet ${TEST_WALLET}...`);
 
   const { JsonRpcProvider: RawProvider, Contract: RawContract, Interface: RawInterface } = await import("ethers");
-  const rawProvider = new RawProvider("http://127.0.0.1:8545");
+  const rawProvider = new RawProvider(LOCALHOST_RPC_URL);
   const iface = new RawInterface([
     "function transfer(address to, uint256 amount) returns (bool)",
     "function deposit() payable",
@@ -308,6 +345,9 @@ async function main() {
     PancakeSwapV3CollectAction: pcsCollectActionAddr,
     PancakeSwapV3SwapToRangeRatioAction: pcsSwapToRangeRatioActionAddr,
     WickWaitRebalanceCondition: wickWaitConditionAddr,
+    // What this run curated, per kind. The seed reads it from here rather than
+    // from the chain — see packages/backend/prisma/seed/curation.ts.
+    curatedTargets: curationRecord(curatedRegistryAddr, catalogTargets),
     config: {
       depositFeeBps: DEPOSIT_FEE_BPS,
       withdrawFeeBps: WITHDRAW_FEE_BPS,
@@ -324,9 +364,8 @@ async function main() {
   };
 
   // Write JSON
-  const outDir = join(__dirname, "../deployments");
-  mkdirSync(outDir, { recursive: true });
-  const outPath = join(outDir, "fork-latest.json");
+  const outPath = deploymentOutputPath();
+  mkdirSync(dirname(outPath), { recursive: true });
   writeFileSync(outPath, JSON.stringify(addresses, null, 2) + "\n");
 
   // Print summary

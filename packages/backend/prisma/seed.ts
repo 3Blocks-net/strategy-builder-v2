@@ -5,17 +5,39 @@ import { RECIPES } from '../src/recipe/recipe-seed-data';
 import { buildCatalog, validateRecipeShape } from '../src/recipe/recipe-validation';
 import { STEP_TYPE_CATALOG } from './seed/step-types';
 import { PANCAKESWAP_BSC_TOKENS, AAVE_BSC_TOKENS } from './seed/catalog/tokens';
+import {
+  describeCurationWarning,
+  findCurationWarnings,
+  type CurationRecord,
+  type SeededTarget,
+} from './seed/curation';
 
 const prisma = new PrismaClient();
 
-function loadContractAddresses(): Record<string, string> {
-  const deploymentPath = path.resolve(
-    __dirname,
-    '../../../packages/contracts/deployments/fork-latest.json',
-  );
+const DEPLOYMENT_PATH = path.resolve(
+  __dirname,
+  '../../../packages/contracts/deployments/fork-latest.json',
+);
 
-  if (fs.existsSync(deploymentPath)) {
-    const data = JSON.parse(fs.readFileSync(deploymentPath, 'utf-8'));
+/** The last deploy, read once: addresses and curation come from the same file. */
+const deployment = fs.existsSync(DEPLOYMENT_PATH)
+  ? JSON.parse(fs.readFileSync(DEPLOYMENT_PATH, 'utf-8'))
+  : null;
+
+/**
+ * What the deploy curated, per kind. Absent when the deploy predates automatic
+ * curation, or when addresses come from env vars instead of a deployment file —
+ * in both cases nothing is known about the chain's curated lists, which the
+ * warning then says out loud.
+ */
+function loadCurationRecord(): CurationRecord | null {
+  return deployment?.curatedTargets ?? null;
+}
+
+function loadContractAddresses(): Record<string, string> {
+  const data = deployment;
+
+  if (data) {
     return {
       TokenBalanceCondition: data.TokenBalanceCondition,
       IntervalCondition: data.IntervalCondition,
@@ -132,6 +154,7 @@ async function main() {
   let seeded = 0;
   let skipped = 0;
   const keptIds: string[] = [];
+  const seededTargets: SeededTarget[] = [];
   for (const stepType of stepTypes) {
     // Skip steps whose contract isn't deployed yet (address(0)) — seeding them
     // would collide on the (contractAddress, selector) unique key. Deploy the
@@ -159,12 +182,25 @@ async function main() {
       create: stepType,
     });
     keptIds.push(row.id);
+    seededTargets.push({
+      name: stepType.name,
+      category: stepType.category,
+      contractAddress: stepType.contractAddress,
+    });
     seeded++;
   }
 
   console.log(
     `Seeded ${seeded} step types${skipped > 0 ? ` (skipped ${skipped} not-yet-deployed)` : ''}`,
   );
+
+  // A step type that is not on the curated list of its own kind seeds and shows
+  // up in the editor like any other, and then fails at deploy time inside the
+  // vault. Say it here instead — a warning, never a block: an expert-mode vault
+  // deploys against uncurated targets on purpose.
+  for (const warning of findCurationWarnings(seededTargets, loadCurationRecord())) {
+    console.warn(`  ⚠ ${describeCurationWarning(warning)}`);
+  }
 
   // Prune stale rows from previous deploys: a redeploy gives contracts NEW
   // addresses, so the upsert (keyed on contractAddress+selector) inserts fresh
