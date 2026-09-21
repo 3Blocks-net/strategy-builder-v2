@@ -237,6 +237,51 @@ export const en = {
       value: 'Value',
     },
   },
+  expertMode: {
+    heading: 'Expert Mode',
+    reading: 'Reading the current mode from the vault…',
+    standard: {
+      title: 'Standard mode — curated steps only',
+      body: 'This vault only accepts steps whose target address is on the curated list of reviewed actions and conditions. Anything else is rejected when an automation is created.',
+    },
+    expert: {
+      title: 'Expert mode — curation switched off',
+      body: 'This vault accepts any step target, curated or not. You check every address you deploy yourself.',
+    },
+    unknown: {
+      title: 'Mode could not be read',
+      body: 'Pecunity could not read the mode from the vault, so it does not claim one here. Nothing on the vault has changed. You can read it again, or switch the vault back to the curated standard — that direction is never wrong.',
+      detail: 'Details: {{reason}}',
+    },
+    readAgain: 'Read again',
+    enable: 'Turn on Expert Mode',
+    disable: 'Back to standard mode',
+    newDeploysOnly: 'The mode applies to new deploys. Automations that are already live keep running unchanged.',
+    notOwner:
+      'Only this vault’s owner can switch the mode, and your connected wallet is not it. You can see the mode here, but not change it.',
+    noWalletConnected:
+      'Connect a wallet to switch the mode. Only the vault owner can change it.',
+    ownerUnknown:
+      'Pecunity could not establish who owns this vault. Since only the owner can switch the mode, no switch is offered here — a button whose transaction is certain to fail would only cost you a wallet dialog and a gas estimate.',
+    awaitingWallet: 'Waiting for the signature in your wallet…',
+    confirmingOnChain: 'Waiting for the transaction to be confirmed…',
+    rejected: 'You rejected the signature in your wallet. The mode is unchanged.',
+    failed: 'The mode was not changed.',
+    dialog: {
+      heading: 'Switch off curation for this vault?',
+      lead: 'Expert mode removes the protection this vault runs with by default. Two things change:',
+      pointCurated:
+        'The vault stops checking step targets against the curated list. It then accepts any contract address as an action or condition — including one nobody has reviewed.',
+      pointTakeover:
+        'Steps run inside the vault via delegatecall. A single malicious target can therefore overwrite the whole vault storage — the owner slot included — and take over the vault along with every position and token balance in it.',
+      scope: 'The change applies to new deploys. Automations that are already live keep running unchanged, and you can return to the curated standard at any time.',
+      acknowledge:
+        'I understand that this vault will then accept uncurated step targets and that a malicious step can take over the vault and everything in it.',
+      signHint: 'The switch is an on-chain change: your wallet will ask you to sign it.',
+      confirm: 'Turn on Expert Mode',
+      cancel: 'Cancel',
+    },
+  },
   deploymentConfig: {
     loading: {
       heading: 'Getting ready',
@@ -278,6 +323,19 @@ export const en = {
     rejected: 'Transaction rejected by user.',
     success: 'Withdrawal successful!',
     submit: 'Withdraw',
+  },
+  protection: {
+    protected: 'Protected',
+    expert: 'Expert mode',
+    unknown: 'Protection status unknown',
+    checked: 'checked {{age}}',
+    notChecked: 'not checked',
+    protectedHint:
+      'Read from the vault itself: it only accepts steps whose target is on the curated list.',
+    expertHint:
+      'Read from the vault itself: its owner turned the curated check off, so it accepts any step target.',
+    unknownHint:
+      'The protection status could not be read from the vault, so nothing is claimed here. Reload the positions to try again.',
   },
   positions: {
     heading: 'Protocol Positions',
@@ -381,6 +439,62 @@ export const en = {
     depositSubmit: 'Deposit',
     depositing: 'Depositing…',
     depositFailed: 'Deposit failed',
+  },
+  priceShock: {
+    heading: 'Price shock preview',
+    intro:
+      'What this automation does if the market moves before it runs. Every figure is computed from your own vault data — none of it is a forecast.',
+    loading: 'Computing preview…',
+    neverBlocks: 'A missing preview never blocks a deploy — you can always continue.',
+    emptyTitle: 'No price exposure',
+    emptyBody:
+      'No step in this automation depends on a market price, so a price move changes nothing about the way it runs.',
+    unavailableTitle: 'Preview not available',
+    warningTitle: 'Worth a second look',
+    swap: {
+      label: 'Swap with {{tolerance}} tolerance',
+      executes: 'runs',
+      reverts: 'reverts',
+      legend:
+        'This means a move within the reference window of {{window}}: only that fast does the swap revert beyond its tolerance instead of filling at a bad price — the automation stops and nothing is sold. If the market drifts more slowly, the reference price moves with it and the swap fills at the new, worse price.',
+      legendNoWindow:
+        "This means a move within this swap's reference window: only that fast does it revert beyond its tolerance instead of filling at a bad price — the automation stops and nothing is sold. If the market drifts more slowly, the reference price moves with it and the swap fills at the new, worse price.",
+      fallback:
+        "If the pool's oracle does not cover the window, the vault prices against the spot price and halves the tolerance: the swap then already reverts at {{value}}.",
+      share:
+        'This swap takes {{value}} of the liquidity active around the pool price.',
+    },
+    range: {
+      label: 'Range +{{up}} / −{{down}} around the pool price',
+      inRange: 'in range',
+      outOfRange: 'out of range',
+      legend:
+        'Outside its range the position stops earning fees and sits entirely in one of the two tokens.',
+    },
+    health: {
+      label: 'Health Factor {{value}} — the vault as it stands now',
+      liquidation: '{{value}} · liquidation',
+      legend:
+        'These figures are a measurement of your vault’s Aave position right now, before this automation has run — not the Health Factor it will have after the deploy. They show how today’s position reacts to a price move: the Health Factor follows the collateral price while the debt stays where it is, and below 1.00 the position can be liquidated. What this step itself does to the Health Factor when it fires is not included.',
+      target:
+        'When it fires, this step steers the Health Factor towards {{value}}. The figures above are the position before that happens.',
+    },
+    reason: {
+      'no-tolerance':
+        '{{step}}: no tolerance is set yet, so there is nothing to compute against.',
+      'explicit-range':
+        '{{step}}: the range is set as fixed prices, and without the current pool price the preview would be a guess.',
+      'no-lending-data':
+        '{{step}}: your Aave position could not be loaded right now.',
+      'no-lending-position':
+        '{{step}}: the vault carries no Aave debt yet, so there is no Health Factor to move.',
+    },
+    warning: {
+      'high-tolerance':
+        '{{step}}: a tolerance of {{value}} still lets the swap fill far below the reference price.',
+      'thin-pool':
+        '{{step}}: the swap is {{value}} of the liquidity active around the pool price and moves that price itself.',
+    },
   },
   context: {
     heading: 'Context',

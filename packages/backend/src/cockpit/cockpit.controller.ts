@@ -19,7 +19,8 @@ export class CockpitController {
   @UseGuards(VaultOwnerGuard)
   @ApiOperation({
     summary:
-      'Unified, USD-valued vault positions (idle + gas reserve + protocol adapters), net equity',
+      'Unified, USD-valued vault positions (idle + gas reserve + protocol adapters), net equity, ' +
+      'plus the vault\'s freshly read protection status (standard | expert | unknown)',
   })
   @ApiParam({ name: 'address', description: 'Vault address' })
   @ApiQuery({

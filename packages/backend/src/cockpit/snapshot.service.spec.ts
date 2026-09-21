@@ -71,7 +71,13 @@ describe('SnapshotService.tick', () => {
     } as any;
     const provider = { getBlockNumber: jest.fn().mockResolvedValue(123) } as any;
 
-    const svc = new SnapshotService(makeConfig(), prisma, valuation, provider);
+    const svc = new SnapshotService(
+      makeConfig(),
+      prisma,
+      valuation,
+      provider,
+      { getProtection: jest.fn() } as any,
+    );
     svc.onModuleInit();
     await svc.tick();
 
@@ -96,6 +102,7 @@ describe('SnapshotService.tick', () => {
       prisma,
       { valueVault: jest.fn() } as any,
       { getBlockNumber: jest.fn().mockResolvedValue(1) } as any,
+      { getProtection: jest.fn() } as any,
     );
     svc.onModuleInit();
     await svc.tick();
@@ -112,6 +119,7 @@ describe('SnapshotService.tick', () => {
       {} as any,
       {} as any,
       null,
+      { getProtection: jest.fn() } as any,
     );
     expect(() => svc.onModuleInit()).not.toThrow();
     // no timer scheduled, no throw — loop simply never starts
@@ -129,8 +137,21 @@ describe('SnapshotService.getPositionsView', () => {
     }),
   } as any;
 
+  /** A chain that answers the protection question with `answer`. */
+  const protectionThat = (answer: any) =>
+    ({ getProtection: jest.fn().mockResolvedValue(answer) }) as any;
+
+  const standard = () =>
+    protectionThat({ status: 'standard', checkedAt: '2026-01-01T00:00:00.000Z' });
+
   it('recomputes live on refresh (source = live)', async () => {
-    const svc = new SnapshotService(makeConfig(), {} as any, valuation, null);
+    const svc = new SnapshotService(
+      makeConfig(),
+      {} as any,
+      valuation,
+      null,
+      standard(),
+    );
     const view = await svc.getPositionsView('0xA', true);
     expect(view.source).toBe('live');
     expect(valuation.valueVault).toHaveBeenCalledWith('0xA', { refresh: true });
@@ -148,7 +169,13 @@ describe('SnapshotService.getPositionsView', () => {
         }),
       },
     } as any;
-    const svc = new SnapshotService(makeConfig(), prisma, valuation, null);
+    const svc = new SnapshotService(
+      makeConfig(),
+      prisma,
+      valuation,
+      null,
+      standard(),
+    );
     const view = await svc.getPositionsView('0xA', false);
     expect(view.source).toBe('snapshot');
     expect(view.totalValueUsd).toBe(99.5);
@@ -161,8 +188,73 @@ describe('SnapshotService.getPositionsView', () => {
       vault: { findUnique: jest.fn().mockResolvedValue({ id: 'v1' }) },
       vaultValueSnapshot: { findFirst: jest.fn().mockResolvedValue(null) },
     } as any;
-    const svc = new SnapshotService(makeConfig(), prisma, valuation, null);
+    const svc = new SnapshotService(
+      makeConfig(),
+      prisma,
+      valuation,
+      null,
+      standard(),
+    );
     const view = await svc.getPositionsView('0xA', false);
     expect(view.source).toBe('live');
+  });
+
+  it('states the protection status of the vault next to the numbers', async () => {
+    const svc = new SnapshotService(
+      makeConfig(),
+      {} as any,
+      valuation,
+      null,
+      protectionThat({ status: 'expert', checkedAt: '2026-03-03T00:00:00.000Z' }),
+    );
+    const view = await svc.getPositionsView('0xA', true);
+    expect(view.protection).toEqual({
+      status: 'expert',
+      checkedAt: '2026-03-03T00:00:00.000Z',
+    });
+  });
+
+  it('serves a stored snapshot with a freshly read protection status', async () => {
+    const prisma = {
+      vault: { findUnique: jest.fn().mockResolvedValue({ id: 'v1' }) },
+      vaultValueSnapshot: {
+        findFirst: jest.fn().mockResolvedValue({
+          breakdown: [],
+          totalValueUsd: '1',
+          blockNumber: 1,
+          asOf: new Date('2026-02-02T00:00:00.000Z'),
+        }),
+      },
+    } as any;
+    const protection = protectionThat({
+      status: 'standard',
+      checkedAt: '2026-04-04T00:00:00.000Z',
+    });
+    const svc = new SnapshotService(
+      makeConfig(),
+      prisma,
+      valuation,
+      null,
+      protection,
+    );
+
+    const view = await svc.getPositionsView('0xA', false);
+
+    // The numbers are hours old; the protection claim is not.
+    expect(view.source).toBe('snapshot');
+    expect(protection.getProtection).toHaveBeenCalledWith('0xA');
+    expect(view.protection.checkedAt).toBe('2026-04-04T00:00:00.000Z');
+  });
+
+  it('passes an unreadable protection status through as unknown', async () => {
+    const svc = new SnapshotService(
+      makeConfig(),
+      {} as any,
+      valuation,
+      null,
+      protectionThat({ status: 'unknown', checkedAt: null }),
+    );
+    const view = await svc.getPositionsView('0xA', true);
+    expect(view.protection.status).toBe('unknown');
   });
 });

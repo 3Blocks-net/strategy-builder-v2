@@ -7,6 +7,7 @@ import { apiFetch } from '@/lib/api';
 import { StrategyBuilderVaultAbi } from '@/lib/abis';
 import { waitForReceipt } from '@/lib/wait-for-receipt';
 import { useEditorStore } from '../store/editor-store';
+import { PriceShockPanel } from './price-shock-panel';
 import { mapGraphToRaw, buildContextOverrides } from 'shared';
 
 interface ContextChange {
@@ -168,6 +169,13 @@ export function DeployDialog({ automationId, label, isEdit = false, onClose }: D
               )}
             </div>
           </div>
+
+          {/*
+            Informs the decision, never gates it: the panel fetches on its own
+            and every failure inside it stays inside it, so the deploy path
+            below is untouched by whatever the preview can or cannot compute.
+          */}
+          <PriceShockPanel vaultAddress={vaultAddress} />
 
           {encodeResult && encodeResult.contextChanges.length > 0 && (
             <div>

@@ -7,6 +7,10 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../database/prisma.service';
+import {
+  VaultProtection,
+  VaultProtectionService,
+} from '../blockchain/vault-protection.service';
 import { ValuationService } from './valuation.service';
 import { ValuedVault } from './protocol-adapter';
 import { mapWithConcurrency } from './concurrency';
@@ -23,6 +27,13 @@ export interface SnapshotProvider {
 /** The positions read model returned to the controller. */
 export interface PositionsView extends ValuedVault {
   source: 'snapshot' | 'live';
+  /**
+   * Whether this vault still checks step targets against the curated list.
+   * Read live on every view — never from the snapshot, whose numbers may be
+   * hours old and must not be allowed to vouch for a protection that was
+   * switched off since (PRD S10).
+   */
+  protection: VaultProtection;
 }
 
 /**
@@ -67,6 +78,7 @@ export class SnapshotService implements OnModuleInit, OnModuleDestroy {
     private readonly valuation: ValuationService,
     @Inject(SNAPSHOT_PROVIDER)
     private readonly provider: SnapshotProvider | null,
+    private readonly protection: VaultProtectionService,
   ) {}
 
   onModuleInit(): void {
@@ -181,6 +193,20 @@ export class SnapshotService implements OnModuleInit, OnModuleDestroy {
     address: string,
     refresh: boolean,
   ): Promise<PositionsView> {
+    // The valuation and the protection flag are two independent reads; the
+    // flag is asked for on every view, whichever way the numbers arrive.
+    const [valued, protection] = await Promise.all([
+      this.valuedPositions(address, refresh),
+      this.protection.getProtection(address),
+    ]);
+    return { ...valued, protection };
+  }
+
+  /** The numbers behind the view: the latest snapshot, or a live valuation. */
+  private async valuedPositions(
+    address: string,
+    refresh: boolean,
+  ): Promise<Omit<PositionsView, 'protection'>> {
     if (refresh) {
       const v = await this.valuation.valueVault(address, { refresh: true });
       return { ...v, source: 'live' };

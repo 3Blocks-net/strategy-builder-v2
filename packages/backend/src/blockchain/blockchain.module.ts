@@ -6,11 +6,22 @@ import { VaultGasDepositController } from './vault-gas-deposit.controller';
 import { FeeService } from './fee.service';
 import { ContractErrorService } from './contract-error.service';
 import { VaultCodeService } from './vault-code.service';
+import { VaultProtectionService } from './vault-protection.service';
 
 @Module({
   imports: [VaultModule, DeploymentModule],
   controllers: [BlockchainController, VaultGasDepositController],
-  providers: [FeeService, ContractErrorService, VaultCodeService],
-  exports: [FeeService, ContractErrorService, VaultCodeService],
+  providers: [
+    FeeService,
+    ContractErrorService,
+    VaultCodeService,
+    VaultProtectionService,
+  ],
+  exports: [
+    FeeService,
+    ContractErrorService,
+    VaultCodeService,
+    VaultProtectionService,
+  ],
 })
 export class BlockchainModule {}

@@ -1,39 +1,12 @@
-import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { Button } from '@/components/ui/button';
 import { useFormatters, type Formatters } from '@/i18n';
-import { apiFetch } from '@/lib/api';
-
-interface PositionLeg {
-  token: string;
-  symbol: string;
-  decimals: number;
-  amount: string;
-  amountUsd: number | null;
-  isDebt?: boolean;
-}
-
-interface ValuedPosition {
-  protocol: string;
-  kind: string;
-  label: string;
-  legs: PositionLeg[];
-  valueUsd: number | null;
-  debtUsd?: number;
-  earningsUsd?: number | null;
-  metrics?: Record<string, unknown>;
-  error?: string;
-}
-
-interface ValuedVault {
-  vaultAddress: string;
-  positions: ValuedPosition[];
-  totalValueUsd: number;
-  asOfBlock: number | null;
-  asOf: string;
-  source?: 'snapshot' | 'live';
-}
+import { ProtectionBadge } from '@/components/protection-badge';
+import {
+  useVaultPositions,
+  type ValuedPosition,
+} from '@/hooks/use-vault-positions';
 
 /**
  * Protocol names are proper names and stay as they are; only the two
@@ -156,38 +129,11 @@ function lpRangeLine(
   });
 }
 
-export function CockpitPositionsPanel({ address }: { address: string }) {
+export function CockpitPositionsPanel() {
   const { t } = useTranslation();
   const fmt = useFormatters();
-  const [data, setData] = useState<ValuedVault | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [failed, setFailed] = useState(false);
-
-  const load = useCallback(
-    async (refresh = false) => {
-      if (refresh) setRefreshing(true);
-      else setLoading(true);
-      setFailed(false);
-      try {
-        const res = await apiFetch(
-          `/vaults/${address}/positions${refresh ? '?refresh=1' : ''}`,
-        );
-        if (!res.ok) throw new Error('failed');
-        setData(await res.json());
-      } catch {
-        setFailed(true);
-      } finally {
-        setLoading(false);
-        setRefreshing(false);
-      }
-    },
-    [address],
-  );
-
-  useEffect(() => {
-    load();
-  }, [load]);
+  const { data, loading, refreshing, failed, protection, reload } =
+    useVaultPositions();
 
   // Group positions by protocol, preserving a stable display order.
   const order = ['idle', 'gas-reserve', 'aave-v3', 'pancakeswap-v3'];
@@ -212,9 +158,18 @@ export function CockpitPositionsPanel({ address }: { address: string }) {
     <div className="rounded-lg border border-border p-4">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <div>
-          <h2 className="text-base font-semibold tracking-tight">
-            {t('positions.heading')}
-          </h2>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <h2 className="text-base font-semibold tracking-tight">
+              {t('positions.heading')}
+            </h2>
+            {/* The protection status belongs next to the money it protects.
+                While the first request is still running nothing is stated at
+                all; afterwards the badge speaks. The source hands out no
+                status at all once an attempt has failed, so a stale flag next
+                to a failure notice reads as "unknown" rather than as a
+                confident claim. */}
+            {!loading && <ProtectionBadge protection={protection} />}
+          </div>
           {data && (
             <p className="text-2xl font-bold">{formatUsd(fmt, data.totalValueUsd)}</p>
           )}
@@ -230,7 +185,7 @@ export function CockpitPositionsPanel({ address }: { address: string }) {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => load(true)}
+            onClick={() => reload(true)}
             disabled={refreshing || loading}
           >
             {refreshing ? t('common.refreshing') : t('common.refresh')}

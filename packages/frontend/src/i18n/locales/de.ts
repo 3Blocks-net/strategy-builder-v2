@@ -247,6 +247,51 @@ export const de: PartialTranslation<Translation> = {
       value: 'Wert',
     },
   },
+  expertMode: {
+    heading: 'Experten-Modus',
+    reading: 'Der aktuelle Modus wird vom Vault gelesen…',
+    standard: {
+      title: 'Standard-Modus — nur kuratierte Steps',
+      body: 'Dieser Vault akzeptiert nur Steps, deren Target-Adresse auf der kuratierten Liste geprüfter Actions und Conditions steht. Alles andere lehnt er beim Anlegen einer Automation ab.',
+    },
+    expert: {
+      title: 'Experten-Modus — Kuratierung abgeschaltet',
+      body: 'Dieser Vault akzeptiert jedes Step-Target, kuratiert oder nicht. Du prüfst jede Adresse, die du deployst, selbst.',
+    },
+    unknown: {
+      title: 'Modus konnte nicht gelesen werden',
+      body: 'Pecunity konnte den Modus nicht vom Vault lesen und behauptet hier deshalb keinen. Am Vault hat sich nichts geändert. Du kannst erneut lesen oder den Vault zurück auf den kuratierten Standard setzen — diese Richtung ist nie falsch.',
+      detail: 'Details: {{reason}}',
+    },
+    readAgain: 'Erneut lesen',
+    enable: 'Experten-Modus einschalten',
+    disable: 'Zurück zum Standard-Modus',
+    newDeploysOnly: 'Der Modus gilt für neue Deploys. Bereits laufende Automationen laufen unverändert weiter.',
+    notOwner:
+      'Nur der Owner dieses Vaults kann den Modus umschalten — deine verbundene Wallet ist es nicht. Du siehst den Modus hier, ändern kannst du ihn nicht.',
+    noWalletConnected:
+      'Verbinde eine Wallet, um den Modus zu wechseln. Ändern kann ihn nur der Owner des Vaults.',
+    ownerUnknown:
+      'Pecunity konnte nicht feststellen, wem dieser Vault gehört. Da nur der Owner den Modus umschalten darf, wird hier kein Schalter angeboten — ein Knopf, dessen Transaktion sicher fehlschlägt, kostet dich nur einen Wallet-Dialog und eine Gas-Schätzung.',
+    awaitingWallet: 'Warten auf die Signatur in deiner Wallet…',
+    confirmingOnChain: 'Warten auf die Bestätigung der Transaktion…',
+    rejected: 'Du hast die Signatur in deiner Wallet abgelehnt. Der Modus ist unverändert.',
+    failed: 'Der Modus wurde nicht geändert.',
+    dialog: {
+      heading: 'Die Kuratierung für diesen Vault abschalten?',
+      lead: 'Der Experten-Modus entfernt den Schutz, mit dem dieser Vault standardmäßig läuft. Zwei Dinge ändern sich:',
+      pointCurated:
+        'Der Vault prüft Step-Targets nicht mehr gegen die kuratierte Liste. Er akzeptiert danach jede beliebige Contract-Adresse als Action oder Condition — auch eine, die niemand geprüft hat.',
+      pointTakeover:
+        'Steps laufen per delegatecall im Vault. Ein einziges bösartiges Target kann deshalb den gesamten Vault-Speicher überschreiben — einschließlich des Owner-Slots — und den Vault mitsamt allen Positionen und Token-Balances übernehmen.',
+      scope: 'Die Änderung gilt für neue Deploys. Bereits laufende Automationen laufen unverändert weiter, und du kannst jederzeit zum kuratierten Standard zurück.',
+      acknowledge:
+        'Mir ist klar, dass dieser Vault danach unkuratierte Step-Targets akzeptiert und dass ein bösartiger Step den Vault mit allem darin übernehmen kann.',
+      signHint: 'Die Umschaltung ist eine On-Chain-Änderung: Deine Wallet fragt dich nach der Signatur.',
+      confirm: 'Experten-Modus einschalten',
+      cancel: 'Abbrechen',
+    },
+  },
   deploymentConfig: {
     loading: {
       heading: 'Wird vorbereitet',
@@ -288,6 +333,19 @@ export const de: PartialTranslation<Translation> = {
     rejected: 'Transaktion in der Wallet abgelehnt.',
     success: 'Withdraw erfolgreich!',
     submit: 'Withdraw',
+  },
+  protection: {
+    protected: 'Geschützt',
+    expert: 'Experten-Modus',
+    unknown: 'Schutz-Status unbekannt',
+    checked: 'geprüft {{age}}',
+    notChecked: 'nicht geprüft',
+    protectedHint:
+      'Direkt vom Vault gelesen: Er akzeptiert nur Steps, deren Target auf der kuratierten Liste steht.',
+    expertHint:
+      'Direkt vom Vault gelesen: Sein Owner hat die kuratierte Prüfung abgeschaltet, er akzeptiert also jedes Step-Target.',
+    unknownHint:
+      'Der Schutz-Status konnte nicht vom Vault gelesen werden — deshalb wird hier nichts behauptet. Lade die Positionen neu, um es erneut zu versuchen.',
   },
   positions: {
     heading: 'Positionen nach Protokoll',
@@ -394,6 +452,63 @@ export const de: PartialTranslation<Translation> = {
     depositSubmit: 'Einzahlen',
     depositing: 'Wird eingezahlt…',
     depositFailed: 'Einzahlung fehlgeschlagen',
+  },
+  priceShock: {
+    heading: 'Preis-Schock-Preview',
+    intro:
+      'Was diese Automation tut, wenn sich der Markt bewegt, bevor sie läuft. Jede Zahl ist aus deinen eigenen Vault-Daten gerechnet — nichts davon ist eine Prognose.',
+    loading: 'Preview wird berechnet…',
+    neverBlocks:
+      'Eine fehlende Preview blockiert den Deploy nie — du kannst immer fortfahren.',
+    emptyTitle: 'Keine Preis-Exposure',
+    emptyBody:
+      'Kein Step dieser Automation hängt an einem Marktpreis. Eine Preisbewegung ändert also nichts daran, wie sie läuft.',
+    unavailableTitle: 'Preview nicht verfügbar',
+    warningTitle: 'Zweiter Blick lohnt sich',
+    swap: {
+      label: 'Swap mit {{tolerance}} Slippage-Toleranz',
+      executes: 'läuft',
+      reverts: 'revertet',
+      legend:
+        'Gemeint ist eine Bewegung innerhalb des Referenz-Fensters von {{window}}: nur so schnell revertet der Swap jenseits seiner Toleranz, statt zu einem schlechten Preis auszuführen — die Automation stoppt, verkauft wird nichts. Zieht der Markt langsamer, wandert der Referenzpreis mit, und der Swap führt zum neuen, schlechteren Preis aus.',
+      legendNoWindow:
+        'Gemeint ist eine Bewegung innerhalb des Referenz-Fensters dieses Swaps: nur so schnell revertet er jenseits seiner Toleranz, statt zu einem schlechten Preis auszuführen — die Automation stoppt, verkauft wird nichts. Zieht der Markt langsamer, wandert der Referenzpreis mit, und der Swap führt zum neuen, schlechteren Preis aus.',
+      fallback:
+        'Deckt das Oracle des Pools das Fenster nicht ab, rechnet der Vault mit dem Spot-Preis und halbiert die Toleranz: dann revertet der Swap schon ab {{value}}.',
+      share:
+        'Dieser Swap nimmt {{value}} der Liquidity, die rund um den Pool-Preis aktiv ist.',
+    },
+    range: {
+      label: 'Range +{{up}} / −{{down}} um den Pool-Preis',
+      inRange: 'in Range',
+      outOfRange: 'out of Range',
+      legend:
+        'Außerhalb ihrer Range verdient die Position keine Fees mehr und liegt vollständig in einem der beiden Token.',
+    },
+    health: {
+      label: 'Health Factor {{value}} — Vault, so wie er jetzt steht',
+      liquidation: '{{value}} · Liquidation',
+      legend:
+        'Diese Zahlen sind eine Messung der Aave-Position deines Vaults im Moment, bevor diese Automation gelaufen ist — nicht der Health Factor nach dem Deploy. Sie zeigen, wie die heutige Position auf eine Preisbewegung reagiert: Der Health Factor folgt dem Collateral-Preis, während die Debt bleibt, wo sie ist; unter 1,00 kann die Position liquidiert werden. Was dieser Step selbst mit dem Health Factor macht, wenn er auslöst, steckt hier nicht drin.',
+      target:
+        'Wenn er auslöst, steuert dieser Step den Health Factor auf {{value}}. Die Zahlen oben zeigen die Position davor.',
+    },
+    reason: {
+      'no-tolerance':
+        '{{step}}: Es ist noch keine Toleranz gesetzt, also gibt es nichts, wogegen gerechnet werden könnte.',
+      'explicit-range':
+        '{{step}}: Die Range steht als feste Preise fest. Ohne den aktuellen Pool-Preis wäre die Preview geraten.',
+      'no-lending-data':
+        '{{step}}: Deine Aave-Position ließ sich gerade nicht laden.',
+      'no-lending-position':
+        '{{step}}: Der Vault trägt noch keine Aave-Debt, es gibt also keinen Health Factor, der sich bewegen könnte.',
+    },
+    warning: {
+      'high-tolerance':
+        '{{step}}: Eine Toleranz von {{value}} lässt den Swap immer noch weit unter dem Referenzpreis ausführen.',
+      'thin-pool':
+        '{{step}}: Der Swap ist {{value}} der rund um den Pool-Preis aktiven Liquidity und bewegt diesen Preis selbst.',
+    },
   },
   context: {
     heading: 'Context',

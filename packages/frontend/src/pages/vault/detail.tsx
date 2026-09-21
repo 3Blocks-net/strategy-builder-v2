@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams, useNavigate, Link } from 'react-router';
-import { type Address } from 'viem';
+import type { Address } from 'viem';
 import { ArrowLeft, Check, Copy } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { AppShell } from '@/components/app-shell';
@@ -11,11 +11,13 @@ import { ExecutionHistoryTable } from '@/components/execution-history-table';
 import { ContextView } from '@/components/context-view';
 import { GasDepositCard } from '@/components/gas-deposit-card';
 import { CockpitPositionsPanel } from '@/components/cockpit-positions-panel';
+import { ExpertModeCard } from '@/components/expert-mode-card';
 import { ValueHistoryChart } from '@/components/value-history-chart';
 import { PerformanceCard } from '@/components/performance-card';
 import { useFormatters, type Formatters } from '@/i18n';
 import { apiFetch } from '@/lib/api';
 import { AutomationList } from '@/features/automation-editor/components/automation-list';
+import { VaultPositionsProvider } from '@/hooks/use-vault-positions';
 
 interface Position {
   address: string;
@@ -253,89 +255,93 @@ export function VaultDetailPage() {
         </div>
       }
     >
-      <div className="space-y-10">
-        {failed && (
-          <div className="py-8 text-center">
-            <p className="text-sm text-destructive">
-              {t('vaultDetail.loadFailed')}
-            </p>
-            <Button
-              variant="outline"
-              size="sm"
-              className="mt-3"
-              onClick={fetchPortfolio}
-            >
-              {t('common.retry')}
-            </Button>
-          </div>
-        )}
+      {/* One cockpit read for the whole page. The protection badge next to
+          the positions and the expert-mode card further down make the same
+          statement about the same flag; reading it twice is how a page ends
+          up contradicting itself, so both take it from this one source. */}
+      {address && (
+        <VaultPositionsProvider address={address}>
+          <div className="space-y-10">
+            {failed && (
+              <div className="py-8 text-center">
+                <p className="text-sm text-destructive">
+                  {t('vaultDetail.loadFailed')}
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-3"
+                  onClick={fetchPortfolio}
+                >
+                  {t('common.retry')}
+                </Button>
+              </div>
+            )}
 
-        {address && (
-          <ValueHistoryChart
-            address={address}
-            range={cockpitRange}
-            onRangeChange={setCockpitRange}
-          />
-        )}
+            <ValueHistoryChart
+              address={address}
+              range={cockpitRange}
+              onRangeChange={setCockpitRange}
+            />
 
-        {address && (
-          <PerformanceCard
-            address={address}
-            range={cockpitRange}
-            onRangeChange={setCockpitRange}
-          />
-        )}
+            <PerformanceCard
+              address={address}
+              range={cockpitRange}
+              onRangeChange={setCockpitRange}
+            />
 
-        <section>
-          <h2 className="border-b border-border pb-3 text-base font-semibold tracking-tight">
-            {t('vaultDetail.balancesHeading')}
-          </h2>
-          {loading && (
-            <div>
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="border-b border-border py-4 last:border-0">
-                  <div className="h-5 w-full animate-pulse rounded bg-muted" />
+            <section>
+              <h2 className="border-b border-border pb-3 text-base font-semibold tracking-tight">
+                {t('vaultDetail.balancesHeading')}
+              </h2>
+              {loading && (
+                <div>
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="border-b border-border py-4 last:border-0">
+                      <div className="h-5 w-full animate-pulse rounded bg-muted" />
+                    </div>
+                  ))}
                 </div>
-              ))}
+              )}
+              {!loading && !failed && sortedPositions.length === 0 && (
+                <p className="py-8 text-center text-sm text-muted-foreground">
+                  {t('vaultDetail.balancesEmpty')}
+                </p>
+              )}
+              {!loading && !failed && sortedPositions.length > 0 && (
+                <PositionsTable positions={sortedPositions} fmt={fmt} />
+              )}
+            </section>
+
+            <CockpitPositionsPanel />
+
+            <div className="grid gap-6 md:grid-cols-2">
+              <DepositForm
+                vaultAddress={address as Address}
+                fees={fees}
+                onSuccess={fetchPortfolio}
+              />
+              <WithdrawForm
+                vaultAddress={address as Address}
+                positions={sortedPositions}
+                fees={fees}
+                errorMap={errorMap}
+                onSuccess={fetchPortfolio}
+              />
             </div>
-          )}
-          {!loading && !failed && sortedPositions.length === 0 && (
-            <p className="py-8 text-center text-sm text-muted-foreground">
-              {t('vaultDetail.balancesEmpty')}
-            </p>
-          )}
-          {!loading && !failed && sortedPositions.length > 0 && (
-            <PositionsTable positions={sortedPositions} fmt={fmt} />
-          )}
-        </section>
 
-        {address && <CockpitPositionsPanel address={address} />}
+            <ExpertModeCard vaultAddress={address} />
 
-        {address && (
-          <div className="grid gap-6 md:grid-cols-2">
-            <DepositForm
-              vaultAddress={address as Address}
-              fees={fees}
-              onSuccess={fetchPortfolio}
-            />
-            <WithdrawForm
-              vaultAddress={address as Address}
-              positions={sortedPositions}
-              fees={fees}
-              errorMap={errorMap}
-              onSuccess={fetchPortfolio}
-            />
+            <AutomationList vaultAddress={address} />
+
+            <GasDepositCard vaultAddress={address} />
+
+            <ExecutionHistoryTable vaultAddress={address} />
+
+            <ContextView vaultAddress={address} />
           </div>
-        )}
-
-        {address && <AutomationList vaultAddress={address} />}
-
-        {address && <GasDepositCard vaultAddress={address} />}
-
-        {address && <ExecutionHistoryTable vaultAddress={address} />}
-
-        {address && <ContextView vaultAddress={address} />}
-      </div>
+        </VaultPositionsProvider>
+      )}
     </AppShell>
   );
 }
